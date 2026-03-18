@@ -1,0 +1,123 @@
+{
+  "case_id": "tc-001",
+  "case_name": "AI Model Collapse — full pipeline",
+  "status": "pass",
+  "output": "{\n  \"status\": \"completed\",\n  \"perspective\": {\n    \"briefSummary\": \"This project investigates the technical validity of the 'model collapse' phenomenon, specifically examining how recursive training on synthetic data degrades the performance of generative models. The research will synthesize current machine learning literature to determine if collapse is an inherent mathematical certainty or a manageable engineering challenge. By analyzing the interplay between real and synthetic data distributions, the system will identify specific thresholds and mitigation strategies—such as data mixing and architectural adjustments—that prevent the loss of tail-end distribution data and the eventual convergence toward a low-variance mean.\",\n    \"interpretedIntent\": \"To determine the technical boundary conditions and mitigation efficacy for model collapse in recursive training loops, distinguishing between theoretical inevitability and empirical manageability.\",\n    \"inferredResearchFrame\": \"Model collapse is a function of 'distributional drift' where the loss of statistical information from the original data distribution is cumulative, but can be arrested by maintaining a specific ratio of high-quality 'anchor' (real) data.\",\n    \"evidenceForCriteria\": [\n      \"Empirical studies showing a decrease in output diversity or 'tail' representation over successive generations.\",\n      \"Mathematical proofs demonstrating information loss in closed-loop training systems.\",\n      \"Experiments where synthetic data dominance leads to the collapse of secondary modes in multimodal distributions.\",\n      \"Evidence of 'statistical washing' where rare but important data points are filtered out by the model's own sampling bias.\"\n    ],\n    \"evidenceAgainstCriteria\": [\n      \"Studies showing that high-quality synthetic data (e.g., from larger teacher models) can actually improve performance in smaller student models.\",\n      \"Results demonstrating that specific data-cleaning or filtering techniques prevent recursive degradation.\",\n      \"Evidence that model collapse is delayed indefinitely when real-world data is mixed at specific percentages.\",\n      \"Research showing that architectural innovations (like specific regularization or loss functions) stabilize the training loop.\"\n    ],\n    \"subquestions\": [\n      \"What are the specific mathematical mechanisms (e.g., approximation error, functional error) that drive the collapse process?\",\n      \"What is the critical threshold or ratio of real-to-synthetic data required to maintain distributional stability?\",\n      \"How do different sampling strategies (e.g., temperature scaling, top-p) influence the speed of model collapse?\",\n      \"To what extent does the 'quality' of the generator model (teacher) mitigate the degradation of the successor model (student)?\",\n      \"Which empirical benchmarks currently provide the most reliable detection of early-stage model collapse?\"\n    ]\n  },\n  \"artifacts\": {\n    \"overview\": \"# Project Overview: Model Collapse From Recursive Synthetic Data Training\\n\\n### 1. Research Question\\nUnder what conditions does recursive training on synthetic data lead to model collapse in generative models?\\n\\n### 2. Research Objective\\nTo determine the technical boundary conditions and mitigation efficacy for model collapse in recursive training loops, distinguishing between theoretical inevitability and empirical manageability. The synthesis aims to clarify whether collapse is a mathematical certainty or a challenge that can be mitigated through specific data-mixing strategies and architectural adjustments.\\n\\n### 3. Research Frame and Working Hypothesis\\n**Inferred Research Frame:** Model collapse is framed as a function of \\\"distributional drift,\\\" where the cumulative loss of statistical information—specifically regarding tail-end distribution data—leads to a convergence toward a low-variance mean. \\n\\n**Working Hypothesis:** Model collapse is a significant risk when synthetic data dominates the training distribution; however, the effect can be arrested or indefinitely delayed by maintaining a consistent ratio of high-quality \\\"anchor\\\" (real) data.\\n\\n### 4. Scope Boundaries\\n*   **Inclusion:** Machine learning literature focusing on recursive training, synthetic data reuse, and distribution degradation (e.g., Gaussian/Bernoulli models, LLMs, VAEs, and diffusion models).\\n*   **Exclusion:** Product-level commentary, non-technical blog posts, and general AI ethics discussions unrelated to the technical mechanism of recursive training.\\n*   **Time Horizon:** 2023–2025.\\n\\n### 5. Source Inventory\\n\\n| Source Name | Provenance |\\n| :--- | :--- |\\n| The Curse of Recursion: Training on Generated Data Makes Models Forget | Discovered |\\n| [2412.17646] Rate of Model Collapse in Recursive Training - arXiv | Discovered |\\n| Computer Science > Machine Learning (General Repository) | Discovered |\\n| Recursive Collapse: Theory and Mitigation | Discovered |\\n| Is Model Collapse Inevitable\n...[truncated]",
+  "trajectory": [
+    {
+      "step": 1,
+      "type": "node_transition",
+      "durationMs": 11846,
+      "node": "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 2,
+      "type": "llm_call",
+      "durationMs": 11846,
+      "model": "google/gemini-3-flash-preview",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 3,
+      "type": "node_transition",
+      "durationMs": 154177,
+      "node": "build_source_set → analyze_evidence → consolidate → synthesize → persist",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    }
+  ],
+  "grades": {
+    "deterministic": [
+      {
+        "check": "artifacts_exist",
+        "passed": true,
+        "reason": "All 5 artifacts present"
+      },
+      {
+        "check": "synthesis_min_length",
+        "passed": true,
+        "reason": "synthesis.md: 5791 chars (min: 2000)"
+      },
+      {
+        "check": "claims_min_length",
+        "passed": true,
+        "reason": "claims.md: 4407 chars (min: 1000)"
+      },
+      {
+        "check": "has_citations",
+        "passed": true,
+        "reason": "synthesis: 11 citation occurrences found (need ≥3)"
+      },
+      {
+        "check": "no_fatal_errors",
+        "passed": true,
+        "reason": "Status: completed, 6 non-fatal errors"
+      }
+    ],
+    "llm_judge": [],
+    "trajectory": {
+      "total_steps": 3,
+      "llm_calls": 1,
+      "tool_calls": 0,
+      "node_transitions": 2,
+      "efficiency_score": 1,
+      "node_sequence": [
+        "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+        "build_source_set → analyze_evidence → consolidate → synthesize → persist"
+      ],
+      "loops": [],
+      "loop_detected": false,
+      "redundant_steps": 0,
+      "tool_distribution": {}
+    }
+  },
+  "metrics": {
+    "total_duration_ms": 166032,
+    "phase1_duration_ms": 11846,
+    "phase2_duration_ms": 154177,
+    "parsed_sources": 18,
+    "discovered_sources": 15,
+    "uploaded_sources": 4,
+    "pipeline_status": "completed",
+    "has_artifacts": true,
+    "error_count": 6,
+    "costs": {
+      "byModel": {
+        "google/gemini-3-flash-preview-20251217": {
+          "calls": 4,
+          "inputTokens": 216905,
+          "outputTokens": 5833,
+          "inputCostUsd": 0.10845250000000001,
+          "outputCostUsd": 0.017499,
+          "totalCostUsd": 0.1259515
+        },
+        "google/gemini-2.5-flash-lite": {
+          "calls": 84,
+          "inputTokens": 1474467,
+          "outputTokens": 202526,
+          "inputCostUsd": 0.14744669999999999,
+          "outputCostUsd": 0.0810104,
+          "totalCostUsd": 0.22845709999999994
+        },
+        "google/gemini-3.1-flash-lite-preview-20260303": {
+          "calls": 4,
+          "inputTokens": 13153,
+          "outputTokens": 2984,
+          "inputCostUsd": 0.006576500000000001,
+          "outputCostUsd": 0.008952,
+          "totalCostUsd": 0.0155285
+        }
+      },
+      "totalCostUsd": 0.36993709999999996,
+      "totalInputTokens": 1704525,
+      "totalOutputTokens": 211343,
+      "totalCalls": 92
+    }
+  }
+}

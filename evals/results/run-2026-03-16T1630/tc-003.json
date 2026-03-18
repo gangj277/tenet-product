@@ -1,0 +1,92 @@
+{
+  "case_id": "tc-003",
+  "case_name": "GLP-1 Obesity — full pipeline",
+  "status": "fail",
+  "output": "{\n  \"status\": \"failed\",\n  \"perspective\": {\n    \"briefSummary\": \"This project evaluates the clinical utility of GLP-1 and dual-agonist therapies (semaglutide and tirzepatide) specifically for non-diabetic adult obesity management. The synthesis will test the hypothesis that while these drugs offer unprecedented weight loss and cardiometabolic protection, their real-world clinical value is moderated by gastrointestinal tolerability and the durability of outcomes. The system will prioritize high-level evidence from 2022–2025 to differentiate the potency of single vs. dual-incretin pathways and identify specific safety signals that may complicate long-term adherence.\",\n    \"interpretedIntent\": \"To determine if the superior weight-loss efficacy of newer GLP-1/GIP agonists (tirzepatide) over traditional GLP-1s (semaglutide) is offset by higher rates of adverse events or diminishing returns in cardiometabolic health for non-diabetic populations.\",\n    \"inferredResearchFrame\": \"A comparative clinical efficacy and safety lens, testing whether the 'step-change' in weight loss provided by modern incretin mimetics maintains a favorable benefit-risk profile when diabetes-related glucose management is not the primary clinical goal.\",\n    \"evidenceForCriteria\": [\n      \"Meta-analyses showing ≥15% total body weight loss (TBWL) in non-diabetic cohorts.\",\n      \"Statistically significant improvements in blood pressure, lipid profiles, or inflammatory markers (e.g., CRP) independent of glucose lowering.\",\n      \"Data indicating sustained weight loss maintenance beyond the 68-week mark.\",\n      \"Head-to-head trials or network meta-analyses showing tirzepatide superiority over semaglutide in weight reduction.\"\n    ],\n    \"evidenceAgainstCriteria\": [\n      \"High discontinuation rates (>10-15%) specifically due to gastrointestinal adverse events (AEs).\",\n      \"Evidence of significant lean mass loss or 'sarcopenic obesity' risks that undermine metabolic health.\",\n      \"Studies showing weight plateauing or rapid regain immediately following cessation of therapy.\",\n      \"Reports of rare but serious safety signals such as pancreatitis, gastroparesis, or suicidal ideation.\"\n    ],\n    \"subquestions\": [\n      \"What is the comparative magnitude of weight loss between semaglutide 2.4mg and tirzepatide (5/10/15mg) in non-diabetic populations?\",\n      \"To what extent do these therapies reduce major adverse cardiovascular events (MACE) in patients with obesity but without baseline diabetes?\",\n      \"What are the most frequent reasons for treatment discontinuation in clinical trials versus real-world observational data?\",\n      \"How does the safety profile of dual-agonist (GLP-1/GIP) therapy differ from pure GLP-1 receptor agonists?\",\n      \"What does the literature suggest regarding the 'floor' of efficacy—are there specific non-responder phenotypes identified?\"\n    ]\n  },\n  \"errors\": [\n    {\n      \"step\": \"build_source_set\",\n      \"message\": \"PDF parse failed: LlamaParse upload failed: 402 {\\\"detail\\\":\\\"You've exceeded the maximum number of credits for your plan.\\\"}\",\n      \"retryable\": false,\n      \"timestamp\": \"2026-03-16T16:30:10.588Z\"\n    },\n    {\n      \"step\": \"build_source_set\",\n      \"message\": \"PDF parse failed: LlamaParse upload failed: 402 {\\\"detail\\\":\\\"You've exceeded the maximum number of credits for your plan.\\\"}\",\n      \"retryable\": false,\n      \"timestamp\": \"2026-03-16T16:30:10.588Z\"\n    },\n    {\n      \"step\": \"build_source_set\",\n      \"message\": \"LlamaParse upload failed: 402 {\\\"detail\\\":\\\"You've exceeded the maximum number of credits for your plan.\\\"}\",\n      \"retryable\": false,\n      \"timestamp\": \"2026-03-16T16:30:10.588Z\"\n    },\n    {\n      \"step\": \"build_source_set\",\n      \"message\": \"LlamaParse upload failed: 402 {\\\"detail\\\":\\\"You've exceeded the maximum number of credits for your plan.\\\"}\",\n      \"retryable\": false,\n      \"timestamp\": \"2026-03-16T16:30:10.588Z\"\n    },\n    {\n      \"step\": \"build_source_set\",\n      \"message\": \"LlamaParse upload failed: 402 {\\\"detail\\\":\\\"You've exceeded the maximum number of credits for your plan.\\\"}\",\n      \"retryable\": false,\n      \"timestamp\": \"2026-03-16T16:30:10.588Z\"\n    },\n    {\n      \"step\": \"build_source_set\",\n      \"message\": \"LlamaParse upload failed: 402 {\\\"detail\\\":\\\"You've exceeded the maximum number of credits for your plan.\\\"}\",\n      \"retryable\": false,\n      \"timestamp\": \"2026-03-16T16:30:10.588Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Only 1/4 analyst personas succeeded. Need at least 2.\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T16:30:37.792Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Persona failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T16:30:37.792Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Persona failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \n...[truncated]",
+  "trajectory": [
+    {
+      "step": 1,
+      "type": "node_transition",
+      "durationMs": 7111,
+      "node": "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 2,
+      "type": "llm_call",
+      "durationMs": 7111,
+      "model": "google/gemini-3-flash-preview",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 3,
+      "type": "node_transition",
+      "durationMs": 32845,
+      "node": "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    }
+  ],
+  "grades": {
+    "deterministic": [
+      {
+        "check": "artifacts_exist",
+        "passed": false,
+        "reason": "No artifacts object in output"
+      },
+      {
+        "check": "synthesis_min_length",
+        "passed": false,
+        "reason": "synthesis.md: 0 chars (min: 2000)"
+      },
+      {
+        "check": "claims_min_length",
+        "passed": false,
+        "reason": "claims.md: 0 chars (min: 1000)"
+      },
+      {
+        "check": "has_citations",
+        "passed": false,
+        "reason": "synthesis: 0 citation occurrences found (need ≥3)"
+      },
+      {
+        "check": "no_fatal_errors",
+        "passed": false,
+        "reason": "Run failed: PDF parse failed: LlamaParse upload failed: 402 {\"detail\":\"You've exceeded the maximum number of credits for your plan.\"}"
+      }
+    ],
+    "llm_judge": [],
+    "trajectory": {
+      "total_steps": 3,
+      "llm_calls": 1,
+      "tool_calls": 0,
+      "node_transitions": 2,
+      "efficiency_score": 1,
+      "node_sequence": [
+        "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+        "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist"
+      ],
+      "loops": [],
+      "loop_detected": false,
+      "redundant_steps": 0,
+      "tool_distribution": {}
+    }
+  },
+  "metrics": {
+    "total_duration_ms": 39962,
+    "phase1_duration_ms": 7111,
+    "phase2_duration_ms": 32845,
+    "parsed_sources": 11,
+    "discovered_sources": 13,
+    "uploaded_sources": 4,
+    "pipeline_status": "failed",
+    "has_artifacts": false,
+    "error_count": 14,
+    "quality_passed": false
+  }
+}

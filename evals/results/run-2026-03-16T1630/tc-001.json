@@ -1,0 +1,92 @@
+{
+  "case_id": "tc-001",
+  "case_name": "AI Model Collapse — full pipeline",
+  "status": "pass",
+  "output": "{\n  \"status\": \"completed\",\n  \"perspective\": {\n    \"briefSummary\": \"This project investigates the technical validity and inevitability of 'model collapse'—the degradation of generative model performance when trained on recursively generated synthetic data. The research will synthesize current ML literature to determine if collapse is an inherent mathematical certainty or a manageable engineering challenge. By examining the interplay between synthetic data density and real-world data injection, the system will evaluate whether specific architectural or data-curation strategies can indefinitely sustain model quality in a world where synthetic content is becoming ubiquitous.\",\n    \"interpretedIntent\": \"To determine the technical boundary conditions under which recursive training loops fail and to identify validated architectural or data-mixture strategies that prevent distribution collapse.\",\n    \"inferredResearchFrame\": \"Model collapse is not an absolute law but a function of data-mixture ratios and error accumulation; the research seeks to identify the 'tipping point' where synthetic data overwhelms the underlying distribution.\",\n    \"evidenceForCriteria\": [\n      \"Empirical studies showing loss of variance or 'tail-end' distribution disappearance in recursive loops.\",\n      \"Mathematical proofs demonstrating error accumulation in iterative training.\",\n      \"Experiments where model performance degrades despite increasing training volume (if data is synthetic).\",\n      \"Evidence of 'mode collapse' or reduced diversity in generated outputs over successive generations.\"\n    ],\n    \"evidenceAgainstCriteria\": [\n      \"Studies showing that high-quality synthetic data (e.g., from larger teacher models) can improve student models.\",\n      \"Results demonstrating that small percentages of 'fresh' real data can stabilize the training distribution.\",\n      \"Evidence of 'self-correcting' mechanisms or regularization techniques that mitigate recursive degradation.\",\n      \"Empirical cases where synthetic data augmentation leads to better generalization than real data alone.\"\n    ],\n    \"subquestions\": [\n      \"What is the critical ratio of real-to-synthetic data required to maintain distributional stability?\",\n      \"How do different model architectures (e.g., Transformers vs. Diffusion models) vary in their susceptibility to recursive collapse?\",\n      \"Does the 'quality' of the generator (e.g., a much larger model) delay collapse in the learner model, or merely mask it?\",\n      \"What specific metrics (e.g., FID, perplexity, entropy) are most predictive of an impending model collapse?\",\n      \"To what extent do data filtering and deduplication techniques act as a defense against recursive degradation?\"\n    ]\n  },\n  \"artifacts\": {\n    \"overview\": \"# Project Overview: Model Collapse From Recursive Synthetic Data Training\\n\\n## 1. Research Question\\nUnder what conditions does recursive training on synthetic data lead to model collapse in generative models?\\n\\n## 2. Research Objective\\nThe objective of this research is to determine the technical boundary conditions under which recursive training loops fail and to identify validated architectural or data-mixture strategies that prevent distribution collapse. This synthesis evaluates whether model collapse is an inherent mathematical certainty or a manageable engineering challenge, specifically focusing on the \\\"tipping point\\\" where synthetic data density overwhelms the underlying distribution.\\n\\n## 3. Research Frame and Working Hypothesis\\nThis project operates under the frame that model collapse is not an absolute law of machine learning, but rather a function of data-mixture ratios, error accumulation, and sampling strategies. \\n\\n**Working Hypothesis:** Model collapse represents a significant risk when synthetic data dominates the training distribution, leading to the disappearance of distributional tails and exponential error growth. However, this effect can be reduced, delayed, or potentially neutralized by mixing fresh real-world data with synthetic outputs or by employing specific data-accumulation and self-verification mechanisms.\\n\\n## 4. Scope Boundaries\\n*   **Inclusions:** Technical machine learning literature regarding recursive training, synthetic data reuse, distribution degradation, and mathematical proofs of error accumulation. The scope covers various architectures including Large Language Models (LLMs), Variational Autoencoders (VAEs), and Diffusion Models.\\n*   **Exclusions:** Non-technical blog posts, product-focused commentary, general AI ethics discussions, and business-centric market analysis.\\n*   **Temporal Horizon:** Literature and findings primarily spanning 2023 to 2025.\\n\\n## 5. Source Inventory\\nThe following sources form the basis of the consolidated findings.\\n\\n| Source ID | Provenance | Core Contribution |\\n| :--- | :--- | :--- |\\n| **SOURCE 1** | Discovered | Analysis of self-verification mechanisms and their ability to prevent collapse i\n...[truncated]",
+  "trajectory": [
+    {
+      "step": 1,
+      "type": "node_transition",
+      "durationMs": 6583,
+      "node": "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 2,
+      "type": "llm_call",
+      "durationMs": 6583,
+      "model": "google/gemini-3-flash-preview",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 3,
+      "type": "node_transition",
+      "durationMs": 114614,
+      "node": "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    }
+  ],
+  "grades": {
+    "deterministic": [
+      {
+        "check": "artifacts_exist",
+        "passed": true,
+        "reason": "All 5 artifacts present"
+      },
+      {
+        "check": "synthesis_min_length",
+        "passed": true,
+        "reason": "synthesis.md: 5800 chars (min: 2000)"
+      },
+      {
+        "check": "claims_min_length",
+        "passed": true,
+        "reason": "claims.md: 5268 chars (min: 1000)"
+      },
+      {
+        "check": "has_citations",
+        "passed": true,
+        "reason": "synthesis: 11 citation occurrences found (need ≥3)"
+      },
+      {
+        "check": "no_fatal_errors",
+        "passed": true,
+        "reason": "Status: completed, 15 non-fatal errors"
+      }
+    ],
+    "llm_judge": [],
+    "trajectory": {
+      "total_steps": 3,
+      "llm_calls": 1,
+      "tool_calls": 0,
+      "node_transitions": 2,
+      "efficiency_score": 1,
+      "node_sequence": [
+        "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+        "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist"
+      ],
+      "loops": [],
+      "loop_detected": false,
+      "redundant_steps": 0,
+      "tool_distribution": {}
+    }
+  },
+  "metrics": {
+    "total_duration_ms": 121205,
+    "phase1_duration_ms": 6583,
+    "phase2_duration_ms": 114614,
+    "parsed_sources": 5,
+    "discovered_sources": 5,
+    "uploaded_sources": 4,
+    "pipeline_status": "completed",
+    "has_artifacts": true,
+    "error_count": 15,
+    "quality_passed": true
+  }
+}

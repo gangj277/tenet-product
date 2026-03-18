@@ -1,0 +1,45 @@
+{
+  "timestamp": "2026-03-16T18:10:05.398Z",
+  "total_cases": 1,
+  "passed": 0,
+  "failed": 1,
+  "errors": 0,
+  "timeouts": 0,
+  "pass_rate": 0,
+  "duration_ms": {
+    "mean": 238374,
+    "min": 238374,
+    "max": 238374
+  },
+  "costs": {
+    "total_usd": 1.1866298000000004,
+    "per_case_avg_usd": 1.1866298000000004,
+    "total_api_calls": 107,
+    "by_model": {
+      "google/gemini-3-flash-preview-20251217": {
+        "calls": 1,
+        "costUsd": 0.0020265
+      },
+      "google/gemini-2.5-flash-lite": {
+        "calls": 106,
+        "costUsd": 1.1846033000000005
+      }
+    }
+  },
+  "criterion_breakdown": {},
+  "failures": [
+    {
+      "case_id": "tc-001",
+      "name": "AI Model Collapse — full pipeline",
+      "status": "fail",
+      "failed_deterministic": [
+        "artifacts_exist: No artifacts object in output",
+        "synthesis_min_length: synthesis.md: 0 chars (min: 2000)",
+        "claims_min_length: claims.md: 0 chars (min: 1000)",
+        "has_citations: synthesis: 0 citation occurrences found (need ≥3)",
+        "no_fatal_errors: Run failed: Only 0/48 Phase A extraction calls succeeded. Need at least 50%."
+      ],
+      "failed_judge": []
+    }
+  ]
+}

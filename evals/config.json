@@ -1,0 +1,25 @@
+{
+  "agent_module": "agent_adapter",
+  "agent_function": "runAgent",
+  "isolation": "light",
+  "trajectory": {
+    "enabled": true,
+    "analyze_tool_selection": true,
+    "detect_loops": true,
+    "max_steps": 100
+  },
+  "grading": {
+    "deterministic": true,
+    "llm_judge": {
+      "enabled": true,
+      "model": "anthropic/claude-sonnet-4",
+      "criteria_per_call": 1,
+      "votes": 3
+    }
+  },
+  "budgets": {
+    "max_tokens_per_case": 2000000,
+    "max_cost_usd_per_case": 10.0,
+    "timeout_seconds": 600
+  }
+}

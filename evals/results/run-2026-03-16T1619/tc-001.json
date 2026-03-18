@@ -1,0 +1,92 @@
+{
+  "case_id": "tc-001",
+  "case_name": "AI Model Collapse — full pipeline",
+  "status": "fail",
+  "output": "{\n  \"status\": \"failed\",\n  \"perspective\": {\n    \"briefSummary\": \"This research synthesis investigates the technical validity and inevitability of 'model collapse'—the degradation of generative model performance when trained recursively on their own output. The project aims to move beyond the alarmist narrative to identify specific mathematical and empirical conditions under which collapse occurs, specifically testing the hypothesis that strategic data mixing (real vs. synthetic) can stabilize training loops. The system will prioritize peer-reviewed machine learning literature that distinguishes between theoretical proofs of distribution drift and empirical evidence of mitigation strategies, providing a technical roadmap for maintaining model quality in a synthetic-heavy data ecosystem.\",\n    \"interpretedIntent\": \"To determine the technical boundary conditions of recursive training loops and identify whether model collapse is a fundamental mathematical law or a solvable engineering challenge.\",\n    \"inferredResearchFrame\": \"The 'Data Dilution vs. Stability' frame: Model collapse is a function of error accumulation and variance loss that can be mathematically modeled and potentially neutralized through data curation, architectural constraints, or hybrid training regimes.\",\n    \"evidenceForCriteria\": [\n      \"Mathematical proofs showing loss of distribution tails or variance reduction over successive generations.\",\n      \"Empirical studies demonstrating performance degradation (e.g., perplexity increase, FID score drop) in closed-loop training.\",\n      \"Ablation studies showing that higher ratios of synthetic-to-real data accelerate model failure.\",\n      \"Evidence of 'statistical amnesia' where models forget the underlying data distribution over time.\"\n    ],\n    \"evidenceAgainstCriteria\": [\n      \"Studies showing that high-quality synthetic data (e.g., from a much larger teacher model) improves student model performance.\",\n      \"Research demonstrating that 'data cleaning' or filtering synthetic outputs prevents distribution drift.\",\n      \"Empirical results where recursive training reaches a stable equilibrium rather than collapsing.\",\n      \"Evidence that specific loss functions or regularization techniques can maintain distribution diversity despite recursive inputs.\"\n    ],\n    \"subquestions\": [\n      \"What are the specific mathematical drivers of collapse (e.g., approximation error, functional approximation error, or statistical error)?\",\n      \"What is the critical threshold or 'tipping point' ratio of synthetic-to-real data required to trigger collapse?\",\n      \"How do different model architectures (e.g., Transformers vs. Diffusion models) vary in their susceptibility to recursive degradation?\",\n      \"Which specific mitigation techniques—such as data auditing, 're-weighting' real data, or architectural bottlenecks—have shown the most empirical success?\",\n      \"Does the 'quality' of the initial seed model significantly delay the onset of collapse in subsequent generations?\"\n    ]\n  },\n  \"errors\": [\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Only 0/4 analyst personas succeeded. Need at least 2.\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T16:19:22.428Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Persona failed: OpenRouter 400: {\\\"error\\\":{\\\"message\\\":\\\"This endpoint's maximum context length is 1048576 tokens. However, you requested about 9400322 tokens (9383938 of text input, 16384 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.\\\",\\\"code\\\":400,\\\"metadata\\\":{\\\"provider_name\\\":null}}}\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T16:19:22.428Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Persona failed: OpenRouter 400: {\\\"error\\\":{\\\"message\\\":\\\"This endpoint's maximum context length is 1048576 tokens. However, you requested about 9400380 tokens (9383996 of text input, 16384 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.\\\",\\\"code\\\":400,\\\"metadata\\\":{\\\"provider_name\\\":null}}}\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T16:19:22.428Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Persona failed: OpenRouter 400: {\\\"error\\\":{\\\"message\\\":\\\"This endpoint's maximum context length is 1048576 tokens. However, you requested about 9400352 tokens (9383968 of text input, 16384 in the output). Please reduce the length of either one, or use the context-compression plugin to compress your prompt automatically.\\\",\\\"code\\\":400,\\\"metadata\\\":{\\\"provider_name\\\":null}}}\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T16:19:22.428Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Persona failed: OpenRouter 400: {\\\"error\\\":{\\\"message\\\":\\\"This endpoint's maximum context length is 1048576 tokens. However, you requested abo\n...[truncated]",
+  "trajectory": [
+    {
+      "step": 1,
+      "type": "node_transition",
+      "durationMs": 19529,
+      "node": "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 2,
+      "type": "llm_call",
+      "durationMs": 19529,
+      "model": "google/gemini-3-flash-preview",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 3,
+      "type": "node_transition",
+      "durationMs": 396806,
+      "node": "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    }
+  ],
+  "grades": {
+    "deterministic": [
+      {
+        "check": "artifacts_exist",
+        "passed": false,
+        "reason": "No artifacts object in output"
+      },
+      {
+        "check": "synthesis_min_length",
+        "passed": false,
+        "reason": "synthesis.md: 0 chars (min: 2000)"
+      },
+      {
+        "check": "claims_min_length",
+        "passed": false,
+        "reason": "claims.md: 0 chars (min: 1000)"
+      },
+      {
+        "check": "has_citations",
+        "passed": false,
+        "reason": "synthesis: 0 citation occurrences found (need ≥3)"
+      },
+      {
+        "check": "no_fatal_errors",
+        "passed": false,
+        "reason": "Run failed: Only 0/4 analyst personas succeeded. Need at least 2."
+      }
+    ],
+    "llm_judge": [],
+    "trajectory": {
+      "total_steps": 3,
+      "llm_calls": 1,
+      "tool_calls": 0,
+      "node_transitions": 2,
+      "efficiency_score": 1,
+      "node_sequence": [
+        "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+        "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist"
+      ],
+      "loops": [],
+      "loop_detected": false,
+      "redundant_steps": 0,
+      "tool_distribution": {}
+    }
+  },
+  "metrics": {
+    "total_duration_ms": 416339,
+    "phase1_duration_ms": 19529,
+    "phase2_duration_ms": 396806,
+    "parsed_sources": 45,
+    "discovered_sources": 44,
+    "uploaded_sources": 4,
+    "pipeline_status": "failed",
+    "has_artifacts": false,
+    "error_count": 9,
+    "quality_passed": false
+  }
+}

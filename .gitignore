@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# electron
+/dist-electron/
+/release/
+/build-resources/*.icns
+/build-resources/*.ico
+
+# runtime data stores
+.tenet-blob-store/
+.playwright-cli/

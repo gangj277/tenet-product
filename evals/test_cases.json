@@ -1,0 +1,148 @@
+{
+  "cases": [
+    {
+      "id": "tc-001",
+      "name": "AI Model Collapse — full pipeline",
+      "input": "ai-model-collapse",
+      "context": {
+        "fixture_id": "ai-model-collapse",
+        "expected_signals": [
+          "recursive training on model-generated data can degrade tail fidelity and distribution quality",
+          "distinction between theoretical collapse arguments and empirical demonstrations",
+          "mitigation may be possible when real data continues to enter the loop",
+          "disagreement or uncertainty about whether collapse is inevitable versus conditional",
+          "open questions about scaling behavior, data mixture ratios, and robustness across model families"
+        ]
+      },
+      "expected_outcome": "All 5 artifacts generated with evidence-grounded synthesis that distinguishes theoretical vs empirical collapse arguments, surfaces mitigation strategies, and preserves uncertainty about inevitability",
+      "assertions": [
+        { "type": "deterministic", "check": "artifacts_exist", "value": "overview,synthesis,claims,gaps,nextSteps" },
+        { "type": "deterministic", "check": "synthesis_min_length", "value": "2000" },
+        { "type": "deterministic", "check": "claims_min_length", "value": "1000" },
+        { "type": "deterministic", "check": "has_citations", "value": "synthesis" },
+        { "type": "deterministic", "check": "no_fatal_errors", "value": "" },
+        {
+          "type": "llm_judge",
+          "criterion": "ALIGNMENT: Does the inferred perspective and final synthesis directly address the user's question about conditions under which recursive training on synthetic data leads to model collapse? The synthesis must be about model collapse specifically — not generic AI safety, not just synthetic data quality. Check that the research frame matches the user's intent."
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "EVIDENCE QUALITY: Does the synthesis contain specific, citation-backed claims rather than generic statements? Are sources cited by name? Are contradictions between sources made visible rather than smoothed over? Is weak evidence distinguished from strong evidence?"
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "RESEARCH LEVERAGE: Does the output help a researcher see: (1) the strongest current answer about model collapse, (2) the strongest counterargument or competing interpretation, (3) what remains unresolved, and (4) concrete next steps? The workspace should feel like a provisional thesis + evidence map, not a literature digest."
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "NON-SLOP: Is the synthesis question-specific and source-specific? Could this output plausibly have been generated for a different research topic with minor wording changes? Look for: generic section headings, contradiction-free prose on a topic with clear disagreement, balanced language that avoids stating what evidence suggests, bland source summaries with no synthesis."
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "FIXTURE SIGNALS: Does the output surface ALL of these expected signals from the ai-model-collapse corpus: (1) support for claim that recursive training degrades tail fidelity/distribution quality, (2) distinction between theoretical and empirical collapse arguments, (3) evidence that mitigation is possible with real data, (4) uncertainty about whether collapse is inevitable vs conditional, (5) open questions about scaling, mixture ratios, robustness across model families? Rate PASS only if at least 4/5 signals are clearly present."
+        }
+      ],
+      "tags": ["happy-path", "ai-model-collapse"],
+      "budget": {
+        "max_tokens": 2000000,
+        "timeout_seconds": 600
+      }
+    },
+    {
+      "id": "tc-002",
+      "name": "Operations Research Routing — full pipeline",
+      "input": "operations-research-routing",
+      "context": {
+        "fixture_id": "operations-research-routing",
+        "expected_signals": [
+          "learned methods being competitive on benchmark routing distributions and amortized inference settings",
+          "caveats around generalization, robustness, and comparison fairness against strong classical baselines",
+          "methodological disagreement between learning replaces search and learning augments classical OR",
+          "benchmark gains do not automatically imply real-world deployment readiness",
+          "open questions about guarantees, out-of-distribution performance, and hybrid solver design"
+        ]
+      },
+      "expected_outcome": "All 5 artifacts generated with synthesis that surfaces tension between benchmark wins for learned methods and robustness/generalization limits, distinguishing both perspectives fairly",
+      "assertions": [
+        { "type": "deterministic", "check": "artifacts_exist", "value": "overview,synthesis,claims,gaps,nextSteps" },
+        { "type": "deterministic", "check": "synthesis_min_length", "value": "2000" },
+        { "type": "deterministic", "check": "claims_min_length", "value": "1000" },
+        { "type": "deterministic", "check": "has_citations", "value": "synthesis" },
+        { "type": "deterministic", "check": "no_fatal_errors", "value": "" },
+        {
+          "type": "llm_judge",
+          "criterion": "ALIGNMENT: Does the synthesis directly address how competitive learned RL approaches are vs classical OR methods for routing/combinatorial optimization? The frame must be about the specific tension between these two paradigms — not generic ML vs traditional methods."
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "EVIDENCE QUALITY: Are claims about learned method advantages AND classical method advantages both grounded in specific papers? Does the synthesis cite specific results, benchmarks, or findings from the source papers rather than making unsupported generalizations?"
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "RESEARCH LEVERAGE: Does the output help an OR researcher see: (1) where learned methods genuinely outperform, (2) where classical methods remain stronger, (3) what the unresolved questions are about hybrid approaches and deployment readiness? Does it avoid collapsing into 'both sides have merits' without specifics?"
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "NON-SLOP: Is the output specific to routing/combinatorial optimization? Does it reference specific algorithms, benchmarks (TSP, CVRP), and methodological details from the papers? Would an OR researcher recognize this as domain-informed rather than generic AI commentary?"
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "FIXTURE SIGNALS: Does the output surface ALL of these expected signals: (1) learned methods competitive on benchmarks/amortized inference, (2) caveats around generalization and robustness vs classical baselines, (3) methodological disagreement between 'learning replaces search' vs 'learning augments OR', (4) benchmark gains ≠ deployment readiness, (5) open questions about guarantees, OOD performance, hybrid designs? Rate PASS only if at least 4/5 signals are clearly present."
+        }
+      ],
+      "tags": ["happy-path", "operations-research"],
+      "budget": {
+        "max_tokens": 2000000,
+        "timeout_seconds": 600
+      }
+    },
+    {
+      "id": "tc-003",
+      "name": "GLP-1 Obesity — full pipeline",
+      "input": "medical-glp1-obesity",
+      "context": {
+        "fixture_id": "medical-glp1-obesity",
+        "expected_signals": [
+          "GLP-1-based therapies produce meaningful weight-loss effects in obesity-focused populations",
+          "distinctions between semaglutide and tirzepatide rather than collapsing them into one treatment story",
+          "safety and tolerability caveats, especially around gastrointestinal adverse effects and evidence heterogeneity",
+          "evidence of cardiometabolic benefit with appropriate caution about endpoint scope and study design",
+          "open questions about long-term maintenance, comparative effectiveness, and generalizability across patient subgroups"
+        ]
+      },
+      "expected_outcome": "All 5 artifacts generated with clinically grounded synthesis distinguishing semaglutide vs tirzepatide, addressing efficacy/safety tradeoffs, and flagging study design limitations",
+      "assertions": [
+        { "type": "deterministic", "check": "artifacts_exist", "value": "overview,synthesis,claims,gaps,nextSteps" },
+        { "type": "deterministic", "check": "synthesis_min_length", "value": "2000" },
+        { "type": "deterministic", "check": "claims_min_length", "value": "1000" },
+        { "type": "deterministic", "check": "has_citations", "value": "synthesis" },
+        { "type": "deterministic", "check": "no_fatal_errors", "value": "" },
+        {
+          "type": "llm_judge",
+          "criterion": "ALIGNMENT: Does the synthesis directly address efficacy and safety of GLP-1 therapies for obesity in adults without diabetes? The research frame must be about clinical evidence synthesis for these specific therapies — not a general pharmacology review."
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "EVIDENCE QUALITY: Are weight-loss effect sizes cited with specific numbers or ranges from the source papers? Are safety/tolerability findings attributed to specific studies? Does the synthesis distinguish evidence strength across different meta-analyses and reviews?"
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "RESEARCH LEVERAGE: Does the output help a clinical researcher see: (1) the strength of weight-loss evidence, (2) the safety profile concerns, (3) differences between semaglutide and tirzepatide, and (4) what evidence gaps remain? Does it provide actionable next steps for further investigation?"
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "NON-SLOP: Does the synthesis contain specific drug names (semaglutide, tirzepatide), specific study details (STEP trials, SURMOUNT, etc.), specific effect sizes or confidence intervals? Would a clinical researcher recognize this as evidence-informed rather than generic health content?"
+        },
+        {
+          "type": "llm_judge",
+          "criterion": "FIXTURE SIGNALS: Does the output surface ALL of these expected signals: (1) meaningful weight-loss effects from GLP-1 therapies, (2) distinctions between semaglutide and tirzepatide (not merged), (3) GI adverse effects and evidence heterogeneity, (4) cardiometabolic benefits with appropriate caution, (5) open questions about long-term maintenance, comparative effectiveness, and subgroup generalizability? Rate PASS only if at least 4/5 signals are clearly present."
+        }
+      ],
+      "tags": ["happy-path", "medical-glp1"],
+      "budget": {
+        "max_tokens": 2000000,
+        "timeout_seconds": 600
+      }
+    }
+  ]
+}

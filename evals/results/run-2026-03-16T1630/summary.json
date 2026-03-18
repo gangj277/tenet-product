@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-03-16T16:30:37.815Z",
+  "total_cases": 3,
+  "passed": 2,
+  "failed": 1,
+  "errors": 0,
+  "timeouts": 0,
+  "pass_rate": 0.667,
+  "duration_ms": {
+    "mean": 86114,
+    "min": 39962,
+    "max": 121205
+  },
+  "criterion_breakdown": {},
+  "failures": [
+    {
+      "case_id": "tc-003",
+      "name": "GLP-1 Obesity — full pipeline",
+      "status": "fail",
+      "failed_deterministic": [
+        "artifacts_exist: No artifacts object in output",
+        "synthesis_min_length: synthesis.md: 0 chars (min: 2000)",
+        "claims_min_length: claims.md: 0 chars (min: 1000)",
+        "has_citations: synthesis: 0 citation occurrences found (need ≥3)",
+        "no_fatal_errors: Run failed: PDF parse failed: LlamaParse upload failed: 402 {\"detail\":\"You've exceeded the maximum number of credits for your plan.\"}"
+      ],
+      "failed_judge": []
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-03-16T16:25:00.016Z",
+  "total_cases": 1,
+  "passed": 1,
+  "failed": 0,
+  "errors": 0,
+  "timeouts": 0,
+  "pass_rate": 1,
+  "duration_ms": {
+    "mean": 274304,
+    "min": 274304,
+    "max": 274304
+  },
+  "criterion_breakdown": {},
+  "failures": []
+}

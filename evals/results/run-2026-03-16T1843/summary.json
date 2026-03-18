@@ -1,0 +1,35 @@
+{
+  "timestamp": "2026-03-16T18:43:58.598Z",
+  "total_cases": 1,
+  "passed": 1,
+  "failed": 0,
+  "errors": 0,
+  "timeouts": 0,
+  "pass_rate": 1,
+  "duration_ms": {
+    "mean": 176505,
+    "min": 176505,
+    "max": 176505
+  },
+  "costs": {
+    "total_usd": 0.5959294,
+    "per_case_avg_usd": 0.5959294,
+    "total_api_calls": 93,
+    "by_model": {
+      "google/gemini-3-flash-preview-20251217": {
+        "calls": 4,
+        "costUsd": 0.1200185
+      },
+      "google/gemini-2.5-flash-lite": {
+        "calls": 85,
+        "costUsd": 0.46082340000000005
+      },
+      "google/gemini-3.1-flash-lite-preview-20260303": {
+        "calls": 4,
+        "costUsd": 0.0150875
+      }
+    }
+  },
+  "criterion_breakdown": {},
+  "failures": []
+}

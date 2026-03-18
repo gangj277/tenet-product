@@ -1,0 +1,115 @@
+{
+  "case_id": "tc-001",
+  "case_name": "AI Model Collapse — full pipeline",
+  "status": "fail",
+  "output": "{\n  \"status\": \"failed\",\n  \"perspective\": {\n    \"briefSummary\": \"This project investigates the technical validity and inevitability of 'model collapse'—the degradation of generative model performance when trained on recursively generated synthetic data. The research will synthesize current machine learning literature to determine if collapse is a fundamental mathematical certainty or a manageable engineering challenge. By evaluating the mechanisms of distribution shift and variance loss, the system will specifically look for evidence regarding the 'critical threshold' of synthetic-to-real data ratios and the efficacy of mitigation strategies like data filtering and architectural adjustments, moving beyond theoretical warnings to identify empirical boundary conditions.\",\n    \"interpretedIntent\": \"To determine the technical boundary conditions under which recursive synthetic training becomes catastrophic versus sustainable, and to identify validated architectural or data-management interventions that prevent distribution degradation.\",\n    \"inferredResearchFrame\": \"Model collapse is not an absolute law but a function of data hygiene and sampling bias; the research tests the hypothesis that strategic integration of 'anchor' real-world data and high-fidelity filtering can indefinitely delay or prevent the collapse predicted by early theoretical models.\",\n    \"evidenceForCriteria\": [\n      \"Empirical studies showing statistical divergence (e.g., Wasserstein distance increase) over multiple generations of training.\",\n      \"Mathematical proofs demonstrating information loss or variance reduction in recursive loops.\",\n      \"Experiments where model outputs converge on a narrow subset of the original distribution (mode collapse).\",\n      \"Results showing that even small percentages of synthetic data contamination degrade performance on tail-end distributions.\"\n    ],\n    \"evidenceAgainstCriteria\": [\n      \"Studies demonstrating stable performance over 10+ generations using specific data-mixing ratios.\",\n      \"Evidence that high-quality synthetic data (e.g., from 'teacher' models) acts as a regularizer rather than a pollutant.\",\n      \"Research showing that 'data cleaning' or 'deduplication' of synthetic sets eliminates the collapse effect.\",\n      \"Empirical results where synthetic data augmentation improves performance on downstream tasks despite recursive training.\"\n    ],\n    \"subquestions\": [\n      \"What are the specific mathematical metrics (e.g., perplexity, FID, entropy) that most reliably signal the onset of collapse before it is human-observable?\",\n      \"What is the minimum required ratio of 'fresh' real-world data to synthetic data needed to maintain distributional stability?\",\n      \"How do different sampling strategies (e.g., top-k vs. nucleus sampling) during the generation phase influence the speed of recursive degradation?\",\n      \"To what extent does the 'Model Collapse' phenomenon vary between different modalities, such as Large Language Models (LLMs) versus Diffusion Models?\",\n      \"Which proposed mitigation strategies (e.g., data provenance tracking, synthetic data filtering, or architectural regularization) have been empirically validated in large-scale settings?\"\n    ]\n  },\n  \"errors\": [\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Only 0/48 Phase A extraction calls succeeded. Need at least 50%.\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Phase A failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Phase A failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Phase A failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Phase A failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Phase A failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Phase A failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\",\n      \"message\": \"Phase A failed: Unexpected token '`', \\\"```json\\n[\\n\\\"... is not valid JSON\",\n      \"retryable\": true,\n      \"timestamp\": \"2026-03-16T18:10:05.194Z\"\n    },\n    {\n      \"step\": \"analyze_evidence\n...[truncated]",
+  "trajectory": [
+    {
+      "step": 1,
+      "type": "node_transition",
+      "durationMs": 7759,
+      "node": "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 2,
+      "type": "llm_call",
+      "durationMs": 7759,
+      "model": "google/gemini-3-flash-preview",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 3,
+      "type": "node_transition",
+      "durationMs": 230607,
+      "node": "build_source_set → analyze_evidence → consolidate → synthesize → persist",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    }
+  ],
+  "grades": {
+    "deterministic": [
+      {
+        "check": "artifacts_exist",
+        "passed": false,
+        "reason": "No artifacts object in output"
+      },
+      {
+        "check": "synthesis_min_length",
+        "passed": false,
+        "reason": "synthesis.md: 0 chars (min: 2000)"
+      },
+      {
+        "check": "claims_min_length",
+        "passed": false,
+        "reason": "claims.md: 0 chars (min: 1000)"
+      },
+      {
+        "check": "has_citations",
+        "passed": false,
+        "reason": "synthesis: 0 citation occurrences found (need ≥3)"
+      },
+      {
+        "check": "no_fatal_errors",
+        "passed": false,
+        "reason": "Run failed: Only 0/48 Phase A extraction calls succeeded. Need at least 50%."
+      }
+    ],
+    "llm_judge": [],
+    "trajectory": {
+      "total_steps": 3,
+      "llm_calls": 1,
+      "tool_calls": 0,
+      "node_transitions": 2,
+      "efficiency_score": 1,
+      "node_sequence": [
+        "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+        "build_source_set → analyze_evidence → consolidate → synthesize → persist"
+      ],
+      "loops": [],
+      "loop_detected": false,
+      "redundant_steps": 0,
+      "tool_distribution": {}
+    }
+  },
+  "metrics": {
+    "total_duration_ms": 238374,
+    "phase1_duration_ms": 7759,
+    "phase2_duration_ms": 230607,
+    "parsed_sources": 16,
+    "discovered_sources": 13,
+    "uploaded_sources": 4,
+    "pipeline_status": "failed",
+    "has_artifacts": false,
+    "error_count": 52,
+    "costs": {
+      "byModel": {
+        "google/gemini-3-flash-preview-20251217": {
+          "calls": 1,
+          "inputTokens": 567,
+          "outputTokens": 581,
+          "inputCostUsd": 0.0002835,
+          "outputCostUsd": 0.001743,
+          "totalCostUsd": 0.0020265
+        },
+        "google/gemini-2.5-flash-lite": {
+          "calls": 106,
+          "inputTokens": 10289685,
+          "outputTokens": 389087,
+          "inputCostUsd": 1.0289685000000002,
+          "outputCostUsd": 0.1556348,
+          "totalCostUsd": 1.1846033000000005
+        }
+      },
+      "totalCostUsd": 1.1866298000000004,
+      "totalInputTokens": 10290252,
+      "totalOutputTokens": 389668,
+      "totalCalls": 107
+    }
+  }
+}

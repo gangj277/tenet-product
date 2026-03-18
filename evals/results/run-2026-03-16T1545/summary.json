@@ -1,0 +1,26 @@
+{
+  "timestamp": "2026-03-16T15:45:57.082Z",
+  "total_cases": 1,
+  "passed": 0,
+  "failed": 1,
+  "errors": 0,
+  "timeouts": 0,
+  "pass_rate": 0,
+  "duration_ms": {
+    "mean": 318598,
+    "min": 318598,
+    "max": 318598
+  },
+  "criterion_breakdown": {},
+  "failures": [
+    {
+      "case_id": "tc-001",
+      "name": "AI Model Collapse — full pipeline",
+      "status": "fail",
+      "failed_deterministic": [
+        "has_citations: synthesis: 1 citation patterns found (need ≥2)"
+      ],
+      "failed_judge": []
+    }
+  ]
+}

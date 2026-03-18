@@ -1,0 +1,169 @@
+{
+  "passed": false,
+  "flowMap": "POST /api/upload -> POST /api/init -> initGraph.invoke -> interrupt(confirm_inferred_brief) -> POST /api/init/[runId]/confirm -> initGraph.invoke(resume) -> GET /api/init/[runId]",
+  "input": {
+    "researchQuestion": "What does the recent evidence say about retrieval-augmented generation reducing hallucinations in enterprise support copilots?",
+    "researchIntent": "Produce a synthesis for product planning",
+    "workingHypothesis": "RAG reduces factual hallucinations when grounding quality is high, but benefits degrade with weak retrieval quality.",
+    "scopeBoundaries": "Focus on peer-reviewed or rigorous technical evidence from 2023 onward.",
+    "mustAnswerQuestions": [
+      "When does RAG improve answer quality?",
+      "What failure modes remain after retrieval is added?"
+    ],
+    "audience": "AI product team",
+    "geography": "Global",
+    "timeHorizon": "2023-2026",
+    "outputLanguage": "English"
+  },
+  "upload": {
+    "status": 200,
+    "sourceCount": 1,
+    "sourceIds": [
+      "upload-source-1"
+    ]
+  },
+  "init": {
+    "statusCode": 200,
+    "status": "awaiting_confirmation",
+    "runId": "run-forensic-1",
+    "projectId": "project-forensic-1",
+    "perspectiveSummary": "Assess whether RAG reduces hallucinations in enterprise support copilots."
+  },
+  "confirm": {
+    "statusCode": 200,
+    "status": "running"
+  },
+  "finalStatus": {
+    "statusCode": 200,
+    "status": "completed",
+    "currentStep": "persist_project",
+    "errorCount": 2,
+    "progress": [
+      {
+        "id": "build_source_set",
+        "label": "Parsing sources",
+        "status": "completed",
+        "startedAt": "2026-03-17T08:58:56.313Z",
+        "detail": "Parsed 1/3 sources into 1 bounded chunks",
+        "completedAt": "2026-03-17T08:58:56.315Z"
+      },
+      {
+        "id": "analyze_evidence",
+        "label": "Extracting evidence",
+        "status": "completed",
+        "startedAt": "2026-03-17T08:58:56.316Z",
+        "detail": "1 reduced evidence items extracted from 1 chunks",
+        "completedAt": "2026-03-17T08:58:56.317Z"
+      },
+      {
+        "id": "consolidate_findings",
+        "label": "Consolidating findings",
+        "status": "completed",
+        "startedAt": "2026-03-17T08:58:56.317Z",
+        "detail": "1 canonical claims consolidated",
+        "completedAt": "2026-03-17T08:58:56.317Z"
+      },
+      {
+        "id": "synthesize_project",
+        "label": "Writing deliverables",
+        "status": "completed",
+        "startedAt": "2026-03-17T08:58:56.318Z",
+        "detail": "All deliverables written",
+        "subSteps": [
+          {
+            "label": "Core deliverables (5 files)",
+            "status": "completed"
+          },
+          {
+            "label": "Per-source summaries",
+            "status": "completed"
+          }
+        ],
+        "completedAt": "2026-03-17T08:58:56.318Z"
+      },
+      {
+        "id": "persist_project",
+        "label": "Finalizing project",
+        "status": "completed",
+        "startedAt": "2026-03-17T08:58:56.319Z",
+        "detail": "Project complete",
+        "completedAt": "2026-03-17T08:58:56.319Z"
+      }
+    ],
+    "polls": 2
+  },
+  "finalState": {
+    "sourceCount": 3,
+    "parsedSourceCount": 1,
+    "sourceChunkCount": 1,
+    "supportingEvidenceCount": 0,
+    "contradictoryEvidenceCount": 0,
+    "methodologicalCautionCount": 0,
+    "artifactKeys": [
+      "overview",
+      "synthesis",
+      "claims",
+      "gaps",
+      "nextSteps"
+    ],
+    "sourceSummaryCount": 1
+  },
+  "persisted": {
+    "runStatus": "completed",
+    "projectStatus": "completed",
+    "persistedSourceCount": 3,
+    "persistedChunkCount": 1,
+    "persistedArtifactKeys": [
+      "overview",
+      "synthesis",
+      "claims",
+      "gaps",
+      "nextSteps",
+      "sources"
+    ]
+  },
+  "traces": {
+    "generatedIds": [
+      "upload-source-1",
+      "project-forensic-1",
+      "run-forensic-1",
+      "discovered-source-1",
+      "discovered-source-2"
+    ],
+    "fetchUrls": [
+      "https://example.test/rag-reliability.pdf?download=1",
+      "https://example.test/support-copilot-report"
+    ],
+    "parsedPdfFiles": [
+      "RAG Reliability PDF Study.pdf",
+      "RAG Reliability PDF Study.pdf",
+      "uploaded-rag-study.pdf",
+      "uploaded-rag-study.pdf"
+    ],
+    "llmJsonSchemas": [
+      "perspective",
+      "chunk_evidence_items",
+      "consolidated_findings"
+    ],
+    "llmArtifactCalls": 6
+  },
+  "invariants": {
+    "passed": [
+      "Upload route accepted the test PDF",
+      "Upload route returned exactly one uploaded source",
+      "Init route paused at perspective confirmation",
+      "Confirm route resumed the graph in background mode",
+      "Pipeline reached a completed terminal state",
+      "Final state retained the uploaded source plus two discovered sources",
+      "Core deliverables were generated",
+      "Persistence captured all source metadata rows",
+      "Persistence captured every source chunk manifest"
+    ],
+    "failed": [
+      "Final status reported no run errors",
+      "All three sources were normalized successfully",
+      "Normalized sources were chunked before evidence analysis",
+      "Per-source summaries were generated for every parsed source"
+    ]
+  }
+}

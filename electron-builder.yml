@@ -1,0 +1,47 @@
+appId: com.tenet.research
+productName: Tenet
+copyright: Copyright © 2025 Tenet
+
+directories:
+  output: release
+
+files:
+  - dist-electron/**/*
+
+extraResources:
+  - from: .next/standalone
+    to: standalone
+    filter:
+      - "**/*"
+  - from: .next/static
+    to: static
+    filter:
+      - "**/*"
+  - from: public
+    to: standalone/public
+    filter:
+      - "**/*"
+
+mac:
+  target:
+    - dmg
+  category: public.app-category.productivity
+  entitlements: build-resources/entitlements.mac.plist
+  entitlementsInherit: build-resources/entitlements.mac.plist
+  icon: build-resources/icon.icns
+
+win:
+  target:
+    - nsis
+  icon: build-resources/icon.ico
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Office
+  icon: build-resources
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true

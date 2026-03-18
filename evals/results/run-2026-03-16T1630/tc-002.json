@@ -1,0 +1,92 @@
+{
+  "case_id": "tc-002",
+  "case_name": "Operations Research Routing — full pipeline",
+  "status": "pass",
+  "output": "{\n  \"status\": \"completed\",\n  \"perspective\": {\n    \"briefSummary\": \"This research synthesis evaluates the competitive landscape between reinforcement learning (RL) based routing solvers and classical Operations Research (OR) heuristics. The project aims to move beyond simple performance benchmarks to identify the specific conditions—such as problem distribution, inference speed requirements, and hardware constraints—where learned approaches offer a genuine advantage. The system will specifically look for evidence regarding the 'generalization gap' and the trade-off between the amortized cost of training neural networks versus the iterative computational cost of classical solvers like LKH-3 or Gurobi, testing the hypothesis that RL is a niche tool for high-frequency, distribution-specific tasks rather than a general-purpose replacement for OR.\",\n    \"interpretedIntent\": \"To determine the practical boundary of utility for neural combinatorial optimization by identifying the specific problem characteristics (scale, distribution, constraints) where learned solvers outperform classical heuristics in a way that justifies their training overhead and lack of formal guarantees.\",\n    \"inferredResearchFrame\": \"A comparative utility framework that weighs 'Amortized Efficiency' (learned) against 'Robust Optimality' (classical), testing the hypothesis that RL solvers are distribution-specific accelerators rather than robust general-purpose solvers.\",\n    \"evidenceForCriteria\": [\n      \"Empirical data showing RL solvers achieving near-optimal results with significantly lower inference time than classical heuristics.\",\n      \"Studies demonstrating successful 'zero-shot' transfer of learned policies to real-world routing data within the same distribution.\",\n      \"Evidence of RL solvers handling non-linear or 'black-box' objective functions that are difficult to model with traditional MILP solvers.\",\n      \"Documentation of superior performance in high-velocity environments where decisions must be made in milliseconds.\"\n    ],\n    \"evidenceAgainstCriteria\": [\n      \"Reports of significant performance degradation when RL models are tested on problem sizes (N) larger than those used in training.\",\n      \"Evidence that classical meta-heuristics (e.g., Large Neighborhood Search) still outperform RL on diverse or out-of-distribution instances.\",\n      \"Analysis showing that the cumulative energy/time cost of training RL models outweighs the savings during inference for most use cases.\",\n      \"Lack of feasibility guarantees or high rates of invalid solution generation by neural solvers compared to constrained OR methods.\"\n    ],\n    \"subquestions\": [\n      \"How does the performance gap between RL and classical solvers scale as the number of nodes or constraints increases beyond the training set?\",\n      \"What specific architectural innovations (e.g., Transformers, Pointer Networks, GNNs) have most effectively narrowed the gap with state-of-the-art OR heuristics?\",\n      \"To what extent does 'hybridization' (using RL to guide classical search) outperform pure end-to-end neural approaches?\",\n      \"What are the recurring methodological flaws or evaluation biases (e.g., unfair time-budgeting) in papers claiming RL superiority?\",\n      \"What is the consensus on the 'generalization limit'—at what point does a change in problem distribution render a pre-trained model obsolete?\"\n    ]\n  },\n  \"artifacts\": {\n    \"overview\": \"# Research Overview: Learned Routing vs. Classical Operations Research\\n\\n## Research Question\\nHow competitive are learned reinforcement-learning (RL) approaches for routing and combinatorial optimization relative to classical operations research (OR) methods?\\n\\n## Research Objective\\nThis synthesis evaluates the practical utility and performance boundaries of neural combinatorial optimization. The objective is to identify the specific problem characteristics—such as scale, distribution, and real-time constraints—where learned solvers provide a justifiable advantage over classical heuristics, accounting for training overhead and the absence of formal optimality guarantees.\\n\\n## Research Frame and Working Hypothesis\\nThis project utilizes a **Comparative Utility Framework**, weighing **Amortized Efficiency** (learned approaches) against **Robust Optimality** (classical approaches). \\n\\n**Working Hypothesis:** \\nLearning-based approaches are effective for high-frequency, distribution-specific routing tasks where inference speed is critical. However, classical OR methods remain superior in terms of robustness, solution guarantees, and performance on out-of-distribution (OOD) instances. RL solvers act primarily as distribution-specific accelerators rather than general-purpose replacements for established OR solvers.\\n\\n## Scope Boundaries\\n*   **Inclusions:** Peer-reviewed literature (2016–2024) comparing neural/RL approaches with classical heuristics (e.g., LKH-3, Gurobi) in the context of routing (TSP, VRP) and comb\n...[truncated]",
+  "trajectory": [
+    {
+      "step": 1,
+      "type": "node_transition",
+      "durationMs": 6789,
+      "node": "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 2,
+      "type": "llm_call",
+      "durationMs": 6789,
+      "model": "google/gemini-3-flash-preview",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    },
+    {
+      "step": 3,
+      "type": "node_transition",
+      "durationMs": 90381,
+      "node": "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist",
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "flags": []
+    }
+  ],
+  "grades": {
+    "deterministic": [
+      {
+        "check": "artifacts_exist",
+        "passed": true,
+        "reason": "All 5 artifacts present"
+      },
+      {
+        "check": "synthesis_min_length",
+        "passed": true,
+        "reason": "synthesis.md: 5685 chars (min: 2000)"
+      },
+      {
+        "check": "claims_min_length",
+        "passed": true,
+        "reason": "claims.md: 4886 chars (min: 1000)"
+      },
+      {
+        "check": "has_citations",
+        "passed": true,
+        "reason": "synthesis: 13 citation occurrences found (need ≥3)"
+      },
+      {
+        "check": "no_fatal_errors",
+        "passed": true,
+        "reason": "Status: completed, 13 non-fatal errors"
+      }
+    ],
+    "llm_judge": [],
+    "trajectory": {
+      "total_steps": 3,
+      "llm_calls": 1,
+      "tool_calls": 0,
+      "node_transitions": 2,
+      "efficiency_score": 1,
+      "node_sequence": [
+        "intake_user_context → infer_user_perspective → confirm_inferred_brief (interrupt)",
+        "build_source_set → analyze_evidence → consolidate → synthesize → quality_check → persist"
+      ],
+      "loops": [],
+      "loop_detected": false,
+      "redundant_steps": 0,
+      "tool_distribution": {}
+    }
+  },
+  "metrics": {
+    "total_duration_ms": 97175,
+    "phase1_duration_ms": 6789,
+    "phase2_duration_ms": 90381,
+    "parsed_sources": 6,
+    "discovered_sources": 6,
+    "uploaded_sources": 4,
+    "pipeline_status": "completed",
+    "has_artifacts": true,
+    "error_count": 13,
+    "quality_passed": true
+  }
+}

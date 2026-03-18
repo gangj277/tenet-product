@@ -1,26 +1,607 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  /* ── Raw palette (kept for one-off use) ── */
+  --color-ink-950: #06080d;
+  --color-ink-900: #0a0e18;
+  --color-ink-850: #0e1320;
+  --color-ink-800: #131a2b;
+  --color-ink-700: #1a2440;
+  --color-ink-600: #243054;
+  --color-ink-500: #374a6e;
+  --color-ink-400: #506686;
+  --color-ink-300: #7189a8;
+  --color-ink-200: #9aadca;
+  --color-ink-100: #c4d1e4;
+  --color-ink-50: #e8edf5;
+
+  --color-amber-600: #b8903a;
+  --color-amber-500: #d4a853;
+  --color-amber-400: #e0be72;
+  --color-amber-300: #ebd49a;
+  --color-amber-200: #f3e4bd;
+  --color-amber-100: #f9f0de;
+
+  --color-violet-500: #8b7ec8;
+  --color-violet-400: #a99de0;
+  --color-violet-300: #c4bbea;
+
+  /* ── Semantic tokens (reference runtime vars so utilities stay dynamic) ── */
+  --color-page: var(--t-page);
+  --color-panel: var(--t-panel);
+  --color-heading: var(--t-heading);
+  --color-body: var(--t-body);
+  --color-sub: var(--t-sub);
+  --color-dim: var(--t-dim);
+  --color-mute: var(--t-mute);
+  --color-ghost: var(--t-ghost);
+  --color-edge: var(--t-edge);
+  --color-accent: var(--t-accent);
+  --color-accent-fill: var(--t-accent-fill);
+  --color-accent-hover: var(--t-accent-hover);
+  --color-cite: var(--t-cite);
+  --color-dot: var(--t-dot);
+  --color-on-accent: var(--t-on-accent);
+
+  --font-sans: var(--font-tenet-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-tenet-serif), Georgia, "Times New Roman", serif;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    /* ── Light mode (default) ── */
+    --t-page: #faf9f6;
+    --t-panel: #ffffff;
+    --t-heading: #171923;
+    --t-body: #3b3e4a;
+    --t-sub: #5f6373;
+    --t-dim: #8c8f9e;
+    --t-mute: #b0b3bf;
+    --t-ghost: #d0d2d9;
+    --t-edge: #e4e2dd;
+    --t-accent: #b58a2f;
+    --t-accent-fill: #d4a853;
+    --t-accent-hover: #c49840;
+    --t-cite: #a07828;
+    --t-dot: #7b6db8;
+    --t-on-accent: #171923;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --t-page: #06080d;
+      --t-panel: #0e1320;
+      --t-heading: #e8edf5;
+      --t-body: #c4d1e4;
+      --t-sub: #9aadca;
+      --t-dim: #506686;
+      --t-mute: #374a6e;
+      --t-ghost: #243054;
+      --t-edge: #131a2b;
+      --t-accent: #e0be72;
+      --t-accent-fill: #e0be72;
+      --t-accent-hover: #ebd49a;
+      --t-cite: #d4a853;
+      --t-dot: #a99de0;
+      --t-on-accent: #06080d;
+    }
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--t-page);
+    color: var(--t-body);
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background-color: rgba(212, 168, 83, 0.25);
+    color: var(--t-heading);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* ── Staggered entrance animations ── */
+  .reveal {
+    animation: reveal 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .reveal-delay-1 { animation-delay: 120ms; }
+  .reveal-delay-2 { animation-delay: 240ms; }
+  .reveal-delay-3 { animation-delay: 360ms; }
+  .reveal-delay-4 { animation-delay: 480ms; }
+
+  /* ── Film grain overlay ── */
+  .grain {
+    position: relative;
+  }
+  .grain::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.028;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 200px 200px;
+  }
+
+  /* ── Glassmorphism panel ── */
+  .glass-panel {
+    background: color-mix(in srgb, var(--t-panel) 60%, transparent);
+    backdrop-filter: blur(24px) saturate(1.4);
+    -webkit-backdrop-filter: blur(24px) saturate(1.4);
+    border: 1px solid color-mix(in srgb, var(--t-edge) 50%, transparent);
+  }
+
+  /* ── Glow effects ── */
+  .glow-accent {
+    box-shadow:
+      0 0 40px -8px color-mix(in srgb, var(--t-accent-fill) 30%, transparent),
+      0 0 80px -16px color-mix(in srgb, var(--t-accent-fill) 15%, transparent);
+  }
+  .glow-accent-sm {
+    box-shadow:
+      0 0 20px -4px color-mix(in srgb, var(--t-accent-fill) 25%, transparent),
+      0 0 40px -8px color-mix(in srgb, var(--t-accent-fill) 10%, transparent);
+  }
+  .glow-violet {
+    box-shadow:
+      0 0 40px -8px color-mix(in srgb, var(--t-dot) 30%, transparent),
+      0 0 80px -16px color-mix(in srgb, var(--t-dot) 15%, transparent);
+  }
+
+  /* ── Section background container ── */
+  .section-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .section-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center;
+    opacity: 0.6;
+  }
+
+  @media (prefers-color-scheme: light) {
+    .section-bg img {
+      opacity: 0.07;
+      mix-blend-mode: multiply;
+    }
+  }
+
+  /* ── Gradient fade overlays ── */
+  .fade-top::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    z-index: 1;
+    background: linear-gradient(to bottom, var(--t-page), transparent);
+    pointer-events: none;
+  }
+  .fade-bottom::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    z-index: 1;
+    background: linear-gradient(to top, var(--t-page), transparent);
+    pointer-events: none;
+  }
+  .fade-both::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    z-index: 1;
+    background: linear-gradient(to bottom, var(--t-page), transparent);
+    pointer-events: none;
+  }
+  .fade-both::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 120px;
+    z-index: 1;
+    background: linear-gradient(to top, var(--t-page), transparent);
+    pointer-events: none;
+  }
+
+  /* ── Decorative diamond ── */
+  .decorative-diamond {
+    width: 8px;
+    height: 8px;
+    background: var(--t-accent-fill);
+    transform: rotate(45deg);
+    opacity: 0.7;
+  }
+
+  /* ── Trust logos (SVGs use white fill — invert for light mode) ── */
+  .trust-logo {
+    filter: invert(1);
+  }
+  @media (prefers-color-scheme: dark) {
+    .trust-logo {
+      filter: none;
+    }
+  }
+
+  /* ── Trust block refinements ── */
+  .trust-logo-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .trust-logo-wrap:hover {
+    transform: translateY(-2px);
+  }
+  .trust-sep {
+    width: 1px;
+    height: 20px;
+    background: var(--t-edge);
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+  @media (max-width: 639px) {
+    .trust-sep {
+      display: none;
+    }
+  }
+
+  /* ── How it works cards ── */
+  .hiw-card-body {
+    border: 1px solid color-mix(in srgb, var(--t-edge) 40%, transparent);
+    background: color-mix(in srgb, var(--t-panel) 30%, transparent);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .hiw-card:hover .hiw-card-body {
+    border-color: color-mix(in srgb, var(--t-accent) 25%, transparent);
+    background: color-mix(in srgb, var(--t-panel) 50%, transparent);
+    box-shadow: 0 8px 32px -12px color-mix(in srgb, var(--t-accent-fill) 8%, transparent);
+    transform: translateY(-2px);
+  }
+
+  /* ── CSS atmospheric backgrounds ── */
+  .bg-hero-atmosphere {
+    background:
+      radial-gradient(ellipse 80% 60% at 50% 100%, color-mix(in srgb, var(--t-accent-fill) 8%, transparent), transparent 70%),
+      radial-gradient(ellipse 60% 50% at 20% 80%, color-mix(in srgb, var(--t-accent-fill) 6%, transparent), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 80% 70%, color-mix(in srgb, var(--t-accent) 4%, transparent), transparent 50%),
+      radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--t-page) 100%, transparent), var(--t-page));
+  }
+
+  .bg-mid-ambient {
+    background:
+      radial-gradient(ellipse 50% 40% at 30% 50%, color-mix(in srgb, var(--t-accent-fill) 4%, transparent), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 70% 60%, color-mix(in srgb, var(--t-accent) 3%, transparent), transparent 50%),
+      url("data:image/svg+xml,%3Csvg width='600' height='600' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='t'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.015' numOctaves='3' seed='2'/%3E%3CfeColorMatrix values='0 0 0 0 0.15 0 0 0 0 0.12 0 0 0 0 0.08 0 0 0 0.08 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23t)'/%3E%3C/svg%3E") center / cover;
+  }
+
+  .bg-agent-glow {
+    background:
+      radial-gradient(ellipse 60% 50% at 50% 50%, color-mix(in srgb, var(--t-dot) 8%, transparent), transparent 70%),
+      radial-gradient(ellipse 40% 35% at 30% 40%, color-mix(in srgb, var(--t-dot) 5%, transparent), transparent 50%),
+      radial-gradient(ellipse 35% 30% at 70% 60%, color-mix(in srgb, var(--t-dot) 4%, transparent), transparent 50%);
+  }
+
+  .bg-cta-glow {
+    background:
+      radial-gradient(ellipse 70% 50% at 50% 90%, color-mix(in srgb, var(--t-accent-fill) 10%, transparent), transparent 70%),
+      radial-gradient(ellipse 50% 40% at 40% 80%, color-mix(in srgb, var(--t-accent) 6%, transparent), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 60% 70%, color-mix(in srgb, var(--t-accent-fill) 4%, transparent), transparent 50%);
+  }
+}
+
+/* ── Synthesis document styling ──
+   OUTSIDE @layer so these always beat Tailwind preflight resets */
+.synthesis-doc h2 {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--t-heading);
+  margin-bottom: 10px;
+  margin-top: 20px;
+  letter-spacing: -0.01em;
+}
+
+.synthesis-doc h2:first-child {
+  margin-top: 0;
+}
+
+.synthesis-doc p {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: var(--t-body);
+  margin-bottom: 10px;
+}
+
+.synthesis-doc .cite {
+  font-size: 11px;
+  color: var(--t-cite);
+}
+
+.synthesis-doc em {
+  color: var(--t-heading);
+  font-style: italic;
+}
+
+.synthesis-doc .tension {
+  border-left: 2px solid var(--t-accent-fill);
+  padding-left: 14px;
+  margin: 14px 0;
+}
+
+.synthesis-doc .tension p {
+  color: var(--t-heading);
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Citation scroll-to highlight ── */
+@keyframes citation-highlight-fade {
+  0% {
+    background-color: color-mix(in srgb, var(--t-accent-fill) 22%, transparent);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.citation-highlight {
+  animation: citation-highlight-fade 2.5s ease-out forwards;
+  border-radius: 2px;
+}
+
+/* ── Chat streaming dots animation ── */
+@keyframes chat-dot-bounce {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+.chat-dot {
+  animation: chat-dot-bounce 1.4s ease-in-out infinite;
+}
+.chat-dot:nth-child(2) { animation-delay: 0.16s; }
+.chat-dot:nth-child(3) { animation-delay: 0.32s; }
+
+/* ── Chat streaming cursor blink ── */
+@keyframes chat-cursor-blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+.chat-cursor {
+  animation: chat-cursor-blink 1s step-end infinite;
+}
+
+/* ── Activity progress bar shimmer ── */
+@keyframes activity-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.activity-bar {
+  position: relative;
+  overflow: hidden;
+}
+.activity-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--t-dot) 30%, transparent), transparent);
+  animation: activity-shimmer 1.8s ease-in-out infinite;
+}
+
+/* ── Activity spinner ── */
+@keyframes activity-spin {
+  to { transform: rotate(360deg); }
+}
+.activity-spinner {
+  animation: activity-spin 1.2s linear infinite;
+}
+
+/* ── Tiptap / ProseMirror editor styles ──
+   OUTSIDE @layer to match existing synthesis-doc specificity */
+
+.synthesis-doc.prose-editor {
+  min-height: 100%;
+}
+
+.synthesis-doc.ProseMirror {
+  outline: none;
+  min-height: 200px;
+}
+
+.synthesis-doc.ProseMirror h1 {
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--t-heading);
+  margin-bottom: 12px;
+  margin-top: 28px;
+  letter-spacing: -0.01em;
+}
+
+.synthesis-doc.ProseMirror h1:first-child {
+  margin-top: 0;
+}
+
+.synthesis-doc.ProseMirror h2 {
+  font-family: var(--font-serif);
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--t-heading);
+  margin-bottom: 10px;
+  margin-top: 20px;
+  letter-spacing: -0.01em;
+}
+
+.synthesis-doc.ProseMirror h2:first-child {
+  margin-top: 0;
+}
+
+.synthesis-doc.ProseMirror h3 {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--t-heading);
+  margin-bottom: 8px;
+  margin-top: 18px;
+}
+
+.synthesis-doc.ProseMirror p {
+  font-size: 13.5px;
+  line-height: 1.78;
+  color: var(--t-body);
+  margin-bottom: 10px;
+}
+
+.synthesis-doc.ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 20px;
+  margin-bottom: 10px;
+}
+
+.synthesis-doc.ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 20px;
+  margin-bottom: 10px;
+}
+
+.synthesis-doc.ProseMirror li {
+  font-size: 13.5px;
+  line-height: 1.78;
+  color: var(--t-body);
+  margin-bottom: 4px;
+}
+
+.synthesis-doc.ProseMirror blockquote {
+  border-left: 2px solid var(--t-accent-fill);
+  padding-left: 14px;
+  margin: 14px 0;
+}
+
+.synthesis-doc.ProseMirror blockquote p {
+  color: var(--t-heading);
+}
+
+.synthesis-doc.ProseMirror code {
+  background: color-mix(in srgb, var(--t-heading) 5%, transparent);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 12.5px;
+  font-family: monospace;
+  color: var(--t-heading);
+}
+
+.synthesis-doc.ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--t-edge);
+  margin: 24px 0;
+}
+
+.synthesis-doc.ProseMirror strong {
+  font-weight: 600;
+  color: var(--t-heading);
+}
+
+.synthesis-doc.ProseMirror em {
+  color: var(--t-heading);
+  font-style: italic;
+}
+
+.synthesis-doc.ProseMirror a {
+  color: var(--t-cite, var(--t-accent));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.synthesis-doc.ProseMirror a:hover {
+  color: var(--t-accent);
+}
+
+.synthesis-doc.ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.synthesis-doc.ProseMirror th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--t-heading);
+  padding: 8px 12px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--t-edge);
+}
+
+.synthesis-doc.ProseMirror td {
+  padding: 8px 12px;
+  color: var(--t-body);
+  border-bottom: 1px solid color-mix(in srgb, var(--t-edge) 30%, transparent);
+}
+
+.synthesis-doc.ProseMirror pre {
+  background: color-mix(in srgb, var(--t-heading) 5%, transparent);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  font-family: monospace;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.synthesis-doc.ProseMirror pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+}
+
+.synthesis-doc.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--t-mute);
+  pointer-events: none;
+  height: 0;
 }
