@@ -4,7 +4,8 @@
   "private": true,
   "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "next dev",
+    "dev": "bash scripts/dev-start.sh",
+    "dev:next": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

@@ -397,12 +397,18 @@ export async function updateArtifactContents(
         }
       } else if (key.startsWith("experiment:")) {
         const experimentId = key.slice(11);
+        // Extract title from JSON content if present
+        let title: string | undefined;
+        try {
+          const parsed = JSON.parse(content);
+          if (typeof parsed?.title === "string") title = parsed.title;
+        } catch { /* not JSON */ }
         const updated = await tx
           .update(experiments)
-          .set({ content, updatedAt: new Date() })
+          .set({ content, updatedAt: new Date(), ...(title ? { title } : {}) })
           .where(and(eq(experiments.id, experimentId), eq(experiments.runId, runId)));
         if (updated.rowCount === 0) {
-          await tx.insert(experiments).values({ id: experimentId, runId, title: "Experiment", content });
+          await tx.insert(experiments).values({ id: experimentId, runId, title: title || "Experiment", content });
         }
       } else if (key.startsWith("source:")) {
         const sourceId = key.slice(7);

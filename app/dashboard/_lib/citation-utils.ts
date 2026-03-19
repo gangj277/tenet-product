@@ -48,7 +48,9 @@ export function buildSourceLookup(files: SourceRef[]): Map<string, string> {
     const sourceId = file.key.slice(7); // strip "source:" prefix → UUID
     const n = index + 1; // 1-indexed
 
-    // Full UUID
+    // Full key with prefix (e.g. "source:UUID") — agent citations often use this form
+    lookup.set(file.key.toLowerCase(), file.key);
+    // Full UUID (without prefix)
     lookup.set(sourceId.toLowerCase(), file.key);
     // Truncated UUID (first 8 chars)
     lookup.set(sourceId.slice(0, 8).toLowerCase(), file.key);
@@ -58,6 +60,14 @@ export function buildSourceLookup(files: SourceRef[]): Map<string, string> {
     // Full label (case-insensitive)
     lookup.set(file.label.toLowerCase(), file.key);
   });
+
+  // Also register prefixed keys for papers and experiments so agent citations resolve
+  for (const file of files) {
+    if (file.group === "paper" || file.group === "experiment") {
+      lookup.set(file.key.toLowerCase(), file.key);
+      lookup.set(file.label.toLowerCase(), file.key);
+    }
+  }
 
   // Also add core file keys so the agent can cite them
   for (const file of files) {

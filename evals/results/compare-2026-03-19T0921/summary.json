@@ -1,0 +1,67 @@
+{
+  "modelA": "google/gemini-3.1-flash-lite-preview",
+  "modelB": "openai/gpt-5.4-nano",
+  "timestamp": "2026-03-19T09:21:52.877Z",
+  "fixtures": [
+    {
+      "fixtureId": "ai-model-collapse",
+      "metricsA": {
+        "calls": 4,
+        "totalLatency": 18754,
+        "totalCost": 0.007563749999999999,
+        "totalTokens": 16210
+      },
+      "metricsB": {
+        "calls": 4,
+        "totalLatency": 39733,
+        "totalCost": 0.0042182,
+        "totalTokens": 19592
+      },
+      "judgeWins": {
+        "A": 0,
+        "B": 0,
+        "tie": 0
+      }
+    },
+    {
+      "fixtureId": "operations-research-routing",
+      "metricsA": {
+        "calls": 4,
+        "totalLatency": 22231,
+        "totalCost": 0.00788475,
+        "totalTokens": 16579
+      },
+      "metricsB": {
+        "calls": 4,
+        "totalLatency": 35180,
+        "totalCost": 0.004059,
+        "totalTokens": 19359
+      },
+      "judgeWins": {
+        "A": 0,
+        "B": 0,
+        "tie": 0
+      }
+    },
+    {
+      "fixtureId": "medical-glp1-obesity",
+      "metricsA": {
+        "calls": 4,
+        "totalLatency": 24640,
+        "totalCost": 0.00808825,
+        "totalTokens": 16838
+      },
+      "metricsB": {
+        "calls": 4,
+        "totalLatency": 38577,
+        "totalCost": 0.004225400000000001,
+        "totalTokens": 19970
+      },
+      "judgeWins": {
+        "A": 0,
+        "B": 0,
+        "tie": 0
+      }
+    }
+  ]
+}

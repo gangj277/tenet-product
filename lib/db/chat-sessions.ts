@@ -1,6 +1,6 @@
 import { db } from "./client";
 import { chatSessions, chatMessages } from "./schema";
-import { eq, desc, sql } from "drizzle-orm";
+import { and, eq, desc, sql } from "drizzle-orm";
 
 // ── Types ──
 
@@ -86,13 +86,19 @@ export async function getSessionMessages(
 
 export async function appendMessages(
   sessionId: string,
-  messages: { role: "user" | "agent"; text: string; metadata?: Record<string, unknown> }[]
+  messages: {
+    id?: string;
+    role: "user" | "agent";
+    text: string;
+    metadata?: Record<string, unknown>;
+  }[]
 ) {
   if (messages.length === 0) return;
 
   await db.transaction(async (tx) => {
     await tx.insert(chatMessages).values(
       messages.map((m) => ({
+        ...(m.id ? { id: m.id } : {}),
         sessionId,
         role: m.role,
         text: m.text,
@@ -112,6 +118,29 @@ export async function updateSessionTitle(sessionId: string, title: string) {
     .update(chatSessions)
     .set({ title, updatedAt: new Date() })
     .where(eq(chatSessions.id, sessionId));
+}
+
+export async function updateMessageMetadata(
+  sessionId: string,
+  messageId: string,
+  metadata: Record<string, unknown>
+) {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(chatMessages)
+      .set({ metadata })
+      .where(
+        and(
+          eq(chatMessages.id, messageId),
+          eq(chatMessages.sessionId, sessionId)
+        )
+      );
+
+    await tx
+      .update(chatSessions)
+      .set({ updatedAt: new Date() })
+      .where(eq(chatSessions.id, sessionId));
+  });
 }
 
 export async function deleteSession(sessionId: string) {

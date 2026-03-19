@@ -1,0 +1,106 @@
+[
+  {
+    "task": "overview",
+    "scores": {
+      "modelA": 3,
+      "modelB": 5
+    },
+    "winner": "B",
+    "reasoning": "0/3 votes for A, 3/3 for B, 0/3 ties. Avg: A=3.0 B=5.0",
+    "votes": [
+      {
+        "winner": "B",
+        "scoreA": 3,
+        "scoreB": 5
+      },
+      {
+        "winner": "B",
+        "scoreA": 3,
+        "scoreB": 5
+      },
+      {
+        "winner": "B",
+        "scoreA": 3,
+        "scoreB": 5
+      }
+    ]
+  },
+  {
+    "task": "claims",
+    "scores": {
+      "modelA": 4.3,
+      "modelB": 3
+    },
+    "winner": "A",
+    "reasoning": "3/3 votes for A, 0/3 for B, 0/3 ties. Avg: A=4.3 B=3.0",
+    "votes": [
+      {
+        "winner": "A",
+        "scoreA": 4,
+        "scoreB": 3
+      },
+      {
+        "winner": "A",
+        "scoreA": 4,
+        "scoreB": 3
+      },
+      {
+        "winner": "A",
+        "scoreA": 5,
+        "scoreB": 3
+      }
+    ]
+  },
+  {
+    "task": "gaps",
+    "scores": {
+      "modelA": 4,
+      "modelB": 3.7
+    },
+    "winner": "A",
+    "reasoning": "2/3 votes for A, 1/3 for B, 0/3 ties. Avg: A=4.0 B=3.7",
+    "votes": [
+      {
+        "winner": "B",
+        "scoreA": 4,
+        "scoreB": 5
+      },
+      {
+        "winner": "A",
+        "scoreA": 4,
+        "scoreB": 3
+      },
+      {
+        "winner": "A",
+        "scoreA": 4,
+        "scoreB": 3
+      }
+    ]
+  },
+  {
+    "task": "next-steps",
+    "scores": {
+      "modelA": 4.7,
+      "modelB": 3.7
+    },
+    "winner": "A",
+    "reasoning": "2/3 votes for A, 1/3 for B, 0/3 ties. Avg: A=4.7 B=3.7",
+    "votes": [
+      {
+        "winner": "B",
+        "scoreA": 4,
+        "scoreB": 5
+      },
+      {
+        "winner": "A",
+        "scoreA": 5,
+        "scoreB": 3
+      },
+      {
+        "winner": "A",
+        "scoreA": 5,
+        "scoreB": 3
+      }
+    ]
+  }
+]

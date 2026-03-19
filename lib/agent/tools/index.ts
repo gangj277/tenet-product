@@ -1,5 +1,6 @@
 import type { DiscoveredSource } from "@/lib/discovery/scholarly-search";
 import type { AddedSource, ProposedUpdate, WorkspaceContext } from "../state";
+import type { SkillDefinition } from "../prompts/skills";
 import { executeReadWorkspaceFiles } from "./read-workspace-files";
 import { executeUpdateExistingFile } from "./update-existing-file";
 import { executeWriteNewFile } from "./write-new-file";
@@ -7,7 +8,9 @@ import { executeSearchExternalSources, type ProgressCallback, type SearchExterna
 import { executeLoadSkill } from "./load-skill";
 import { executeCreatePaper } from "./create-paper";
 import { executeCreateExperiment } from "./create-experiment";
+import { executeEditExperiment } from "./edit-experiment";
 import { executeSearchWorkspace } from "./search-workspace";
+import { executeReadSkillReference } from "./read-skill-reference";
 
 // ── OpenAI-format Tool Schemas ──
 
@@ -35,11 +38,6 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
             items: { type: "string" },
             description:
               'Array of file keys to read, e.g. ["overview", "synthesis", "source:abc123"]',
-          },
-          line_numbers: {
-            type: "boolean",
-            description:
-              "When true, prefix each line with its 1-indexed line number (e.g. '1| ...') for use with line_edit mode.",
           },
         },
         required: ["keys"],
@@ -89,7 +87,7 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
     function: {
       name: "update_existing_file",
       description:
-        'Propose an edit to an existing workspace file. Two modes: "rewrite" (default) replaces the entire file content; "line_edit" applies targeted edits to specific line ranges (read the file with line_numbers: true first to get accurate line references). The user will review and accept or reject the change.',
+        'Propose an edit to an existing workspace file. Two modes: "rewrite" (default) replaces the entire file content; "targeted" (recommended) applies surgical string-match edits. Each edit\'s old_str must exactly match text in the file — include enough surrounding context (1-3 lines) to ensure uniqueness. The user will review and accept or reject the change.',
       parameters: {
         type: "object",
         properties: {
@@ -99,9 +97,9 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
           },
           mode: {
             type: "string",
-            enum: ["rewrite", "line_edit"],
+            enum: ["rewrite", "targeted"],
             description:
-              'Edit mode. "rewrite" (default) replaces the entire file. "line_edit" applies targeted line-range edits.',
+              'Edit mode. "rewrite" (default) replaces the entire file. "targeted" (recommended) applies surgical string-match edits.',
           },
           content: {
             type: "string",
@@ -113,25 +111,27 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
             items: {
               type: "object",
               properties: {
-                start_line: {
-                  type: "number",
-                  description: "Start line number (1-indexed, inclusive)",
-                },
-                end_line: {
-                  type: "number",
-                  description: "End line number (1-indexed, inclusive)",
-                },
-                content: {
+                old_str: {
                   type: "string",
                   description:
-                    'Replacement content for the line range. Use "" to delete lines.',
+                    "Exact text to find in the file. Must uniquely match one location unless replace_all is true. Include 1-3 lines of surrounding context if needed for uniqueness.",
+                },
+                new_str: {
+                  type: "string",
+                  description:
+                    'Replacement text. Use "" to delete the matched text.',
+                },
+                replace_all: {
+                  type: "boolean",
+                  description:
+                    "When true, replace all occurrences of old_str. Default: false (requires unique match).",
                 },
               },
-              required: ["start_line", "end_line", "content"],
+              required: ["old_str", "new_str"],
               additionalProperties: false,
             },
             description:
-              'Array of line-range edits (required for "line_edit" mode). Each edit replaces lines start_line..end_line with the given content.',
+              'Array of string-match edits (required for "targeted" mode). Each edit finds old_str and replaces it with new_str. Edits are applied sequentially — each subsequent edit matches against the result of prior edits.',
           },
           summary: {
             type: "string",
@@ -244,7 +244,7 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
     function: {
       name: "create_experiment",
       description:
-        "Create a new experiment design in the workspace. The experiment will be proposed as a new file for user review. Use this to draft structured experiment designs with hypotheses, variables, methodology, and analysis plans.",
+        "Create a structured experiment design with typed fields for hypotheses, variables, procedure, and analysis plan. Always pass the `design` object — markdown content is not accepted.",
       parameters: {
         type: "object",
         properties: {
@@ -252,12 +252,223 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
             type: "string",
             description: "Title of the experiment",
           },
-          content: {
-            type: "string",
-            description: "Complete experiment design in markdown format",
+          design: {
+            type: "object",
+            description: "Structured experiment design object",
+            properties: {
+              version: { type: "number", description: "Schema version. Always 1." },
+              title: { type: "string", description: "Experiment title" },
+              researchQuestion: { type: "string", description: "The specific question this experiment tests" },
+              motivation: { type: "string", description: "Why this experiment matters — cite workspace sources" },
+              hypotheses: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string", description: "Label: H₀, H₁, H₁ₐ, etc." },
+                    type: { type: "string", enum: ["null", "alternative"] },
+                    statement: { type: "string", description: "Precise, falsifiable hypothesis statement" },
+                  },
+                  required: ["id", "type", "statement"],
+                },
+              },
+              variables: {
+                type: "object",
+                properties: {
+                  independent: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        description: { type: "string", description: "What participants experience in each condition" },
+                        levels: { type: "array", items: { type: "string" }, description: "Specific conditions/groups" },
+                      },
+                      required: ["name", "description", "levels"],
+                    },
+                  },
+                  dependent: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        measure: { type: "string", description: "How the variable is operationalized" },
+                        instrument: { type: "string", description: "Named scale/tool if applicable" },
+                      },
+                      required: ["name", "measure"],
+                    },
+                  },
+                  controls: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        rationale: { type: "string" },
+                      },
+                      required: ["name", "rationale"],
+                    },
+                  },
+                },
+                required: ["independent", "dependent", "controls"],
+              },
+              design: {
+                type: "object",
+                properties: {
+                  type: { type: "string", description: "e.g. Between-subjects RCT, 2x3 mixed factorial" },
+                  justification: { type: "string", description: "Why this design over alternatives" },
+                },
+                required: ["type", "justification"],
+              },
+              sample: {
+                type: "object",
+                properties: {
+                  population: { type: "string" },
+                  targetN: { type: "number", description: "Target sample size" },
+                  powerRationale: { type: "string", description: "Effect size basis and power level" },
+                  recruitment: { type: "string" },
+                },
+                required: ["population", "targetN", "powerRationale", "recruitment"],
+              },
+              procedure: { type: "array", items: { type: "string" }, description: "Ordered steps of the protocol" },
+              analysis: {
+                type: "object",
+                properties: {
+                  primaryTest: { type: "string", description: "e.g. One-way ANOVA, Mixed-effects regression" },
+                  alpha: { type: "string", description: "e.g. α = .05 with Bonferroni correction" },
+                  effectSizeMeasure: { type: "string", description: "e.g. Cohen's d, η²" },
+                  missingDataStrategy: { type: "string" },
+                  secondaryAnalyses: { type: "array", items: { type: "string" } },
+                },
+                required: ["primaryTest", "alpha", "effectSizeMeasure", "missingDataStrategy"],
+              },
+              limitations: { type: "array", items: { type: "string" }, description: "2-3 most significant limitations" },
+              ethics: { type: "string", description: "IRB, consent, data privacy considerations" },
+            },
+            required: [
+              "version", "title", "researchQuestion", "motivation",
+              "hypotheses", "variables", "design", "sample",
+              "procedure", "analysis", "limitations", "ethics",
+            ],
           },
         },
-        required: ["title", "content"],
+        required: ["title", "design"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "edit_experiment",
+      description:
+        "Edit an existing structured experiment design. Provide only the fields you want to change — they will be merged with the current design. Arrays (hypotheses, procedure, limitations) are replaced wholesale, so include the full updated array. The user will review and accept or reject the change.",
+      parameters: {
+        type: "object",
+        properties: {
+          key: {
+            type: "string",
+            description:
+              'The experiment key, e.g. "experiment:abc123" or just "abc123"',
+          },
+          updates: {
+            type: "object",
+            description:
+              "Partial ExperimentDesign object — only include fields you want to change",
+            properties: {
+              title: { type: "string" },
+              researchQuestion: { type: "string" },
+              motivation: { type: "string" },
+              hypotheses: {
+                type: "array",
+                items: {
+                  type: "object",
+                  properties: {
+                    id: { type: "string" },
+                    type: { type: "string", enum: ["null", "alternative"] },
+                    statement: { type: "string" },
+                  },
+                  required: ["id", "type", "statement"],
+                },
+              },
+              variables: {
+                type: "object",
+                properties: {
+                  independent: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        description: { type: "string" },
+                        levels: { type: "array", items: { type: "string" } },
+                      },
+                      required: ["name", "description", "levels"],
+                    },
+                  },
+                  dependent: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        measure: { type: "string" },
+                        instrument: { type: "string" },
+                      },
+                      required: ["name", "measure"],
+                    },
+                  },
+                  controls: {
+                    type: "array",
+                    items: {
+                      type: "object",
+                      properties: {
+                        name: { type: "string" },
+                        rationale: { type: "string" },
+                      },
+                      required: ["name", "rationale"],
+                    },
+                  },
+                },
+              },
+              design: {
+                type: "object",
+                properties: {
+                  type: { type: "string" },
+                  justification: { type: "string" },
+                },
+              },
+              sample: {
+                type: "object",
+                properties: {
+                  population: { type: "string" },
+                  targetN: { type: "number" },
+                  powerRationale: { type: "string" },
+                  recruitment: { type: "string" },
+                },
+              },
+              procedure: { type: "array", items: { type: "string" } },
+              analysis: {
+                type: "object",
+                properties: {
+                  primaryTest: { type: "string" },
+                  alpha: { type: "string" },
+                  effectSizeMeasure: { type: "string" },
+                  missingDataStrategy: { type: "string" },
+                  secondaryAnalyses: { type: "array", items: { type: "string" } },
+                },
+              },
+              limitations: { type: "array", items: { type: "string" } },
+              ethics: { type: "string" },
+            },
+          },
+          summary: {
+            type: "string",
+            description: "Brief summary of what changed and why",
+          },
+        },
+        required: ["key", "updates", "summary"],
         additionalProperties: false,
       },
     },
@@ -267,7 +478,7 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
     function: {
       name: "load_skill",
       description:
-        "Load a specialized skill to enhance your capabilities for the current task. Use this when you need a specific analytical approach. Available skills: devils-advocate (challenge claims), source-scout (find sources), paper-explainer (explain papers), evidence-adjudicator (weigh evidence), synthesis-updater (propose file updates), draft-paper (draft LaTeX paper), methodology-critic (critique methods), experiment-designer (design experiments).",
+        "Load a specialized skill to gain a structured analytical framework for the current task. Load proactively when the user's request matches — don't wait for slash commands. Skills: devils-advocate (challenge/stress-test claims), source-scout (find sources, identify citation gaps), paper-explainer (explain a specific paper or concept), evidence-adjudicator (weigh conflicting evidence, render verdict), synthesis-updater (revise synthesis/claims/gaps/next-steps files), draft-paper (draft LaTeX academic paper), methodology-critic (critique study design or methodology), experiment-designer (design structured experiments with hypotheses and analysis plans).",
       parameters: {
         type: "object",
         properties: {
@@ -282,7 +493,89 @@ export const TOOL_SCHEMAS: ToolDefinition[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "ask_user",
+      description:
+        "Pause and ask the user a clarifying question with 2-4 structured options. Use sparingly — only when the user's preference genuinely affects the direction or quality of the output (e.g. which methodology to focus on, which framing to adopt, depth vs breadth trade-off). Do NOT use for questions you can answer yourself from the workspace context.",
+      parameters: {
+        type: "object",
+        properties: {
+          question: {
+            type: "string",
+            description: "The question to ask the user. Should be clear and specific.",
+          },
+          options: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                label: {
+                  type: "string",
+                  description: "Short label for the option (2-6 words)",
+                },
+                description: {
+                  type: "string",
+                  description: "Brief explanation of what this option means",
+                },
+              },
+              required: ["label", "description"],
+              additionalProperties: false,
+            },
+            minItems: 2,
+            maxItems: 4,
+            description: "2-4 options for the user to choose from",
+          },
+          allow_custom: {
+            type: "boolean",
+            description: "Whether to allow the user to type a custom answer (default: true)",
+          },
+        },
+        required: ["question", "options"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
+
+// ── Skill Reference Tool (conditionally included) ──
+
+export const SKILL_REFERENCE_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "read_skill_reference",
+    description:
+      "Read a reference file from an active skill's reference library. Use this to retrieve venue-specific submission guidelines, paper format structures, or other deep reference material.",
+    parameters: {
+      type: "object",
+      properties: {
+        skill_id: {
+          type: "string",
+          description: "ID of the active skill (e.g. 'draft-paper')",
+        },
+        path: {
+          type: "string",
+          description:
+            "Reference path (e.g. 'venues/neurips', 'formats/imrad')",
+        },
+      },
+      required: ["skill_id", "path"],
+      additionalProperties: false,
+    },
+  },
+};
+
+/**
+ * Build the tool schema list, conditionally including read_skill_reference
+ * when at least one active skill has references.
+ */
+export function getToolSchemas(activeSkills: SkillDefinition[]): ToolDefinition[] {
+  const hasRefs = activeSkills.some(
+    (s) => s.references && s.references.length > 0
+  );
+  return hasRefs ? [...TOOL_SCHEMAS, SKILL_REFERENCE_TOOL] : TOOL_SCHEMAS;
+}
 
 // ── Tool Dispatcher ──
 
@@ -302,12 +595,13 @@ export async function executeTool(
   name: string,
   args: Record<string, unknown>,
   ctx: WorkspaceContext,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  activeSkills?: SkillDefinition[]
 ): Promise<ToolExecutionResult> {
   switch (name) {
     case "read_workspace_files": {
       const result = executeReadWorkspaceFiles(
-        args as { keys: string[]; line_numbers?: boolean },
+        args as { keys: string[] },
         ctx
       );
       return { result };
@@ -347,10 +641,18 @@ export async function executeTool(
 
     case "create_experiment": {
       const { result, update } = executeCreateExperiment(
-        args as { title: string; content: string },
+        args as Parameters<typeof executeCreateExperiment>[0],
         ctx
       );
       return { result, proposedUpdate: update };
+    }
+
+    case "edit_experiment": {
+      const { result, update } = executeEditExperiment(
+        args as Parameters<typeof executeEditExperiment>[0],
+        ctx
+      );
+      return { result, proposedUpdate: update ?? undefined };
     }
 
     case "search_external_sources": {
@@ -368,9 +670,18 @@ export async function executeTool(
 
     case "load_skill": {
       const { result, skillId } = executeLoadSkill(
-        args as { skill_id: string }
+        args as { skill_id: string },
+        true // promoted: graph.ts handles system-level promotion
       );
       return { result, loadedSkillId: skillId ?? undefined };
+    }
+
+    case "read_skill_reference": {
+      const refResult = executeReadSkillReference(
+        args as { skill_id: string; path: string },
+        activeSkills ?? []
+      );
+      return { result: refResult.result };
     }
 
     default:

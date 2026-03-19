@@ -5,16 +5,42 @@ import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import type { ExperimentMeta, NoteMeta, SourceMeta } from "@/lib/db/research-projects";
 import type { LineRange } from "../../_lib/citation-utils";
+import type { AskUserQuestion } from "@/lib/agent/state";
 import {
   buildFileList,
   getArtifactContent,
   truncateSourceName,
+  type ChatAskUserQuestion,
   type ChatAttachmentInfo,
   type ChatMessage,
   type FileEntry,
   type ProposedUpdate,
   type SessionSummary,
 } from "../_lib/workspace-types";
+import {
+  acceptProposedUpdateInMessages,
+  updateProposedUpdateStatusInMessages,
+} from "../_lib/proposed-update-acceptance";
+
+function buildPersistedMessageMetadata(message: {
+  proposedUpdates?: ProposedUpdate[];
+  searchResults?: DiscoveredSource[];
+  askUserQuestion?: ChatAskUserQuestion;
+}) {
+  const metadata: Record<string, unknown> = {};
+
+  if (message.proposedUpdates?.length) {
+    metadata.proposedUpdates = message.proposedUpdates;
+  }
+  if (message.searchResults?.length) {
+    metadata.searchResults = message.searchResults;
+  }
+  if (message.askUserQuestion) {
+    metadata.askUserQuestion = message.askUserQuestion;
+  }
+
+  return metadata;
+}
 
 export function useWorkspace(runId: string) {
   const [artifacts, setArtifacts] = useState<Artifacts | null>(null);
@@ -37,6 +63,38 @@ export function useWorkspace(runId: string) {
   // Search filter state
   const [searchFilters, setSearchFilters] = useState<SearchFilterConfig>({});
 
+  // Auto-accept edits toggle
+  const [autoAcceptEdits, setAutoAcceptEdits] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("autoAcceptEdits") === "true";
+    }
+    return false;
+  });
+  const autoAcceptEditsRef = useRef(autoAcceptEdits);
+  useEffect(() => {
+    autoAcceptEditsRef.current = autoAcceptEdits;
+  }, [autoAcceptEdits]);
+  const toggleAutoAcceptEdits = useCallback(() => {
+    setAutoAcceptEdits((prev) => {
+      const next = !prev;
+      localStorage.setItem("autoAcceptEdits", String(next));
+      return next;
+    });
+  }, []);
+
+  // Selected agent model (persisted in localStorage)
+  const DEFAULT_MODEL = "google/gemini-3-flash-preview";
+  const [selectedModel, setSelectedModelState] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("selectedAgentModel") || DEFAULT_MODEL;
+    }
+    return DEFAULT_MODEL;
+  });
+  const setSelectedModel = useCallback((model: string) => {
+    setSelectedModelState(model);
+    localStorage.setItem("selectedAgentModel", model);
+  }, []);
+
   // Session state
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -51,14 +109,55 @@ export function useWorkspace(runId: string) {
   const editedRef = useRef(new Map<string, string>());
 
   const artifactsRef = useRef<Artifacts | null>(null);
+  const chatMessagesRef = useRef<ChatMessage[]>([]);
   const notesMetaRef = useRef<Record<string, NoteMeta>>({});
   const abortRef = useRef<AbortController | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
 
   // Keep ref in sync
   useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+  }, [chatMessages]);
+
+  useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
+
+  const replaceChatMessages = useCallback((nextMessages: ChatMessage[]) => {
+    chatMessagesRef.current = nextMessages;
+    setChatMessages(nextMessages);
+  }, []);
+
+  const updateChatMessages = useCallback(
+    (updater: (prev: ChatMessage[]) => ChatMessage[]) => {
+      setChatMessages((prev) => {
+        const nextMessages = updater(prev);
+        chatMessagesRef.current = nextMessages;
+        return nextMessages;
+      });
+    },
+    []
+  );
+
+  const persistMessageMetadata = useCallback(
+    (message: ChatMessage) => {
+      const sessionId = activeSessionIdRef.current;
+      if (!sessionId) return;
+
+      const metadata = buildPersistedMessageMetadata(message);
+      if (Object.keys(metadata).length === 0) return;
+
+      fetch(`/api/agent/${runId}/sessions/${sessionId}/messages`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messageId: message.id,
+          metadata,
+        }),
+      }).catch(() => {});
+    },
+    [runId]
+  );
 
   // Fetch artifacts
   useEffect(() => {
@@ -138,16 +237,17 @@ export function useWorkspace(runId: string) {
             proposedUpdates: m.metadata?.proposedUpdates as ProposedUpdate[] | undefined,
             searchResults: m.metadata?.searchResults as DiscoveredSource[] | undefined,
             activityLabel: m.metadata?.activityLabel as string | undefined,
+            askUserQuestion: m.metadata?.askUserQuestion as ChatAskUserQuestion | undefined,
           })
         );
-        setChatMessages(messages);
+        replaceChatMessages(messages);
         setActiveSessionId(sessionId);
         setShowHistory(false);
       } catch {
         // silently fail
       }
     },
-    [runId]
+    [replaceChatMessages, runId]
   );
 
   const createNewSession = useCallback(async () => {
@@ -160,7 +260,7 @@ export function useWorkspace(runId: string) {
       if (!res.ok) return null;
       const data = await res.json();
       setActiveSessionId(data.id);
-      setChatMessages([]);
+      replaceChatMessages([]);
       setShowHistory(false);
       // Refresh session list
       fetchSessions();
@@ -168,7 +268,7 @@ export function useWorkspace(runId: string) {
     } catch {
       return null;
     }
-  }, [runId, fetchSessions]);
+  }, [fetchSessions, replaceChatMessages, runId]);
 
   const deleteSessionById = useCallback(
     async (sessionId: string) => {
@@ -179,7 +279,7 @@ export function useWorkspace(runId: string) {
         // If we deleted the active session, clear messages
         if (activeSessionIdRef.current === sessionId) {
           setActiveSessionId(null);
-          setChatMessages([]);
+          replaceChatMessages([]);
         }
         // Refresh list
         fetchSessions();
@@ -187,7 +287,7 @@ export function useWorkspace(runId: string) {
         // silently fail
       }
     },
-    [runId, fetchSessions]
+    [fetchSessions, replaceChatMessages, runId]
   );
 
   const renameSession = useCallback(
@@ -396,6 +496,7 @@ export function useWorkspace(runId: string) {
           shortLabel: truncateSourceName(label),
           icon: "experiment",
           group: "experiment",
+          fileType: "experiment-design",
         };
 
         setFiles((prev) => {
@@ -469,11 +570,12 @@ export function useWorkspace(runId: string) {
         searchResults: [],
       };
 
-      setChatMessages((prev) => [...prev, userMsg, agentMsg]);
+      const previousMessages = chatMessagesRef.current;
+      replaceChatMessages([...previousMessages, userMsg, agentMsg]);
       setAgentTyping(true);
 
       // Build conversation history from previous messages (exclude current pair)
-      const history = chatMessages
+      const history = previousMessages
         .filter((m) => m.text.trim())
         .map((m) => ({
           role: m.role === "user" ? ("user" as const) : ("assistant" as const),
@@ -492,6 +594,7 @@ export function useWorkspace(runId: string) {
       let finalAgentText = "";
       let finalProposedUpdates: ProposedUpdate[] | undefined;
       let finalSearchResults: DiscoveredSource[] | undefined;
+      let finalAskUserQuestion: ChatAskUserQuestion | undefined;
 
       try {
         // Base64-encode file attachments for the API
@@ -525,6 +628,7 @@ export function useWorkspace(runId: string) {
             message: text,
             ...(encodedAttachments?.length ? { attachments: encodedAttachments } : {}),
             conversationHistory: history,
+            model: selectedModel,
             workspaceContext: {
               editedContents: editedObj,
               activeFileKey,
@@ -569,6 +673,7 @@ export function useWorkspace(runId: string) {
               results?: DiscoveredSource[];
               sources?: Array<{ sourceId: string; key: string; label: string; content: string; sourceUrl?: string; paperQuality?: PaperQualityMeta; folder?: string }>;
               skills?: string[];
+              question?: AskUserQuestion;
               message?: string;
               usage?: { totalTokens: number };
             };
@@ -580,7 +685,7 @@ export function useWorkspace(runId: string) {
 
             switch (event.type) {
               case "activity":
-                setChatMessages((prev) =>
+                updateChatMessages((prev) =>
                   prev.map((m) =>
                     m.id === agentMsgId
                       ? { ...m, activityLabel: event.activity }
@@ -591,7 +696,7 @@ export function useWorkspace(runId: string) {
 
               case "text_delta":
                 finalAgentText += event.content ?? "";
-                setChatMessages((prev) =>
+                updateChatMessages((prev) =>
                   prev.map((m) =>
                     m.id === agentMsgId
                       ? { ...m, text: m.text + (event.content ?? ""), activityLabel: undefined }
@@ -606,7 +711,7 @@ export function useWorkspace(runId: string) {
                     // Auto-accept new files/papers — no approval needed
                     const pu: ProposedUpdate = { ...event.update, status: "accepted" };
                     finalProposedUpdates = [...(finalProposedUpdates ?? []), pu];
-                    setChatMessages((prev) =>
+                    updateChatMessages((prev) =>
                       prev.map((m) =>
                         m.id === agentMsgId
                           ? {
@@ -618,11 +723,27 @@ export function useWorkspace(runId: string) {
                     );
                     // Apply immediately
                     autoApplyNewUpdate(pu);
+                  } else if (autoAcceptEditsRef.current) {
+                    // Auto-accept mode: apply edits immediately
+                    const pu: ProposedUpdate = { ...event.update, status: "accepted" };
+                    finalProposedUpdates = [...(finalProposedUpdates ?? []), pu];
+                    updateChatMessages((prev) =>
+                      prev.map((m) =>
+                        m.id === agentMsgId
+                          ? {
+                              ...m,
+                              proposedUpdates: [...(m.proposedUpdates ?? []), pu],
+                            }
+                          : m
+                      )
+                    );
+                    updateContent(event.update.key, event.update.content);
+                    setActiveFileKey(event.update.key);
                   } else {
                     // Edits require user approval
                     const pu: ProposedUpdate = { ...event.update, status: "pending" };
                     finalProposedUpdates = [...(finalProposedUpdates ?? []), pu];
-                    setChatMessages((prev) =>
+                    updateChatMessages((prev) =>
                       prev.map((m) =>
                         m.id === agentMsgId
                           ? {
@@ -642,7 +763,7 @@ export function useWorkspace(runId: string) {
                     ...(finalSearchResults ?? []),
                     ...event.results,
                   ];
-                  setChatMessages((prev) =>
+                  updateChatMessages((prev) =>
                     prev.map((m) =>
                       m.id === agentMsgId
                         ? {
@@ -695,8 +816,44 @@ export function useWorkspace(runId: string) {
                 }
                 break;
 
+              case "ask_user":
+                if (event.question) {
+                  const askQ: ChatAskUserQuestion = {
+                    ...event.question,
+                    status: "pending",
+                  };
+                  finalAskUserQuestion = askQ;
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? { ...m, askUserQuestion: askQ, activityLabel: "Waiting for your input" }
+                        : m
+                    )
+                  );
+                }
+                break;
+
+              case "tool_result":
+                // Detect ask_user timeout: if the tool_result is for ask_user
+                // and the question is still "pending", mark it as timed out
+                if (event.name === "ask_user" && finalAskUserQuestion?.status === "pending") {
+                  const timedOut: ChatAskUserQuestion = {
+                    ...finalAskUserQuestion,
+                    status: "timed_out",
+                  };
+                  finalAskUserQuestion = timedOut;
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? { ...m, askUserQuestion: timedOut }
+                        : m
+                    )
+                  );
+                }
+                break;
+
               case "error":
-                setChatMessages((prev) =>
+                updateChatMessages((prev) =>
                   prev.map((m) =>
                     m.id === agentMsgId
                       ? {
@@ -712,7 +869,7 @@ export function useWorkspace(runId: string) {
                 break;
 
               case "done":
-                setChatMessages((prev) =>
+                updateChatMessages((prev) =>
                   prev.map((m) =>
                     m.id === agentMsgId ? { ...m, isStreaming: false } : m
                   )
@@ -724,7 +881,7 @@ export function useWorkspace(runId: string) {
         }
 
         // Ensure streaming is marked complete
-        setChatMessages((prev) =>
+        updateChatMessages((prev) =>
           prev.map((m) =>
             m.id === agentMsgId ? { ...m, isStreaming: false } : m
           )
@@ -732,7 +889,7 @@ export function useWorkspace(runId: string) {
       } catch (err) {
         if ((err as Error).name === "AbortError") return;
 
-        setChatMessages((prev) =>
+        updateChatMessages((prev) =>
           prev.map((m) =>
             m.id === agentMsgId
               ? {
@@ -749,9 +906,18 @@ export function useWorkspace(runId: string) {
 
         // Persist message pair to DB
         if (sessionId) {
-          const agentMetadata: Record<string, unknown> = {};
-          if (finalProposedUpdates?.length) agentMetadata.proposedUpdates = finalProposedUpdates;
-          if (finalSearchResults?.length) agentMetadata.searchResults = finalSearchResults;
+          const currentAgentMessage = chatMessagesRef.current.find(
+            (message) => message.id === agentMsgId
+          );
+          const agentText = currentAgentMessage?.text ?? finalAgentText;
+          const agentMetadata = buildPersistedMessageMetadata({
+            proposedUpdates:
+              currentAgentMessage?.proposedUpdates ?? finalProposedUpdates,
+            searchResults:
+              currentAgentMessage?.searchResults ?? finalSearchResults,
+            askUserQuestion:
+              currentAgentMessage?.askUserQuestion ?? finalAskUserQuestion,
+          });
 
           fetch(
             `/api/agent/${runId}/sessions/${sessionId}/messages`,
@@ -760,10 +926,11 @@ export function useWorkspace(runId: string) {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 messages: [
-                  { role: "user", text },
+                  { id: userMsg.id, role: "user", text },
                   {
+                    id: agentMsgId,
                     role: "agent",
-                    text: finalAgentText,
+                    text: agentText,
                     ...(Object.keys(agentMetadata).length > 0 && {
                       metadata: agentMetadata,
                     }),
@@ -771,7 +938,18 @@ export function useWorkspace(runId: string) {
                 ],
               }),
             }
-          ).catch(() => {});
+          )
+            .then((response) => {
+              if (!response.ok) return;
+
+              const latestAgentMessage = chatMessagesRef.current.find(
+                (message) => message.id === agentMsgId
+              );
+              if (latestAgentMessage) {
+                persistMessageMetadata(latestAgentMessage);
+              }
+            })
+            .catch(() => {});
 
           // Refresh session list to update timestamps
           fetchSessions();
@@ -804,26 +982,33 @@ export function useWorkspace(runId: string) {
         }
       }
     },
-    [runId, chatMessages, editedContents, activeFileKey, fetchSessions, sessions]
+    [
+      activeFileKey,
+      autoApplyNewUpdate,
+      editedContents,
+      fetchSessions,
+      persistMessageMetadata,
+      replaceChatMessages,
+      runId,
+      searchFilters,
+      sessions,
+      updateChatMessages,
+    ]
   );
 
   const acceptProposedUpdate = useCallback(
     (messageId: string, updateId: string) => {
-      let appliedUpdate: ProposedUpdate | undefined;
+      const { nextMessages, updatedMessage, appliedUpdate } =
+        acceptProposedUpdateInMessages(
+          chatMessagesRef.current,
+          messageId,
+          updateId
+        );
 
-      setChatMessages((prev) =>
-        prev.map((m) => {
-          if (m.id !== messageId) return m;
-          return {
-            ...m,
-            proposedUpdates: m.proposedUpdates?.map((pu) => {
-              if (pu.id !== updateId) return pu;
-              appliedUpdate = pu;
-              return { ...pu, status: "accepted" as const };
-            }),
-          };
-        })
-      );
+      replaceChatMessages(nextMessages);
+      if (updatedMessage) {
+        persistMessageMetadata(updatedMessage);
+      }
 
       // Apply the content change
       if (appliedUpdate) {
@@ -877,6 +1062,7 @@ export function useWorkspace(runId: string) {
             shortLabel: truncateSourceName(label),
             icon: "experiment",
             group: "experiment",
+            fileType: "experiment-design",
           };
 
           setFiles((prev) => {
@@ -885,26 +1071,93 @@ export function useWorkspace(runId: string) {
           });
           setActiveFileKey(appliedUpdate.key);
         }
+
+        // For edit-type updates: navigate to the edited file so the user sees changes
+        if (appliedUpdate.type === "edit") {
+          setActiveFileKey(appliedUpdate.key);
+
+          // If editing an experiment, update sidebar label to reflect new title
+          if (appliedUpdate.key.startsWith("experiment:") && appliedUpdate.label) {
+            setFiles((prev) =>
+              prev.map((f) =>
+                f.key === appliedUpdate!.key
+                  ? { ...f, label: appliedUpdate!.label!, shortLabel: truncateSourceName(appliedUpdate!.label!) }
+                  : f
+              )
+            );
+          }
+        }
       }
     },
-    [updateContent]
+    [persistMessageMetadata, replaceChatMessages, updateContent]
   );
 
   const rejectProposedUpdate = useCallback(
     (messageId: string, updateId: string) => {
-      setChatMessages((prev) =>
+      const { nextMessages, updatedMessage } =
+        updateProposedUpdateStatusInMessages(
+          chatMessagesRef.current,
+          messageId,
+          updateId,
+          "rejected"
+        );
+
+      replaceChatMessages(nextMessages);
+      if (updatedMessage) {
+        persistMessageMetadata(updatedMessage);
+      }
+    },
+    [persistMessageMetadata, replaceChatMessages]
+  );
+
+  const answerQuestion = useCallback(
+    async (messageId: string, questionId: string, answer: string, isCustom: boolean) => {
+      // Optimistically update UI to "answered"
+      updateChatMessages((prev) =>
         prev.map((m) => {
-          if (m.id !== messageId) return m;
+          if (m.id !== messageId || !m.askUserQuestion) return m;
           return {
             ...m,
-            proposedUpdates: m.proposedUpdates?.map((pu) =>
-              pu.id === updateId ? { ...pu, status: "rejected" as const } : pu
-            ),
+            askUserQuestion: { ...m.askUserQuestion, status: "answered" as const, answer },
+            activityLabel: "Processing your answer",
           };
         })
       );
+
+      try {
+        const res = await fetch(`/api/agent/${runId}/answer`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ questionId, answer, isCustom }),
+        });
+        if (!res.ok) {
+          // Revert on failure
+          updateChatMessages((prev) =>
+            prev.map((m) => {
+              if (m.id !== messageId || !m.askUserQuestion) return m;
+              return {
+                ...m,
+                askUserQuestion: { ...m.askUserQuestion, status: "pending" as const, answer: undefined },
+                activityLabel: undefined,
+              };
+            })
+          );
+        }
+      } catch {
+        // Revert on network error
+        updateChatMessages((prev) =>
+          prev.map((m) => {
+            if (m.id !== messageId || !m.askUserQuestion) return m;
+            return {
+              ...m,
+              askUserQuestion: { ...m.askUserQuestion, status: "pending" as const, answer: undefined },
+              activityLabel: undefined,
+            };
+          })
+        );
+      }
     },
-    []
+    [runId, updateChatMessages]
   );
 
   const deleteFile = useCallback(
@@ -1246,9 +1499,16 @@ export function useWorkspace(runId: string) {
     toggleExpanded,
     acceptProposedUpdate,
     rejectProposedUpdate,
+    answerQuestion,
     // Search filters
     searchFilters,
     setSearchFilters,
+    // Auto-accept edits
+    autoAcceptEdits,
+    toggleAutoAcceptEdits,
+    // Model selection
+    selectedModel,
+    setSelectedModel,
     // Session-related
     sessions,
     activeSessionId,

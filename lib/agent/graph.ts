@@ -1,9 +1,12 @@
 import type { LLMMessage, ContentPart } from "@/lib/llm/openrouter";
 import { MODEL_AGENT } from "@/lib/llm/models";
 import { callLLMStreaming } from "@/lib/llm/openrouter-streaming";
-import { TOOL_SCHEMAS, executeTool } from "./tools";
-import { buildConstitution } from "./prompts/constitution";
-import type { AgentState, SSEEvent, WorkspaceContext } from "./state";
+import { getToolSchemas, executeTool } from "./tools";
+import { executeAskUser } from "./tools/ask-user";
+import { memoryStore } from "@/lib/storage/memory-store";
+import { buildSystemPrompt } from "./prompts/constitution";
+import { SKILL_BY_SLASH, SKILL_MAP, type SkillDefinition } from "./prompts/skills";
+import type { AgentState, AskUserOption, SSEEvent, WorkspaceContext } from "./state";
 import { sleep } from "@/lib/utils/async";
 
 const MAX_ITERATIONS = 8;
@@ -17,7 +20,32 @@ const TOOL_ACTIVITY_LABELS: Record<string, string> = {
   create_paper: "Drafting paper",
   search_external_sources: "Searching external sources",
   load_skill: "Loading skill",
+  read_skill_reference: "Reading reference material",
+  ask_user: "Waiting for your input",
 };
+
+/** Detect all known slash commands in a message. Returns deduped array of matched skills. */
+function detectSlashCommands(message: string): SkillDefinition[] {
+  const skills: SkillDefinition[] = [];
+  const regex = /\/(\S+)/g;
+  let match;
+  while ((match = regex.exec(message)) !== null) {
+    const skill = SKILL_BY_SLASH.get(`/${match[1]}`);
+    if (skill && !skills.some((s) => s.id === skill.id)) {
+      skills.push(skill);
+    }
+  }
+  return skills;
+}
+
+/** Strip all known slash commands from a message. */
+function stripSlashCommands(message: string): string {
+  return message
+    .replace(/\/(\S+)/g, (full, cmd) => {
+      return SKILL_BY_SLASH.has(`/${cmd}`) ? "" : full;
+    })
+    .trim();
+}
 
 /**
  * Run the workspace agent ReAct loop.
@@ -28,14 +56,25 @@ export async function* runAgentLoop(
   conversationHistory: LLMMessage[],
   workspaceCtx: WorkspaceContext,
   imageAttachments?: ContentPart[],
+  model?: string,
 ): AsyncGenerator<SSEEvent> {
-  // 1. Build system prompt (skills are listed but not loaded — agent loads on demand)
-  const systemPrompt = buildConstitution(workspaceCtx);
+  // 1. Pre-detect slash commands and build active skills array
+  const preDetected = detectSlashCommands(userMessage);
+  const activeSkills: SkillDefinition[] = [...preDetected];
 
-  // 2. Build initial messages — use content parts array when images are attached
+  // Strip slash commands from user message; fall back to generic prompt if empty
+  const cleanMessage =
+    preDetected.length > 0
+      ? stripSlashCommands(userMessage) || "Analyze the workspace."
+      : userMessage;
+
+  // 2. Build initial system prompt with any pre-detected skills
+  let systemPrompt = buildSystemPrompt(workspaceCtx, activeSkills);
+
+  // 3. Build initial messages — use content parts array when images are attached
   const userContent: string | ContentPart[] = imageAttachments?.length
-    ? [{ type: "text" as const, text: userMessage }, ...imageAttachments]
-    : userMessage;
+    ? [{ type: "text" as const, text: cleanMessage }, ...imageAttachments]
+    : cleanMessage;
 
   const messages: LLMMessage[] = [
     { role: "system", content: systemPrompt },
@@ -47,12 +86,17 @@ export async function* runAgentLoop(
     messages,
     proposedUpdates: [],
     searchResults: [],
-    activatedSkills: [],
+    activatedSkills: activeSkills.map((s) => s.id),
     totalTokens: 0,
     iterations: 0,
   };
 
-  // 3. ReAct loop
+  // Emit skill_activated for pre-detected skills before first LLM call
+  if (preDetected.length > 0) {
+    yield { type: "skill_activated", skills: preDetected.map((s) => s.id) };
+  }
+
+  // 4. ReAct loop
   yield { type: "activity", activity: "Analyzing your question" };
 
   while (state.iterations < MAX_ITERATIONS) {
@@ -65,12 +109,15 @@ export async function* runAgentLoop(
     let fullContent = "";
     let toolCalls: Array<{ id: string; name: string; arguments: string }> = [];
 
+    // Compute current tools based on active skills
+    const currentTools = getToolSchemas(activeSkills);
+
     // Stream LLM response
     try {
       for await (const chunk of callLLMStreaming({
         messages: state.messages,
-        tools: TOOL_SCHEMAS,
-        model: MODEL_AGENT,
+        tools: currentTools,
+        model: model || MODEL_AGENT,
         temperature: 0.3,
         maxTokens: 4096,
       })) {
@@ -132,6 +179,36 @@ export async function* runAgentLoop(
       yield { type: "activity", activity: activityLabel };
       yield { type: "tool_call", name: tc.name, args };
 
+      // ── Special case: ask_user pauses the generator ──
+      if (tc.name === "ask_user" && workspaceCtx.runId) {
+        const askArgs = args as { question: string; options: AskUserOption[]; allow_custom?: boolean };
+        const { question, answerPromise } = executeAskUser(askArgs, workspaceCtx.runId);
+
+        // Send question to client via SSE
+        yield { type: "ask_user", question };
+
+        // Pause generator — await answer or 2-minute timeout
+        let toolResultContent: string;
+        try {
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("timeout")), 120_000)
+          );
+          const answer = await Promise.race([answerPromise, timeout]);
+          toolResultContent = `User answered: "${answer.answer}"${answer.isCustom ? " (custom response)" : ""}`;
+        } catch {
+          memoryStore.cancelPendingQuestion(workspaceCtx.runId);
+          toolResultContent = "User did not respond in time. Proceed with your best judgment based on the workspace context.";
+        }
+
+        yield { type: "tool_result", name: tc.name, result: toolResultContent };
+        state.messages.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: toolResultContent,
+        });
+        continue;
+      }
+
       // Progress callback pushes messages into a queue; we poll it on a
       // short interval and yield activity events while the tool runs.
       const progressQueue: string[] = [];
@@ -140,7 +217,7 @@ export async function* runAgentLoop(
       let toolResult: Awaited<ReturnType<typeof executeTool>> | undefined;
       let toolError: unknown;
 
-      const toolPromise = executeTool(tc.name, args, workspaceCtx, onProgress)
+      const toolPromise = executeTool(tc.name, args, workspaceCtx, onProgress, activeSkills)
         .then((r) => { toolResult = r; })
         .catch((e) => { toolError = e; });
 
@@ -198,8 +275,16 @@ export async function* runAgentLoop(
         }
       }
 
-      // Track loaded skills
+      // Dynamic skill promotion: when load_skill is called mid-turn,
+      // promote the skill to system-level priority by rebuilding the system prompt
       if (tr.loadedSkillId) {
+        const skill = SKILL_MAP.get(tr.loadedSkillId);
+        if (skill && !activeSkills.some((s) => s.id === skill.id)) {
+          activeSkills.push(skill);
+          // Rebuild system prompt with newly added skill
+          systemPrompt = buildSystemPrompt(workspaceCtx, activeSkills);
+          messages[0] = { role: "system", content: systemPrompt };
+        }
         state.activatedSkills.push(tr.loadedSkillId);
         yield { type: "skill_activated", skills: [tr.loadedSkillId] };
       }
@@ -213,6 +298,6 @@ export async function* runAgentLoop(
     }
   }
 
-  // 4. Done
+  // 5. Done
   yield { type: "done", usage: { totalTokens: state.totalTokens } };
 }

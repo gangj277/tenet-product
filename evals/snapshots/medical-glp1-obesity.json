@@ -1,0 +1,184 @@
+{
+  "fixtureId": "medical-glp1-obesity",
+  "capturedAt": "2026-03-19T09:21:14.294Z",
+  "runId": "8ca73565-d61b-489f-94ca-925351833757",
+  "context": {
+    "input": {
+      "projectTitle": "GLP-1 Therapies for Obesity",
+      "researchQuestion": "What does recent literature say about the efficacy and safety of GLP-1-based therapies for obesity management in adults without diabetes?",
+      "researchIntent": "Produce a clinically grounded synthesis of weight-loss efficacy, cardiometabolic benefits, and safety tradeoffs, with attention to differences between semaglutide and tirzepatide.",
+      "workingHypothesis": "GLP-1-based therapies appear to produce clinically meaningful weight loss and cardiometabolic improvement, but adverse effects and study heterogeneity materially affect interpretation.",
+      "scopeBoundaries": "Focus on adult obesity management, especially systematic reviews and meta-analyses covering semaglutide, tirzepatide, or GLP-1 receptor agonists in people without diabetes where possible.",
+      "mustAnswerQuestions": [
+        "How large are the reported weight-loss effects?",
+        "What cardiovascular or cardiometabolic benefits are reported?",
+        "What safety issues or evidence gaps should a clinician note?"
+      ],
+      "audience": "Clinical researcher",
+      "geography": "Global literature",
+      "timeHorizon": "2022-2025",
+      "outputLanguage": "en"
+    },
+    "perspective": {
+      "projectTitle": "GLP-1 Therapies for Obesity",
+      "briefSummary": "This project evaluates the clinical utility of GLP-1 receptor agonists and dual agonists for weight management in non-diabetic adults, specifically comparing the efficacy and safety profiles of semaglutide and tirzepatide. The system will prioritize high-level evidence from systematic reviews to determine if the substantial weight loss and cardiometabolic improvements outweigh the gastrointestinal side effects and long-term safety uncertainties. The working frame assumes that while these therapies are transformative, their clinical interpretation is complicated by significant study heterogeneity and high discontinuation rates due to adverse events.",
+      "interpretedIntent": "To determine the comparative clinical value and risk-benefit ratio of semaglutide versus tirzepatide for non-diabetic obesity, identifying whether superior weight loss is offset by safety concerns or methodological flaws in the literature.",
+      "inferredResearchFrame": "The 'Efficacy-Tolerability Tradeoff' frame: GLP-1 therapies provide dose-dependent weight loss and metabolic protection, but their real-world clinical utility is limited by gastrointestinal intolerance and the potential for weight regain upon cessation.",
+      "evidenceForCriteria": [
+        "Meta-analyses showing mean weight loss exceeding 15% for semaglutide or 20% for tirzepatide in non-diabetic cohorts.",
+        "Statistically significant improvements in blood pressure, lipid profiles, and glycemic markers (HbA1c) independent of weight loss.",
+        "High-quality RCT data demonstrating sustained efficacy over 68-72 weeks."
+      ],
+      "evidenceAgainstCriteria": [
+        "High attrition rates (>20%) in clinical trials specifically attributed to gastrointestinal adverse events.",
+        "Studies indicating significant loss of lean muscle mass or rapid weight regain post-intervention.",
+        "Evidence of severe but rare complications such as pancreatitis, gastroparesis, or biliary disease that skew the safety profile."
+      ],
+      "subquestions": [
+        "What is the comparative magnitude of weight loss between semaglutide 2.4mg and tirzepatide (various doses) in head-to-head or network meta-analyses?",
+        "To what extent do these therapies reduce major adverse cardiovascular events (MACE) in patients without pre-existing diabetes?",
+        "How does the incidence of grade 3 or higher gastrointestinal adverse events compare across different GLP-1 based molecules?",
+        "What specific evidence gaps exist regarding the long-term (3+ years) safety and weight maintenance of these drugs?",
+        "How does study heterogeneity, such as varying lifestyle intervention components, impact the reported efficacy of these pharmacological agents?"
+      ]
+    },
+    "consolidatedFindings": {
+      "canonicalClaims": [
+        {
+          "claim": "Semaglutide and Tirzepatide provide superior weight loss efficacy compared to placebo and earlier GLP-1 receptor agonists in non-diabetic and diabetic cohorts.",
+          "support": [
+            {
+              "claim": "Semaglutide 2.4 mg achieved a mean weight loss of -14.9% in phase III clinical trials for non-diabetic individuals after 68 weeks.",
+              "sourceId": "500c72dd-825a-4964-9627-d776aaf05dad",
+              "sourceName": "Anti-obesity drug discovery: advances and challenges",
+              "location": "Box 2 | Prominent failures of AOMs",
+              "confidence": "high",
+              "quote": "A notable exception is the recently approved GLP1R agonist semaglutide 2.4 mg, which in phase III clinical trials decreased body weight in individuals with obesity or overweight without diabetes after 68 weeks of treatment by -14.9% relative to -2.4% in placebo-treated controls."
+            },
+            {
+              "claim": "Tirzepatide reduced body weight by 15% to 20.9% at 72 weeks in people with obesity but without diabetes.",
+              "sourceId": "a497e563-aa2f-4ee1-9430-db018301bcbb",
+              "sourceName": "Management of hyperglycaemia in type 2 diabetes, 2022",
+              "location": "Medications for weight loss in type 2 diabetes",
+              "confidence": "high",
+              "quote": "Tirzepatide... at weekly doses of 5 mg, 10 mg and 15 mg reduced body weight by 15%, 19.5% and 20.9%, respectively, compared with 3.1% with placebo at 72 weeks in people with obesity but without diabetes"
+            }
+          ],
+          "contradictions": [
+            {
+              "claim": "Weight loss is considerably lower in patients with type 2 diabetes compared to non-diabetic cohorts.",
+              "sourceId": "500c72dd-825a-4964-9627-d776aaf05dad",
+              "sourceName": "Anti-obesity drug discovery: advances and challenges",
+              "location": "Box 1 | Endocrine control of food intake",
+              "confidence": "high",
+              "quote": "Weight loss is considerably lower in patients with T2D, indicating that insulin resistance and chronic hyperglycaemia correlate with diminished efficacy of GLP1R agonists."
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "claim": "Gastrointestinal adverse events are the primary limiting factor for GLP-1 based therapies, showing dose-dependency and impact on discontinuation.",
+          "support": [
+            {
+              "claim": "Nausea and diarrhea occurred significantly more frequently with semaglutide and are dose-dependent.",
+              "sourceId": "567d18dd-0fc4-4773-a3bf-d531739526a0",
+              "sourceName": "Efficacy and safety of semaglutide on weight loss in obese or overweight patients without diabetes",
+              "location": "3.4.5 Adverse events",
+              "confidence": "high",
+              "quote": "Nausea and diarrhea occurred significantly more frequently with semaglutide (nausea, RR: 2.58; diarrhea, RR: 2.01)... Subgroup analysis suggested a dose-dependent effect on weight loss and adverse events."
+            },
+            {
+              "claim": "Dose-dependent gastrointestinal effects limit the therapeutic index and efficacy of GLP-1R agonists.",
+              "sourceId": "da8c7eae-b56f-42dc-be6e-ebbeed9d5c87",
+              "sourceName": "GLP-1 receptor agonists for the treatment of obesity: Role as a promising approach",
+              "location": "4 Others",
+              "confidence": "high",
+              "quote": "However, dose-dependent gastrointestinal effects limit efficacy, prompting the development of drugs with GLP-1 and GCG pharmacology to target alternative pathways and expand the therapeutic index."
+            }
+          ],
+          "contradictions": [],
+          "confidence": "high"
+        },
+        {
+          "claim": "GLP-1 therapies provide cardiometabolic benefits, including reductions in blood pressure and inflammatory markers, independent of weight loss.",
+          "support": [
+            {
+              "claim": "Semaglutide significantly reduced systolic and diastolic blood pressure and C-reactive protein levels.",
+              "sourceId": "567d18dd-0fc4-4773-a3bf-d531739526a0",
+              "sourceName": "Efficacy and safety of semaglutide on weight loss in obese or overweight patients without diabetes",
+              "location": "3.4.4 Blood pressure, CRP, and lipid profiles",
+              "confidence": "high",
+              "quote": "Semaglutide significantly reduced SBP (MD: -5.10 mm Hg) and slightly reduced DBP (MD: -2.11 mm Hg) compared to placebo... showing a significant decrease with semaglutide (MD: -1.09 mg/L)."
+            }
+          ],
+          "contradictions": [],
+          "confidence": "high"
+        },
+        {
+          "claim": "Obesity management with GLP-1 agonists requires chronic administration, as cessation leads to weight regain.",
+          "support": [
+            {
+              "claim": "Withdrawing semaglutide treatment leads to increases in body weight.",
+              "sourceId": "a497e563-aa2f-4ee1-9430-db018301bcbb",
+              "sourceName": "Management of hyperglycaemia in type 2 diabetes, 2022",
+              "location": "Medications for weight loss in type 2 diabetes",
+              "confidence": "high",
+              "quote": "Studies in adults with overweight or obesity suggest that withdrawing treatment with semaglutide leads to increases in body weight, highlighting the chronic nature of, and need for, obesity/weight management."
+            }
+          ],
+          "contradictions": [],
+          "confidence": "high"
+        }
+      ],
+      "prioritizedSupport": [
+        {
+          "claim": "Tirzepatide 15mg dose provides the highest magnitude of weight loss compared to lower doses and other GLP-1 agonists.",
+          "sourceId": "562c5ba4-63f2-4f80-87ec-0e1dfb51f311",
+          "sourceName": "The effects of subcutaneous Tirzepatide on obesity and overweight",
+          "location": "Results > Meta-analysis results",
+          "confidence": "high",
+          "quote": "Subgroup analysis showed that weight loss was higher with a dose of 15 mg (WMD: -13.02 kg) compared to 10 mg (WMD: -11.66 kg) and 5 mg (WMD: -9.08 kg)."
+        },
+        {
+          "claim": "Semaglutide 2.4mg significantly increases the proportion of patients achieving substantial weight loss targets (>15-20%).",
+          "sourceId": "567d18dd-0fc4-4773-a3bf-d531739526a0",
+          "sourceName": "Efficacy and safety of semaglutide on weight loss in obese or overweight patients without diabetes",
+          "location": "3.4.3 Weight loss thresholds",
+          "confidence": "high",
+          "quote": "Semaglutide significantly increased the proportion of participants achieving more than 5%, 10%, and 15% weight loss compared to placebo."
+        }
+      ],
+      "prioritizedContradictions": [
+        {
+          "claim": "GLP-1 receptor agonists are associated with increased risks of gallbladder and biliary diseases.",
+          "sourceId": "a497e563-aa2f-4ee1-9430-db018301bcbb",
+          "sourceName": "Management of hyperglycaemia in type 2 diabetes, 2022",
+          "location": "Glucagon-like peptide-1 receptor agonists",
+          "confidence": "high",
+          "quote": "GLP-1 RA are also associated with higher risks of gallbladder and biliary diseases."
+        },
+        {
+          "claim": "Rare but serious adverse events such as pancreatitis have been reported with specific GLP-1 agents.",
+          "sourceId": "da8c7eae-b56f-42dc-be6e-ebbeed9d5c87",
+          "sourceName": "GLP-1 receptor agonists for the treatment of obesity: Role as a promising approach",
+          "location": "3.3.2 Dulaglutide",
+          "confidence": "high",
+          "quote": "However, AWARD-2 reported cases of pancreatitis with DUL, necessitating close monitoring."
+        }
+      ],
+      "openQuestions": [
+        "What are the long-term (3+ years) safety and weight maintenance outcomes for tirzepatide in non-diabetic populations?",
+        "Can oral semaglutide achieve comparable weight reduction to the injectable 2.4mg formulation?",
+        "What is the specific impact of these therapies on lean muscle mass loss versus fat mass loss in non-diabetic adults?"
+      ],
+      "confidenceNotes": [
+        "High confidence in short-term (68-72 week) weight loss efficacy for both semaglutide and tirzepatide.",
+        "Evidence quality for weight loss targets is occasionally downgraded to 'moderate' due to study heterogeneity and potential publication bias.",
+        "Significant study heterogeneity (I² > 90%) noted in tirzepatide meta-analyses, likely due to varying baseline BMIs and trial durations."
+      ],
+      "unresolvedDisagreements": [
+        "While some sources suggest GLP-1 RAs have no increase in pancreatitis risk based on CVOT data, other clinical trial reports (e.g., AWARD-2) specifically flag cases of pancreatitis, leaving the absolute risk profile contested."
+      ]
+    }
+  }
+}

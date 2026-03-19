@@ -1,0 +1,212 @@
+{
+  "fixtureId": "ai-model-collapse",
+  "capturedAt": "2026-03-19T09:05:22.306Z",
+  "runId": "a082069f-07b2-4b87-838e-0b043a7383a9",
+  "context": {
+    "input": {
+      "projectTitle": "Model Collapse From Recursive Synthetic Data Training",
+      "researchQuestion": "Under what conditions does recursive training on synthetic data lead to model collapse in generative models?",
+      "researchIntent": "Produce a research synthesis on whether model collapse is an inevitable consequence of synthetic-data training loops and what mitigation strategies appear credible.",
+      "workingHypothesis": "Model collapse is a real risk when synthetic data dominates the training distribution, but mixing fresh real data with synthetic data can reduce or delay the effect.",
+      "scopeBoundaries": "Focus on machine learning literature about recursive training, synthetic data reuse, and distribution degradation. Ignore product commentary and non-technical blog posts.",
+      "mustAnswerQuestions": [
+        "What mechanisms are proposed for model collapse?",
+        "Which results suggest collapse is avoidable or mitigable?",
+        "What evidence is theoretical versus empirical?"
+      ],
+      "audience": "ML research lead",
+      "geography": "Global literature",
+      "timeHorizon": "2023-2025",
+      "outputLanguage": "en"
+    },
+    "perspective": {
+      "projectTitle": "Model Collapse From Recursive Synthetic Data Training",
+      "briefSummary": "This project investigates the technical validity of the 'model collapse' phenomenon, where generative models lose diversity or accuracy due to recursive training on their own outputs. The research will synthesize current machine learning literature to determine if collapse is an inherent mathematical certainty or a manageable engineering challenge. The system will specifically look for evidence regarding the 'real-to-synthetic' data ratio required for stability and the effectiveness of various mitigation strategies, such as data filtering and architectural adjustments, to provide a technical roadmap for maintaining model quality in data-scarce environments.",
+      "interpretedIntent": "To determine the technical boundary conditions under which recursive synthetic training becomes catastrophic versus sustainable, and to identify validated architectural or data-curation interventions.",
+      "inferredResearchFrame": "Model collapse is not an absolute law but a function of distribution shift and error accumulation that can be mitigated through strategic data mixing and high-fidelity filtering.",
+      "evidenceForCriteria": [
+        "Empirical studies showing a decrease in output variance or 'tail' disappearance over successive generations.",
+        "Mathematical proofs demonstrating error accumulation in recursive Markov chains or similar stochastic processes.",
+        "Experiments where synthetic data dominance leads to a measurable drop in Perplexity or Fréchet Inception Distance (FID).",
+        "Results showing that even small amounts of 'poisoned' synthetic data degrade the performance of larger downstream models."
+      ],
+      "evidenceAgainstCriteria": [
+        "Studies demonstrating stable performance over many generations when a specific percentage of fresh real data is maintained.",
+        "Evidence that high-quality filtering (e.g., using reward models or classifiers) prevents the loss of distribution diversity.",
+        "Research showing that larger model architectures or specific loss functions are more resilient to synthetic noise.",
+        "Empirical cases where synthetic data augmentation actually improves performance on niche or long-tail tasks."
+      ],
+      "subquestions": [
+        "What is the critical threshold or ratio of real-to-synthetic data required to prevent distribution drift?",
+        "How do different sampling strategies (e.g., top-p vs. beam search) influence the speed of model collapse?",
+        "To what extent does 'data contamination' in the initial pre-training set accelerate collapse in subsequent fine-tuning?",
+        "Which specific metrics (e.g., V-measure, entropy, or task-specific benchmarks) are most sensitive to early-stage collapse?",
+        "Are certain modalities (text vs. image vs. tabular) more susceptible to recursive degradation?"
+      ]
+    },
+    "consolidatedFindings": {
+      "canonicalClaims": [
+        {
+          "claim": "Model collapse is an inevitable degenerative process when models are trained exclusively on recursively generated synthetic data.",
+          "support": [
+            {
+              "claim": "Model collapse is unavoidable when training exclusively on synthetic data.",
+              "sourceId": "083503ca-b550-4bfc-8ad6-2900d7b30856",
+              "sourceName": "How Bad is Training on Synthetic Data? A Statistical Analysis of Language Model Collapse",
+              "location": "Abstract",
+              "confidence": "high",
+              "quote": "Specifically, we demonstrate that model collapse cannot be avoided when training solely on synthetic data."
+            },
+            {
+              "claim": "Recursive training forms a Markov Chain where the only absorbing states are delta functions, guaranteeing convergence to a constant state.",
+              "sourceId": "a599ea89-e42d-43e2-a931-547b30fff7c1",
+              "sourceName": "The Curse of Recursion: Training on Generated Data Makes Models Forget",
+              "location": "4.1 Discrete distributions with exact approximation",
+              "confidence": "high",
+              "quote": "As a result, as we follow the progress of model collapse, we are guaranteed to end up in a constant state, having lost all the information of the original distribution when the chain is absorbed."
+            }
+          ],
+          "contradictions": [],
+          "confidence": "high"
+        },
+        {
+          "claim": "Model collapse can be mitigated or avoided by maintaining a sufficient ratio of real human-generated data in the training mix.",
+          "support": [
+            {
+              "claim": "Preserving a small percentage (10%) of original training data during fine-tuning leads to only minor degradation.",
+              "sourceId": "e527d42d-5b95-43f3-8c88-5da9815f7ea9",
+              "sourceName": "AI models collapse when trained on recursively generated data",
+              "location": "Model collapse in language models",
+              "confidence": "high",
+              "quote": "We find that preservation of the original data allows for better model fine-tuning and leads to only minor degradation of performance."
+            },
+            {
+              "claim": "Mixing with real data ensures stability over generations in the recursive training process.",
+              "sourceId": "083503ca-b550-4bfc-8ad6-2900d7b30856",
+              "sourceName": "How Bad is Training on Synthetic Data? A Statistical Analysis of Language Model Collapse",
+              "location": "4.1 Transformer-based Models",
+              "confidence": "high",
+              "quote": "while mixing with real data ensures stability over generations."
+            }
+          ],
+          "contradictions": [
+            {
+              "claim": "The amount of synthetic data should be exponentially smaller compared to real data to ensure stability.",
+              "sourceId": "083503ca-b550-4bfc-8ad6-2900d7b30856",
+              "sourceName": "How Bad is Training on Synthetic Data? A Statistical Analysis of Language Model Collapse",
+              "location": "3.2 Partially Synthetic",
+              "confidence": "high",
+              "quote": "the amount of synthetic data should be exponentially smaller compared to real data in order to ensure that p remains close to p(1)."
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "claim": "Model collapse is characterized by 'tail disappearance' where low-probability events in the original distribution are lost over generations.",
+          "support": [
+            {
+              "claim": "Early model collapse involves the loss of information about the tails of the distribution.",
+              "sourceId": "a599ea89-e42d-43e2-a931-547b30fff7c1",
+              "sourceName": "The Curse of Recursion: Training on Generated Data Makes Models Forget",
+              "location": "3 What is Model Collapse?",
+              "confidence": "high",
+              "quote": "In early model collapse the model begins losing information about the tails of the distribution"
+            },
+            {
+              "claim": "AI-generated data can exhibit 'tail cutting' or 'tail narrowing' compared to original data.",
+              "sourceId": "04f02f33-7daf-4c48-8eb5-736385bcd1c3",
+              "sourceName": "A Tale of Tails: Model Collapse as a Change of Scaling Laws",
+              "location": "Scaling Laws and Synthetic Data",
+              "confidence": "high",
+              "quote": "Figure 2 shows that AI-generated data can exhibit \"tail cutting\" or \"tail narrowing\" compared to original data."
+            }
+          ],
+          "contradictions": [],
+          "confidence": "high"
+        },
+        {
+          "claim": "Strategic data augmentation and architectural interventions (like GAN discriminators or adaptive regularization) can prevent mode-collapse and improve performance.",
+          "support": [
+            {
+              "claim": "Regressing the extrinsic vector during training enforces a one-to-one mapping, which helps avoid mode-collapse.",
+              "sourceId": "10689496-ee43-49a3-a97e-a2522b7a156f",
+              "sourceName": "BiHMP-GAN: Bidirectional 3D Human Motion Prediction GAN",
+              "location": "Approach",
+              "confidence": "high",
+              "quote": "regressing r during training enforces a one-to-one mapping, avoiding mode-collapse."
+            },
+            {
+              "claim": "Adaptive regularization can mitigate the negative effects of learning on AI-generated data.",
+              "sourceId": "d17c6a20-4fb5-4d15-a4bc-ca7eb517c0b0",
+              "sourceName": "Model Collapse Demystified: The Case of Regression",
+              "location": "4. Exact Test Error Characterization",
+              "confidence": "high",
+              "quote": "This suggests that a good strategy for mitigating the negative effects on learning on AI-generated data is regularization at an appropriate level."
+            }
+          ],
+          "contradictions": [
+            {
+              "claim": "Enforcing non-repetition via penalties caused models to perform worse and remain susceptible to collapse.",
+              "sourceId": "e527d42d-5b95-43f3-8c88-5da9815f7ea9",
+              "sourceName": "AI models collapse when trained on recursively generated data",
+              "location": "Ablation: Repetitions",
+              "confidence": "high",
+              "quote": "enforcing this for the LLM experiments causes the perplexity to double compared with the original. Models remain as susceptible to model collapse, if not more."
+            }
+          ],
+          "confidence": "medium"
+        }
+      ],
+      "prioritizedSupport": [
+        {
+          "claim": "Model collapse is a mathematical certainty in fully synthetic recursive loops.",
+          "sourceId": "083503ca-b550-4bfc-8ad6-2900d7b30856",
+          "sourceName": "How Bad is Training on Synthetic Data? A Statistical Analysis of Language Model Collapse",
+          "location": "3.1 Fully Synthetic",
+          "confidence": "high",
+          "quote": "total collapse is bound to happen in the Fully Synthetic setting."
+        },
+        {
+          "claim": "Mixing real data is the primary validated mitigation strategy.",
+          "sourceId": "e527d42d-5b95-43f3-8c88-5da9815f7ea9",
+          "sourceName": "AI models collapse when trained on recursively generated data",
+          "location": "Model collapse in language models",
+          "confidence": "high",
+          "quote": "We find that preservation of the original data allows for better model fine-tuning and leads to only minor degradation of performance."
+        }
+      ],
+      "prioritizedContradictions": [
+        {
+          "claim": "Standard regularization and non-repetition penalties may actually accelerate collapse.",
+          "sourceId": "e527d42d-5b95-43f3-8c88-5da9815f7ea9",
+          "sourceName": "AI models collapse when trained on recursively generated data",
+          "location": "Ablation: Repetitions",
+          "confidence": "high",
+          "quote": "Models remain as susceptible to model collapse, if not more."
+        },
+        {
+          "claim": "The required ratio of real data may be prohibitively high (synthetic data must be exponentially smaller).",
+          "sourceId": "083503ca-b550-4bfc-8ad6-2900d7b30856",
+          "sourceName": "How Bad is Training on Synthetic Data? A Statistical Analysis of Language Model Collapse",
+          "location": "3.2 Partially Synthetic",
+          "confidence": "high",
+          "quote": "the amount of synthetic data should be exponentially smaller compared to real data."
+        }
+      ],
+      "openQuestions": [
+        "What is the exact 'tipping point' ratio for different modalities (text vs. image)?",
+        "Can watermarking effectively allow for automated filtering of synthetic data at web-scale?",
+        "Are there specific architectures that are inherently more resilient to distribution shift than Transformers?"
+      ],
+      "confidenceNotes": [
+        "High confidence in the existence of model collapse in closed-loop synthetic training.",
+        "Medium confidence in the effectiveness of architectural mitigations (GAN-based) as they are task-specific.",
+        "The evidence relies heavily on mathematical proofs and controlled simulations which may not fully capture the complexity of open-web data dynamics."
+      ],
+      "unresolvedDisagreements": [
+        "Whether 'functional approximation error' or 'statistical sampling error' is the primary driver of collapse.",
+        "The effectiveness of using intermediate generation data; some evidence suggests it helps, while other evidence suggests it merely trades compute for a slower collapse rate."
+      ]
+    }
+  }
+}
