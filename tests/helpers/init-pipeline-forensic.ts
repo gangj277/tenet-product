@@ -788,16 +788,25 @@ function resetRuntimeSingletons() {
   delete (globalThis as typeof globalThis & {
     __tenetBlobStore?: unknown;
     __tenetMemoryStore?: unknown;
+    __tenetMemoryStoreState?: unknown;
     __tenetInitGraphCheckpointer?: unknown;
   }).__tenetBlobStore;
   delete (globalThis as typeof globalThis & {
     __tenetBlobStore?: unknown;
     __tenetMemoryStore?: unknown;
+    __tenetMemoryStoreState?: unknown;
     __tenetInitGraphCheckpointer?: unknown;
   }).__tenetMemoryStore;
   delete (globalThis as typeof globalThis & {
     __tenetBlobStore?: unknown;
     __tenetMemoryStore?: unknown;
+    __tenetMemoryStoreState?: unknown;
+    __tenetInitGraphCheckpointer?: unknown;
+  }).__tenetMemoryStoreState;
+  delete (globalThis as typeof globalThis & {
+    __tenetBlobStore?: unknown;
+    __tenetMemoryStore?: unknown;
+    __tenetMemoryStoreState?: unknown;
     __tenetInitGraphCheckpointer?: unknown;
   }).__tenetInitGraphCheckpointer;
 }

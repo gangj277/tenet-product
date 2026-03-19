@@ -1,0 +1,213 @@
+{
+  "fixtureId": "operations-research-routing",
+  "capturedAt": "2026-03-19T09:16:09.016Z",
+  "runId": "9cd1ab49-13b1-4389-a5c8-591aa12a0ab0",
+  "context": {
+    "input": {
+      "projectTitle": "Learned Routing vs Classical OR",
+      "researchQuestion": "How competitive are learned reinforcement-learning approaches for routing and combinatorial optimization relative to classical operations research methods?",
+      "researchIntent": "Create a research synthesis that distinguishes where learned routing solvers genuinely outperform classical heuristics and where they still fail on robustness, guarantees, or generalization.",
+      "workingHypothesis": "Learning-based approaches are promising for amortized inference and distribution-specific routing tasks, but classical OR methods remain stronger on robustness, guarantees, and out-of-distribution performance.",
+      "scopeBoundaries": "Focus on routing and combinatorial optimization papers that compare or discuss neural and reinforcement-learning approaches. Do not broaden into general deep learning for logistics.",
+      "mustAnswerQuestions": [
+        "Where do learned methods claim advantages over classical solvers?",
+        "What limitations or evaluation caveats appear repeatedly?",
+        "What does the literature imply about real-world deployment readiness?"
+      ],
+      "audience": "Operations research researcher",
+      "geography": "Global literature",
+      "timeHorizon": "2016-2024",
+      "outputLanguage": "en"
+    },
+    "perspective": {
+      "projectTitle": "Learned Routing vs Classical OR",
+      "briefSummary": "This project evaluates the comparative efficacy of reinforcement learning (RL) and neural solvers against traditional Operations Research (OR) heuristics for combinatorial optimization. The synthesis will specifically investigate the trade-off between the speed of amortized inference in learned models and the rigorous optimality guarantees and robustness of classical methods. By analyzing performance across in-distribution and out-of-distribution scenarios, the research aims to pinpoint the exact technical boundaries where neural approaches offer a genuine competitive advantage versus where they remain experimental prototypes.",
+      "interpretedIntent": "To determine the specific problem domains and operational constraints where neural combinatorial optimization provides a measurable ROI over established OR solvers like Gurobi or LKH3.",
+      "inferredResearchFrame": "The 'Amortization vs. Robustness' trade-off: Learned methods excel at rapid, repeated solving of specific problem distributions but degrade significantly when faced with distribution shifts or the requirement for hard optimality bounds.",
+      "evidenceForCriteria": [
+        "Empirical data showing neural solvers achieving near-optimal results with significantly lower inference latency than classical heuristics.",
+        "Studies demonstrating successful generalization of RL agents to larger problem scales than those seen during training.",
+        "Benchmarks where learned models outperform metaheuristics on specific, non-synthetic real-world datasets.",
+        "Evidence of 'neural-hybrid' solvers that use RL to improve the search efficiency of classical branch-and-bound or local search."
+      ],
+      "evidenceAgainstCriteria": [
+        "Reports of 'generalization collapse' where neural models fail on instances slightly different from the training distribution.",
+        "Benchmarks showing that classical solvers (e.g., Concorde, Gurobi) remain faster or more accurate when accounting for the high computational cost of model training.",
+        "Lack of formal convergence or optimality guarantees in neural architectures compared to exact OR methods.",
+        "Evidence that neural solvers struggle with complex, multi-constraint routing problems (e.g., time windows, capacity, and heterogeneous fleets) simultaneously."
+      ],
+      "subquestions": [
+        "What specific architectural innovations (e.g., Transformers, GNNs) have most narrowed the gap between RL and classical OR performance?",
+        "How does the 'training time vs. inference time' overhead of learned solvers compare to the 'tuning time' required for classical metaheuristics?",
+        "To what extent do current benchmarks rely on synthetic uniform distributions that may mask the weaknesses of learned solvers in real-world logistics?",
+        "What are the primary barriers preventing the integration of neural solvers into production-grade supply chain software?",
+        "How do hybrid approaches—using neural networks to guide classical search—perform relative to 'end-to-end' neural solvers?"
+      ]
+    },
+    "consolidatedFindings": {
+      "canonicalClaims": [
+        {
+          "claim": "Neural Combinatorial Optimization (NCO) achieves near-optimal performance on standard benchmarks like 2D Euclidean TSP and Knapsack problems.",
+          "support": [
+            {
+              "claim": "NCO achieves near-optimal results on 2D Euclidean TSP graphs with up to 100 nodes.",
+              "sourceId": "73d53ab4-4b1e-4298-b539-0411a6ba59ce",
+              "sourceName": "Neural Combinatorial Optimization with Reinforcement Learning",
+              "location": "ABSTRACT",
+              "confidence": "high",
+              "quote": "Despite the computational expense... Neural Combinatorial Optimization achieves close to optimal results on 2D Euclidean graphs with up to 100 nodes."
+            },
+            {
+              "claim": "The Attention Model (AM) achieves state-of-the-art results on TSP for up to 100 nodes.",
+              "sourceId": "f5e8d0e9-d121-48eb-ae70-7e48a3a8a680",
+              "sourceName": "Attention, Learn to Solve Routing Problems!",
+              "location": "ABSTRACT",
+              "confidence": "high",
+              "quote": "Our model achieves state-of-the-art results on the Traveling Salesman Problem (TSP) for up to 100 nodes"
+            }
+          ],
+          "contradictions": [
+            {
+              "claim": "Supervised learning for pointer networks remains suboptimal compared to other approaches.",
+              "sourceId": "73d53ab4-4b1e-4298-b539-0411a6ba59ce",
+              "sourceName": "Neural Combinatorial Optimization with Reinforcement Learning",
+              "location": "5 EXPERIMENTS",
+              "confidence": "high",
+              "quote": "all of which are suboptimal compared to other approaches."
+            }
+          ],
+          "confidence": "high"
+        },
+        {
+          "claim": "Learned solvers face significant challenges in generalization to out-of-distribution instances and larger problem scales.",
+          "support": [
+            {
+              "claim": "Generalizing learned policies to unseen problems is a difficult task.",
+              "sourceId": "457f7be9-c009-4252-91a3-a201b7155522",
+              "sourceName": "Machine Learning for Combinatorial Optimization: a Methodological Tour d'Horizon",
+              "location": "7 Conclusions",
+              "confidence": "high",
+              "quote": "Learning policies that generalize to unseen problems is a challenge."
+            },
+            {
+              "claim": "Many RL techniques work well on small problems but scale poorly to larger ones.",
+              "sourceId": "8c17b181-d246-412a-824b-85b2750c3c2c",
+              "sourceName": "Reinforcement Learning: A Survey",
+              "location": "9. Conclusions",
+              "confidence": "high",
+              "quote": "Many reinforcement-learning techniques work well on small problems but scale poorly to larger ones."
+            }
+          ],
+          "contradictions": [
+            {
+              "claim": "Active Search is distribution independent and improves generalization.",
+              "sourceId": "73d53ab4-4b1e-4298-b539-0411a6ba59ce",
+              "sourceName": "Neural Combinatorial Optimization with Reinforcement Learning",
+              "location": "4.1 SEARCH STRATEGIES",
+              "confidence": "high",
+              "quote": "In contrast, Active Search is distribution independent."
+            }
+          ],
+          "confidence": "medium"
+        },
+        {
+          "claim": "Hybrid approaches and automated parameter configuration (e.g., ParamILS) significantly enhance classical OR solver performance.",
+          "support": [
+            {
+              "claim": "ParamILS found parameter configurations that significantly outperformed CPLEX defaults.",
+              "sourceId": "ce094c46-c68e-4855-b522-e4684060efa0",
+              "sourceName": "ParamILS: An Automatic Algorithm Configuration Framework",
+              "location": "7. Case Study",
+              "confidence": "high",
+              "quote": "Both BasicILS and FocusedILS found parameter configurations that significantly outperformed CPLEX defaults, sometimes by over an order of magnitude."
+            },
+            {
+              "claim": "ML can approximate complex decisions within CO algorithms to improve performance.",
+              "sourceId": "457f7be9-c009-4252-91a3-a201b7155522",
+              "sourceName": "Machine Learning for Combinatorial Optimization: a Methodological Tour d'Horizon",
+              "location": "ABSTRACT",
+              "confidence": "high",
+              "quote": "ML offers a way to approximate complex decisions within CO algorithms, potentially improving performance."
+            }
+          ],
+          "contradictions": [],
+          "confidence": "high"
+        },
+        {
+          "claim": "Neural solvers offer a speed advantage at inference time through amortized computation, but training overhead is substantial.",
+          "support": [
+            {
+              "claim": "Imitation learning is beneficial when the learned policy offers a substantial speed advantage over the expert.",
+              "sourceId": "457f7be9-c009-4252-91a3-a201b7155522",
+              "sourceName": "Machine Learning for Combinatorial Optimization: a Methodological Tour d'Horizon",
+              "location": "7 Conclusions",
+              "confidence": "high",
+              "quote": "Imitation learning is valuable if the learned policy is significantly faster than the expert's."
+            }
+          ],
+          "contradictions": [
+            {
+              "claim": "Classical solvers remain highly competitive when considering the total computational cost including training.",
+              "sourceId": "73d53ab4-4b1e-4298-b539-0411a6ba59ce",
+              "sourceName": "Neural Combinatorial Optimization with Reinforcement Learning",
+              "location": "A.3 OR TOOL'S METAHEURISTICS",
+              "confidence": "medium",
+              "quote": "Table 6: Performance of OR-Tools' metaheuristics as they consider more solutions... times increasing significantly."
+            }
+          ],
+          "confidence": "medium"
+        }
+      ],
+      "prioritizedSupport": [
+        {
+          "claim": "NCO achieves near-optimal results on 2D Euclidean TSP graphs with up to 100 nodes.",
+          "sourceId": "73d53ab4-4b1e-4298-b539-0411a6ba59ce",
+          "sourceName": "Neural Combinatorial Optimization with Reinforcement Learning",
+          "location": "ABSTRACT",
+          "confidence": "high",
+          "quote": "Despite the computational expense... Neural Combinatorial Optimization achieves close to optimal results on 2D Euclidean graphs with up to 100 nodes."
+        },
+        {
+          "claim": "Automated configuration (ParamILS) yields speedups of up to 3540x over default settings.",
+          "sourceId": "ce094c46-c68e-4855-b522-e4684060efa0",
+          "sourceName": "ParamILS: An Automatic Algorithm Configuration Framework",
+          "location": "6.1 Empirical Comparison",
+          "confidence": "high",
+          "quote": "Substantial speedups are observed, with factors up to 3540 for SAPS-SWGCP."
+        }
+      ],
+      "prioritizedContradictions": [
+        {
+          "claim": "Learned policies degrade significantly when instance size increases beyond training sizes.",
+          "sourceId": "457f7be9-c009-4252-91a3-a201b7155522",
+          "sourceName": "Machine Learning for Combinatorial Optimization: a Methodological Tour d'Horizon",
+          "location": "6.3 Scaling",
+          "confidence": "high",
+          "quote": "Performance degrades as instance size increases beyond training sizes."
+        },
+        {
+          "claim": "Vanilla seq2seq models cannot generalize to more cities than seen during training.",
+          "sourceId": "73d53ab4-4b1e-4298-b539-0411a6ba59ce",
+          "sourceName": "Neural Combinatorial Optimization with Reinforcement Learning",
+          "location": "3 NEURAL NETWORK ARCHITECTURE",
+          "confidence": "high",
+          "quote": "networks trained in this fashion cannot generalize to inputs with more than n cities."
+        }
+      ],
+      "openQuestions": [
+        "How do neural solvers perform on multi-constraint problems (e.g., TSP with Time Windows) where identifying feasible branches is as hard as the optimization itself?",
+        "What is the exact ROI of neural solvers when accounting for the high energy and time cost of training vs. the tuning time of classical metaheuristics?",
+        "Can neural-hybrid solvers maintain the theoretical optimality guarantees of classical branch-and-bound while utilizing learned branching policies?"
+      ],
+      "confidenceNotes": [
+        "High confidence in neural solver performance for small-scale (n=100) Euclidean problems.",
+        "Medium confidence in generalization capabilities; while Active Search helps, 'generalization collapse' remains a reported risk.",
+        "Methodological diversity is high, ranging from end-to-end RL to automated parameter tuning of classical solvers."
+      ],
+      "unresolvedDisagreements": [
+        "The effectiveness of REINFORCE: Some platforms exclude it as underperforming, while state-of-the-art NCO papers (Bello et al., Kool et al.) rely on it heavily with specific baselines.",
+        "Amortization vs. Search: Disagreement on whether the primary value of ML is in the 'construction' of the solution or in the 'search' routine guiding the construction."
+      ]
+    }
+  }
+}

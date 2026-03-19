@@ -2,6 +2,7 @@ import type { Artifacts } from "@/lib/engine/state";
 import type { DiscoveredSource } from "@/lib/discovery/scholarly-search";
 import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
 import type { ExperimentMeta, NoteMeta, SourceMeta } from "@/lib/db/research-projects";
+import type { AskUserQuestion } from "@/lib/agent/state";
 
 export interface FileEntry {
   key: string;
@@ -21,7 +22,7 @@ export interface FileEntry {
   group: "core" | "source" | "paper" | "note" | "experiment";
   origin?: "uploaded" | "discovered";
   folder?: string;
-  fileType?: "markdown" | "latex";
+  fileType?: "markdown" | "latex" | "experiment-design";
   sourceUrl?: string;
   paperQuality?: PaperQualityMeta;
   isLoading?: boolean;
@@ -44,6 +45,11 @@ export interface ChatAttachmentInfo {
   size: number;
 }
 
+export interface ChatAskUserQuestion extends AskUserQuestion {
+  status: "pending" | "answered" | "timed_out";
+  answer?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "agent";
@@ -54,6 +60,7 @@ export interface ChatMessage {
   proposedUpdates?: ProposedUpdate[];
   searchResults?: DiscoveredSource[];
   attachments?: ChatAttachmentInfo[];
+  askUserQuestion?: ChatAskUserQuestion;
 }
 
 export interface SessionSummary {
@@ -145,12 +152,26 @@ export function buildFileList(
       const meta = experimentsMeta?.[key];
       const label = meta?.title || "Untitled Experiment";
 
+      // Detect structured JSON experiment designs (resilient — doesn't require version field)
+      let fileType: FileEntry["fileType"] = undefined;
+      try {
+        const parsed = JSON.parse(artifacts.experiments[key]);
+        if (
+          typeof parsed?.researchQuestion === "string" &&
+          typeof parsed?.title === "string" &&
+          Array.isArray(parsed?.hypotheses)
+        ) {
+          fileType = "experiment-design";
+        }
+      } catch { /* not JSON — leave as markdown for backward compat */ }
+
       files.push({
         key: `experiment:${key}`,
         label,
         shortLabel: truncateSourceName(label),
         icon: "experiment",
         group: "experiment",
+        fileType,
       });
     }
   }
@@ -178,6 +199,26 @@ export function buildFileList(
   }
 
   return files;
+}
+
+export interface PendingUpdateContext {
+  messageId: string;
+  update: ProposedUpdate;
+}
+
+export function findPendingUpdateForFile(
+  messages: ChatMessage[],
+  fileKey: string
+): PendingUpdateContext | null {
+  for (const message of messages) {
+    if (!message.proposedUpdates) continue;
+    for (const update of message.proposedUpdates) {
+      if (update.status === "pending" && update.type === "edit" && update.key === fileKey) {
+        return { messageId: message.id, update };
+      }
+    }
+  }
+  return null;
 }
 
 export function getArtifactContent(

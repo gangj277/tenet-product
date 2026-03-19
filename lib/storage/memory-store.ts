@@ -1,5 +1,6 @@
 import type { Artifacts, RunError } from "@/lib/engine/state";
 import type { SourceMeta } from "@/lib/db/research-projects";
+import type { AskUserAnswer } from "@/lib/agent/state";
 
 interface RunEntry {
   projectId: string;
@@ -31,12 +32,55 @@ const PIPELINE_STEPS: Omit<StepProgress, "status">[] = [
   { id: "persist_project", label: "Finalizing project" },
 ];
 
-function createMemoryStore() {
-  const runs = new Map<string, RunEntry>();
-  const artifacts = new Map<string, Artifacts>();
-  const sourcesMeta = new Map<string, Record<string, SourceMeta>>();
-  const uploadedFiles = new Map<string, Buffer>();
-  const progress = new Map<string, StepProgress[]>();
+interface PendingQuestion {
+  questionId: string;
+  resolve: (answer: AskUserAnswer) => void;
+  reject: (reason?: unknown) => void;
+  createdAt: number;
+}
+
+interface MemoryStoreState {
+  runs: Map<string, RunEntry>;
+  artifacts: Map<string, Artifacts>;
+  sourcesMeta: Map<string, Record<string, SourceMeta>>;
+  uploadedFiles: Map<string, Buffer>;
+  progress: Map<string, StepProgress[]>;
+  pendingQuestions: Map<string, PendingQuestion>;
+}
+
+function createMemoryStoreState(
+  existing?: Partial<MemoryStoreState>
+): MemoryStoreState {
+  return {
+    runs:
+      existing?.runs instanceof Map
+        ? existing.runs
+        : new Map<string, RunEntry>(),
+    artifacts:
+      existing?.artifacts instanceof Map
+        ? existing.artifacts
+        : new Map<string, Artifacts>(),
+    sourcesMeta:
+      existing?.sourcesMeta instanceof Map
+        ? existing.sourcesMeta
+        : new Map<string, Record<string, SourceMeta>>(),
+    uploadedFiles:
+      existing?.uploadedFiles instanceof Map
+        ? existing.uploadedFiles
+        : new Map<string, Buffer>(),
+    progress:
+      existing?.progress instanceof Map
+        ? existing.progress
+        : new Map<string, StepProgress[]>(),
+    pendingQuestions:
+      existing?.pendingQuestions instanceof Map
+        ? existing.pendingQuestions
+        : new Map<string, PendingQuestion>(),
+  };
+}
+
+function createMemoryStore(state: MemoryStoreState) {
+  const { runs, artifacts, sourcesMeta, uploadedFiles, progress, pendingQuestions } = state;
 
   return {
     // Runs
@@ -121,6 +165,50 @@ function createMemoryStore() {
     getProgress(runId: string): StepProgress[] | undefined {
       return progress.get(runId);
     },
+
+    // Pending questions (ask_user pause/resume)
+    registerPendingQuestion(runId: string, questionId: string): Promise<AskUserAnswer> {
+      // Cancel any existing pending question for this run
+      const existing = pendingQuestions.get(runId);
+      if (existing) {
+        existing.reject(new Error("Superseded by new question"));
+        pendingQuestions.delete(runId);
+      }
+
+      return new Promise<AskUserAnswer>((resolve, reject) => {
+        pendingQuestions.set(runId, {
+          questionId,
+          resolve,
+          reject,
+          createdAt: Date.now(),
+        });
+      });
+    },
+
+    resolvePendingQuestion(runId: string, answer: AskUserAnswer): boolean {
+      const pending = pendingQuestions.get(runId);
+      if (!pending) return false;
+      if (pending.questionId !== answer.questionId) return false;
+      pending.resolve(answer);
+      pendingQuestions.delete(runId);
+      return true;
+    },
+
+    cancelPendingQuestion(runId: string): boolean {
+      const pending = pendingQuestions.get(runId);
+      if (!pending) return false;
+      pending.reject(new Error("Question cancelled"));
+      pendingQuestions.delete(runId);
+      return true;
+    },
+
+    hasPendingQuestion(runId: string): boolean {
+      return pendingQuestions.has(runId);
+    },
+
+    getPendingQuestionId(runId: string): string | undefined {
+      return pendingQuestions.get(runId)?.questionId;
+    },
   };
 }
 
@@ -128,8 +216,16 @@ type MemoryStore = ReturnType<typeof createMemoryStore>;
 
 const globalForMemoryStore = globalThis as typeof globalThis & {
   __tenetMemoryStore?: MemoryStore;
+  __tenetMemoryStoreState?: Partial<MemoryStoreState>;
 };
 
-export const memoryStore =
-  globalForMemoryStore.__tenetMemoryStore ??
-  (globalForMemoryStore.__tenetMemoryStore = createMemoryStore());
+// Keep only the mutable state on globalThis so hot reload picks up the latest API shape.
+const memoryStoreState = createMemoryStoreState(
+  globalForMemoryStore.__tenetMemoryStoreState
+);
+
+globalForMemoryStore.__tenetMemoryStoreState = memoryStoreState;
+
+export const memoryStore = createMemoryStore(memoryStoreState);
+
+globalForMemoryStore.__tenetMemoryStore = memoryStore;

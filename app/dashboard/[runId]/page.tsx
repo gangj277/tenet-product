@@ -3,10 +3,11 @@
 import { use } from "react";
 import Link from "next/link";
 import { useWorkspace } from "./_hooks/use-workspace";
-import { WorkspaceLayout } from "./_components/workspace-layout";
-import { FileSidebar } from "./_components/file-sidebar";
-import { DocumentViewer } from "./_components/document-viewer";
-import { AgentChat } from "./_components/agent-chat";
+import { WorkspaceLayout } from "./_components/layout";
+import { FileSidebar } from "./_components/sidebar";
+import { DocumentViewer } from "./_components/viewer";
+import { AgentChat } from "./_components/chat";
+import { findPendingUpdateForFile } from "./_lib/workspace-types";
 
 export default function ResultsPage({
   params,
@@ -48,6 +49,9 @@ export default function ResultsPage({
   }
 
   const activeFile = ws.files.find((f) => f.key === ws.activeFileKey);
+  const pendingUpdate = ws.activeFileKey
+    ? findPendingUpdateForFile(ws.chatMessages, ws.activeFileKey)
+    : null;
 
   return (
     <WorkspaceLayout
@@ -82,6 +86,9 @@ export default function ResultsPage({
           onScrollComplete={ws.clearPendingLineRange}
           expanded={ws.expanded}
           onToggleExpanded={ws.toggleExpanded}
+          pendingUpdate={pendingUpdate}
+          onAcceptUpdate={ws.acceptProposedUpdate}
+          onRejectUpdate={ws.rejectProposedUpdate}
         />
       }
       chat={
@@ -93,6 +100,7 @@ export default function ResultsPage({
           onSend={ws.sendMessage}
           onAcceptUpdate={ws.acceptProposedUpdate}
           onRejectUpdate={ws.rejectProposedUpdate}
+          onAnswerQuestion={ws.answerQuestion}
           sessions={ws.sessions}
           activeSessionId={ws.activeSessionId}
           showHistory={ws.showHistory}
@@ -105,6 +113,11 @@ export default function ResultsPage({
           onNavigateSource={ws.navigateToSource}
           searchFilters={ws.searchFilters}
           onSearchFiltersChange={ws.setSearchFilters}
+          getContent={ws.getContent}
+          autoAcceptEdits={ws.autoAcceptEdits}
+          onAutoAcceptEditsChange={ws.toggleAutoAcceptEdits}
+          selectedModel={ws.selectedModel}
+          onModelChange={ws.setSelectedModel}
         />
       }
     />

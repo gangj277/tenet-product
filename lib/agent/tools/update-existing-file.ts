@@ -1,14 +1,14 @@
 import type { ProposedUpdate, WorkspaceContext } from "../state";
 
-interface LineEdit {
-  start_line: number;
-  end_line: number;
-  content: string;
+interface StringEdit {
+  old_str: string;
+  new_str: string;
+  replace_all?: boolean;
 }
 
 type UpdateArgs =
   | { key: string; summary: string; mode?: "rewrite"; content: string }
-  | { key: string; summary: string; mode: "line_edit"; edits: LineEdit[] };
+  | { key: string; summary: string; mode: "targeted"; edits: StringEdit[] };
 
 /**
  * Propose an edit to an existing workspace file.
@@ -16,7 +16,7 @@ type UpdateArgs =
  *
  * Supports two modes:
  * - "rewrite" (default): replaces entire file content
- * - "line_edit": applies targeted line-range edits and merges into full content
+ * - "targeted": applies surgical string-match edits (old_str → new_str)
  */
 export function executeUpdateExistingFile(
   args: UpdateArgs,
@@ -54,76 +54,95 @@ export function executeUpdateExistingFile(
     };
   }
 
-  // line_edit mode
-  const edits = (args as { edits: LineEdit[] }).edits;
+  // targeted mode — string-match edits
+  const edits = (args as { edits: StringEdit[] }).edits;
   if (!edits || !Array.isArray(edits) || edits.length === 0) {
     return {
-      result: `Error: "edits" array is required and must be non-empty for line_edit mode.`,
+      result: `Error: "edits" array is required and must be non-empty for targeted mode.`,
       update: null,
     };
   }
 
-  const currentContent = ctx.workspaceFiles[args.key];
-  const lines = currentContent.split("\n");
-  const totalLines = lines.length;
-
-  // Validate line numbers
-  for (const edit of edits) {
-    if (
-      !Number.isInteger(edit.start_line) ||
-      !Number.isInteger(edit.end_line) ||
-      edit.start_line < 1 ||
-      edit.end_line < edit.start_line ||
-      edit.end_line > totalLines
-    ) {
-      return {
-        result: `Error: Invalid line range [${edit.start_line}, ${edit.end_line}]. File "${args.key}" has ${totalLines} lines. Ranges must be 1-indexed, with start_line <= end_line <= ${totalLines}.`,
-        update: null,
-      };
-    }
-  }
-
-  // Sort by start_line to check for overlaps
-  const sorted = [...edits].sort((a, b) => a.start_line - b.start_line);
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i].start_line <= sorted[i - 1].end_line) {
-      return {
-        result: `Error: Overlapping edit ranges detected: [${sorted[i - 1].start_line}, ${sorted[i - 1].end_line}] and [${sorted[i].start_line}, ${sorted[i].end_line}].`,
-        update: null,
-      };
-    }
-  }
-
-  // Apply edits bottom-up (descending start_line) to avoid line-shift issues
-  const result = [...lines];
-  const descending = [...sorted].reverse();
+  let currentContent = ctx.workspaceFiles[args.key];
   const editDescriptions: string[] = [];
 
-  for (const edit of descending) {
-    const startIdx = edit.start_line - 1; // convert to 0-indexed
-    const deleteCount = edit.end_line - edit.start_line + 1;
-    const replacement =
-      edit.content === "" ? [] : edit.content.split("\n");
+  for (let i = 0; i < edits.length; i++) {
+    const edit = edits[i];
 
-    result.splice(startIdx, deleteCount, ...replacement);
-    editDescriptions.unshift(
-      `L${edit.start_line}-${edit.end_line} → ${replacement.length} line(s)`
-    );
+    if (edit.old_str == null || edit.new_str == null) {
+      return {
+        result: `Error: Edit ${i + 1} is missing required "old_str" or "new_str" field.`,
+        update: null,
+      };
+    }
+
+    if (edit.old_str === edit.new_str) {
+      return {
+        result: `Error: Edit ${i + 1} has identical old_str and new_str — nothing to change.`,
+        update: null,
+      };
+    }
+
+    const occurrences = countOccurrences(currentContent, edit.old_str);
+
+    if (occurrences === 0) {
+      // Provide a helpful snippet of the file for context
+      const preview = currentContent.length > 200
+        ? currentContent.slice(0, 200) + "..."
+        : currentContent;
+      return {
+        result: `Error: Edit ${i + 1} old_str not found in file "${args.key}". The content may have changed, or your match string is incorrect. Read the file first with read_workspace_files to get the current content.\n\nFile preview:\n${preview}`,
+        update: null,
+      };
+    }
+
+    if (occurrences > 1 && !edit.replace_all) {
+      return {
+        result: `Error: Edit ${i + 1} old_str matches ${occurrences} locations in "${args.key}". Provide more surrounding context to make it unique, or set replace_all: true to replace all occurrences.`,
+        update: null,
+      };
+    }
+
+    if (edit.replace_all) {
+      currentContent = currentContent.split(edit.old_str).join(edit.new_str);
+      editDescriptions.push(`replaced all ${occurrences} occurrences`);
+    } else {
+      currentContent = currentContent.replace(edit.old_str, edit.new_str);
+      editDescriptions.push(
+        `"${truncate(edit.old_str, 30)}" → "${truncate(edit.new_str, 30)}"`
+      );
+    }
   }
 
-  const mergedContent = result.join("\n");
-  const autoSummary = `${args.summary} [edits: ${editDescriptions.join("; ")}]`;
+  const autoSummary = `${args.summary} [${edits.length} edit(s): ${editDescriptions.join("; ")}]`;
 
   const update: ProposedUpdate = {
     id: crypto.randomUUID(),
     type: "edit",
     key: args.key,
-    content: mergedContent,
+    content: currentContent,
     summary: autoSummary,
   };
 
   return {
-    result: `Proposed line edits to "${args.key}": ${autoSummary}. The user will review and accept or reject this change.`,
+    result: `Proposed targeted edits to "${args.key}": ${autoSummary}. The user will review and accept or reject this change.`,
     update,
   };
+}
+
+/** Count non-overlapping occurrences of a substring */
+function countOccurrences(text: string, search: string): number {
+  let count = 0;
+  let pos = 0;
+  while ((pos = text.indexOf(search, pos)) !== -1) {
+    count++;
+    pos += search.length;
+  }
+  return count;
+}
+
+/** Truncate a string for display in edit descriptions */
+function truncate(str: string, max: number): string {
+  const oneLine = str.replace(/\n/g, "\\n");
+  return oneLine.length > max ? oneLine.slice(0, max) + "…" : oneLine;
 }

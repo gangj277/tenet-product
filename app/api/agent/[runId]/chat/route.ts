@@ -25,12 +25,19 @@ interface ChatRequestBody {
   message: string;
   attachments?: ChatAttachment[];
   conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+  model?: string;
   workspaceContext?: {
     editedContents?: Record<string, string>;
     activeFileKey?: string;
     searchFilters?: SearchFilterConfig;
   };
 }
+
+const ALLOWED_MODELS = new Set([
+  "google/gemini-3-flash-preview",
+  "google/gemini-3.1-pro",
+  "openai/gpt-5.4",
+]);
 
 function formatSSE(event: SSEEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
@@ -184,11 +191,15 @@ export async function POST(
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        // Resolve model: use client-selected model if allowed, otherwise default
+        const requestedModel = body.model && ALLOWED_MODELS.has(body.model) ? body.model : undefined;
+
         for await (const event of runAgentLoop(
           augmentedMessage,
           conversationHistory,
           workspaceCtx,
           imageContentParts.length > 0 ? imageContentParts : undefined,
+          requestedModel,
         )) {
           controller.enqueue(encoder.encode(formatSSE(event)));
         }
@@ -199,6 +210,8 @@ export async function POST(
         const doneEvent: SSEEvent = { type: "done" };
         controller.enqueue(encoder.encode(formatSSE(doneEvent)));
       } finally {
+        // Clean up any pending ask_user question (e.g. if stream was aborted)
+        memoryStore.cancelPendingQuestion(runId);
         const costAfter = costTracker.snapshot().totalCostUsd;
         recordUserCost(session.userId, costAfter - costBefore);
         controller.close();

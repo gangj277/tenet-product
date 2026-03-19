@@ -1,0 +1,74 @@
+[
+  {
+    "model": "google/gemini-3.1-flash-lite-preview",
+    "task": "overview",
+    "latencyMs": 4056,
+    "promptTokens": 3357,
+    "completionTokens": 435,
+    "costUsd": 0.00149175,
+    "outputLength": 2169
+  },
+  {
+    "model": "openai/gpt-5.4-nano",
+    "task": "overview",
+    "latencyMs": 8283,
+    "promptTokens": 3022,
+    "completionTokens": 1517,
+    "costUsd": 0.0009090000000000001,
+    "outputLength": 6802
+  },
+  {
+    "model": "google/gemini-3.1-flash-lite-preview",
+    "task": "claims",
+    "latencyMs": 4963,
+    "promptTokens": 3333,
+    "completionTokens": 868,
+    "costUsd": 0.00213525,
+    "outputLength": 4258
+  },
+  {
+    "model": "openai/gpt-5.4-nano",
+    "task": "claims",
+    "latencyMs": 7410,
+    "promptTokens": 2999,
+    "completionTokens": 1458,
+    "costUsd": 0.0008831000000000002,
+    "outputLength": 6185
+  },
+  {
+    "model": "google/gemini-3.1-flash-lite-preview",
+    "task": "gaps",
+    "latencyMs": 4262,
+    "promptTokens": 3358,
+    "completionTokens": 763,
+    "costUsd": 0.0019839999999999997,
+    "outputLength": 3883
+  },
+  {
+    "model": "openai/gpt-5.4-nano",
+    "task": "gaps",
+    "latencyMs": 12248,
+    "promptTokens": 3023,
+    "completionTokens": 2359,
+    "costUsd": 0.0012459,
+    "outputLength": 12051
+  },
+  {
+    "model": "google/gemini-3.1-flash-lite-preview",
+    "task": "next-steps",
+    "latencyMs": 5473,
+    "promptTokens": 3353,
+    "completionTokens": 743,
+    "costUsd": 0.00195275,
+    "outputLength": 3482
+  },
+  {
+    "model": "openai/gpt-5.4-nano",
+    "task": "next-steps",
+    "latencyMs": 11792,
+    "promptTokens": 3018,
+    "completionTokens": 2196,
+    "costUsd": 0.0011802000000000002,
+    "outputLength": 10877
+  }
+]

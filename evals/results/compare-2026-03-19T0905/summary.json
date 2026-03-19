@@ -1,0 +1,27 @@
+{
+  "modelA": "google/gemini-3.1-flash-lite-preview",
+  "modelB": "openai/gpt-5.4-nano",
+  "timestamp": "2026-03-19T09:05:59.037Z",
+  "fixtures": [
+    {
+      "fixtureId": "ai-model-collapse",
+      "metricsA": {
+        "calls": 4,
+        "totalLatency": 19805,
+        "totalCost": 0.00746075,
+        "totalTokens": 16143
+      },
+      "metricsB": {
+        "calls": 4,
+        "totalLatency": 36723,
+        "totalCost": 0.003863,
+        "totalTokens": 18704
+      },
+      "judgeWins": {
+        "A": 0,
+        "B": 0,
+        "tie": 0
+      }
+    }
+  ]
+}

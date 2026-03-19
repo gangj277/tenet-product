@@ -9,12 +9,19 @@ import { draftPaper } from "./skills/draft-paper";
 import { methodologyCritic } from "./skills/methodology-critic";
 import { experimentDesigner } from "./skills/experiment-designer";
 
+export interface SkillReference {
+  path: string;   // e.g. "venues/neurips"
+  label: string;  // e.g. "NeurIPS Submission Guidelines"
+}
+
 export interface SkillDefinition {
   id: string;
   name: string;
   slash: string;
   description: string;
   prompt: string;
+  references?: SkillReference[];               // catalog shown in prompt
+  referenceContent?: Record<string, string>;   // path → content read by tool
 }
 
 export const SKILLS: SkillDefinition[] = [

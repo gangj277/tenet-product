@@ -14,6 +14,26 @@ export interface ProposedUpdate {
   summary: string;
 }
 
+// ── Ask User (pause-and-resume questions) ──
+
+export interface AskUserOption {
+  label: string;
+  description: string;
+}
+
+export interface AskUserQuestion {
+  id: string;
+  question: string;
+  options: AskUserOption[];
+  allowCustom?: boolean;
+}
+
+export interface AskUserAnswer {
+  questionId: string;
+  answer: string;
+  isCustom: boolean;
+}
+
 // ── Agent Messages ──
 
 export interface AgentToolCall {
@@ -75,6 +95,7 @@ export type SSEEvent =
   | { type: "search_results"; results: DiscoveredSource[] }
   | { type: "sources_added"; sources: AddedSource[] }
   | { type: "skill_activated"; skills: string[] }
+  | { type: "ask_user"; question: AskUserQuestion }
   | { type: "error"; message: string }
   | { type: "done"; usage?: { totalTokens: number } };
 
