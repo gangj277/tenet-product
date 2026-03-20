@@ -36,7 +36,7 @@ export default function Home() {
               <circle cx="16" cy="16" r="4" stroke="currentColor" strokeWidth="0.5" opacity="0.12"/>
               <circle cx="16" cy="16" r="2.2" fill="currentColor" opacity="0.85"/>
             </svg>
-            Tenet
+            Lumen
           </a>
           {authed !== null && (
             <Link
@@ -68,7 +68,7 @@ export default function Home() {
 
           <div className="mt-10 sm:mt-14 flex flex-col sm:flex-row sm:items-end justify-between gap-10">
             <p className="reveal reveal-delay-1 font-sans text-[15px] sm:text-base leading-relaxed text-sub max-w-[46ch]">
-              Tenet is the AI-native research workspace that turns rough questions
+              Lumen is the AI-native research workspace that turns rough questions
               into structured synthesis &mdash; with tracked claims, visible
               contradictions, evidence maps, and an AI partner grounded in your
               sources.
@@ -171,13 +171,13 @@ export default function Home() {
             {/* Left: label + description */}
             <div className="lg:w-[280px] flex-shrink-0">
               <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-5">
-                What Tenet produces
+                What Lumen produces
               </p>
               <h2 className="font-serif text-[clamp(1.5rem,2.8vw,2rem)] leading-[1.2] tracking-[-0.02em] text-heading mb-5">
                 Synthesis, not summaries
               </h2>
               <p className="font-sans text-[14px] leading-[1.7] text-sub mb-8">
-                From a rough question, Tenet builds a full research workspace:
+                From a rough question, Lumen builds a full research workspace:
                 evidence-grounded synthesis, tracked claims with citations, visible
                 contradictions, identified gaps, and concrete next steps.
               </p>
@@ -306,7 +306,7 @@ export default function Home() {
                 Your judgment, amplified &mdash; not replaced
               </h2>
               <p className="font-sans text-[15px] leading-[1.75] text-sub mb-6">
-                After Tenet builds your project, a workspace agent stays with you.
+                After Lumen builds your project, a workspace agent stays with you.
                 It has read every source, every claim, every contradiction. Ask it
                 to challenge your hypothesis, and it argues from your own evidence.
                 Ask for gaps, and it shows you where your literature is thin.
@@ -396,12 +396,12 @@ export default function Home() {
               {
                 step: "01",
                 title: "Upload your sources",
-                desc: "Drop PDFs, paste links, or point Tenet at a research question. It ingests and indexes everything.",
+                desc: "Drop PDFs, paste links, or point Lumen at a research question. It ingests and indexes everything.",
               },
               {
                 step: "02",
                 title: "Ask your question",
-                desc: "Frame the question you\u2019re actually trying to answer. Tenet builds a structured project around it.",
+                desc: "Frame the question you\u2019re actually trying to answer. Lumen builds a structured project around it.",
               },
               {
                 step: "03",
@@ -494,7 +494,7 @@ export default function Home() {
             <p className="font-sans text-[14px] leading-[1.7] text-sub mb-10">
               {authed
                 ? "Your research workspace is ready. Continue where you left off or start a new structured analysis."
-                : "Tenet is in research preview. Request early access and be among the first researchers to use evidence-grounded synthesis."}
+                : "Lumen is in research preview. Request early access and be among the first researchers to use evidence-grounded synthesis."}
             </p>
 
             <div className="flex items-center gap-4">
@@ -542,7 +542,7 @@ export default function Home() {
               <path d="M16 5.87A10.5 10.5 0 0 1 16 26.13" stroke="currentColor" strokeWidth="1.4" fill="none" opacity="0.55"/>
               <circle cx="16" cy="16" r="2.2" fill="currentColor" opacity="0.85"/>
             </svg>
-            Tenet
+            Lumen
           </span>
           <p className="font-sans text-[12px] text-mute">
             Your evidence. Structured.

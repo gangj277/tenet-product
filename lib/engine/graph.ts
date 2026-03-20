@@ -23,13 +23,13 @@ function afterIntake(
 // ── Build the graph ──
 
 const globalForInitGraph = globalThis as typeof globalThis & {
-  __tenetInitGraphCheckpointer?: MemorySaver;
+  __lumenInitGraphCheckpointer?: MemorySaver;
 };
 
 function getInitGraphCheckpointer() {
   return (
-    globalForInitGraph.__tenetInitGraphCheckpointer ??
-    (globalForInitGraph.__tenetInitGraphCheckpointer = new MemorySaver())
+    globalForInitGraph.__lumenInitGraphCheckpointer ??
+    (globalForInitGraph.__lumenInitGraphCheckpointer = new MemorySaver())
   );
 }
 

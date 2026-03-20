@@ -43,8 +43,8 @@
   --color-dot: var(--t-dot);
   --color-on-accent: var(--t-on-accent);
 
-  --font-sans: var(--font-tenet-sans), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-tenet-serif), Georgia, "Times New Roman", serif;
+  --font-sans: var(--font-lumen-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-lumen-serif), Georgia, "Times New Roman", serif;
 }
 
 @layer base {

@@ -29,12 +29,12 @@ function getOrCreateEntry(
 
 function getTracker(): Map<string, UserDayEntry> {
   const g = globalThis as typeof globalThis & {
-    __tenetUserCostTracker?: Map<string, UserDayEntry>;
+    __lumenUserCostTracker?: Map<string, UserDayEntry>;
   };
-  if (!g.__tenetUserCostTracker) {
-    g.__tenetUserCostTracker = new Map();
+  if (!g.__lumenUserCostTracker) {
+    g.__lumenUserCostTracker = new Map();
   }
-  return g.__tenetUserCostTracker;
+  return g.__lumenUserCostTracker;
 }
 
 export function checkUserBudget(userId: string): {

@@ -38,21 +38,21 @@ The `memoryStore` singleton uses the `globalThis` caching pattern to survive hot
 ```typescript
 // lib/storage/memory-store.ts:182-188
 const globalForMemoryStore = globalThis as typeof globalThis & {
-  __tenetMemoryStore?: MemoryStore;
+  __lumenMemoryStore?: MemoryStore;
 };
 
 export const memoryStore =
-  globalForMemoryStore.__tenetMemoryStore ??
-  (globalForMemoryStore.__tenetMemoryStore = createMemoryStore());
+  globalForMemoryStore.__lumenMemoryStore ??
+  (globalForMemoryStore.__lumenMemoryStore = createMemoryStore());
 ```
 
 ### Why it breaks
 
-When Turbopack hot-reloads `memory-store.ts`, the **old** `memoryStore` instance (already cached on `globalThis.__tenetMemoryStore`) is reused. But if `createMemoryStore()` was updated (or the module shape changed between reloads), the cached instance may be from an **older version** of `createMemoryStore` that didn't have `cancelPendingQuestion`.
+When Turbopack hot-reloads `memory-store.ts`, the **old** `memoryStore` instance (already cached on `globalThis.__lumenMemoryStore`) is reused. But if `createMemoryStore()` was updated (or the module shape changed between reloads), the cached instance may be from an **older version** of `createMemoryStore` that didn't have `cancelPendingQuestion`.
 
 This happens when:
 1. A prior dev session cached a `memoryStore` on `globalThis` before `cancelPendingQuestion` was added
-2. Turbopack partially reloads modules but `globalThis.__tenetMemoryStore` still holds the stale instance
+2. Turbopack partially reloads modules but `globalThis.__lumenMemoryStore` still holds the stale instance
 3. The chat route imports the module, gets the stale object, and the method doesn't exist
 
 This explains why it's **intermittent** — it depends on whether the dev server has been restarted since the function was added, and whether Turbopack's cache is stale.
@@ -75,7 +75,7 @@ This explains why it's **intermittent** — it depends on whether the dev server
 ```bash
 # Kill and restart the Next.js dev server to clear globalThis cache
 ```
-This clears `globalThis.__tenetMemoryStore` and forces `createMemoryStore()` to run fresh.
+This clears `globalThis.__lumenMemoryStore` and forces `createMemoryStore()` to run fresh.
 
 ### Defensive fix: Guard the call
 Add a safety check at the call site so a stale singleton doesn't crash the entire SSE stream:
@@ -95,20 +95,20 @@ Force the singleton to rebuild if the shape has changed:
 const STORE_VERSION = 2; // bump when adding/removing methods
 
 const globalForMemoryStore = globalThis as typeof globalThis & {
-  __tenetMemoryStore?: MemoryStore;
-  __tenetMemoryStoreVersion?: number;
+  __lumenMemoryStore?: MemoryStore;
+  __lumenMemoryStoreVersion?: number;
 };
 
 export const memoryStore = (() => {
   if (
-    globalForMemoryStore.__tenetMemoryStore &&
-    globalForMemoryStore.__tenetMemoryStoreVersion === STORE_VERSION
+    globalForMemoryStore.__lumenMemoryStore &&
+    globalForMemoryStore.__lumenMemoryStoreVersion === STORE_VERSION
   ) {
-    return globalForMemoryStore.__tenetMemoryStore;
+    return globalForMemoryStore.__lumenMemoryStore;
   }
   const store = createMemoryStore();
-  globalForMemoryStore.__tenetMemoryStore = store;
-  globalForMemoryStore.__tenetMemoryStoreVersion = STORE_VERSION;
+  globalForMemoryStore.__lumenMemoryStore = store;
+  globalForMemoryStore.__lumenMemoryStoreVersion = STORE_VERSION;
   return store;
 })();
 ```

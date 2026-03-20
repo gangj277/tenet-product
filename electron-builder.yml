@@ -1,6 +1,6 @@
-appId: com.tenet.research
-productName: Tenet
-copyright: Copyright © 2025 Tenet
+appId: com.lumen.research
+productName: Lumen
+copyright: Copyright © 2025 Lumen
 
 directories:
   output: release

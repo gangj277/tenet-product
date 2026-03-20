@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 
-const SESSION_COOKIE = "tenet_session";
+const SESSION_COOKIE = "lumen_session";
 const SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || "tenet-dev-secret-change-in-production"
+  process.env.JWT_SECRET || "lumen-dev-secret-change-in-production"
 );
 
 const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup"];

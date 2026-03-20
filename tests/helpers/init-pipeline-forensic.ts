@@ -110,7 +110,7 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   };
   const originalFetch = global.fetch;
-  const tempBlobRoot = await mkdtemp(path.join(os.tmpdir(), "tenet-init-forensic-"));
+  const tempBlobRoot = await mkdtemp(path.join(os.tmpdir(), "lumen-init-forensic-"));
 
   process.env.LOCAL_BLOB_ROOT = tempBlobRoot;
   process.env.OPENROUTER_API_KEY = "forensic-test-key";
@@ -786,29 +786,29 @@ function clearRuntimeModules() {
 
 function resetRuntimeSingletons() {
   delete (globalThis as typeof globalThis & {
-    __tenetBlobStore?: unknown;
-    __tenetMemoryStore?: unknown;
-    __tenetMemoryStoreState?: unknown;
-    __tenetInitGraphCheckpointer?: unknown;
-  }).__tenetBlobStore;
+    __lumenBlobStore?: unknown;
+    __lumenMemoryStore?: unknown;
+    __lumenMemoryStoreState?: unknown;
+    __lumenInitGraphCheckpointer?: unknown;
+  }).__lumenBlobStore;
   delete (globalThis as typeof globalThis & {
-    __tenetBlobStore?: unknown;
-    __tenetMemoryStore?: unknown;
-    __tenetMemoryStoreState?: unknown;
-    __tenetInitGraphCheckpointer?: unknown;
-  }).__tenetMemoryStore;
+    __lumenBlobStore?: unknown;
+    __lumenMemoryStore?: unknown;
+    __lumenMemoryStoreState?: unknown;
+    __lumenInitGraphCheckpointer?: unknown;
+  }).__lumenMemoryStore;
   delete (globalThis as typeof globalThis & {
-    __tenetBlobStore?: unknown;
-    __tenetMemoryStore?: unknown;
-    __tenetMemoryStoreState?: unknown;
-    __tenetInitGraphCheckpointer?: unknown;
-  }).__tenetMemoryStoreState;
+    __lumenBlobStore?: unknown;
+    __lumenMemoryStore?: unknown;
+    __lumenMemoryStoreState?: unknown;
+    __lumenInitGraphCheckpointer?: unknown;
+  }).__lumenMemoryStoreState;
   delete (globalThis as typeof globalThis & {
-    __tenetBlobStore?: unknown;
-    __tenetMemoryStore?: unknown;
-    __tenetMemoryStoreState?: unknown;
-    __tenetInitGraphCheckpointer?: unknown;
-  }).__tenetInitGraphCheckpointer;
+    __lumenBlobStore?: unknown;
+    __lumenMemoryStore?: unknown;
+    __lumenMemoryStoreState?: unknown;
+    __lumenInitGraphCheckpointer?: unknown;
+  }).__lumenInitGraphCheckpointer;
 }
 
 function restoreEnv(previousEnv: {
