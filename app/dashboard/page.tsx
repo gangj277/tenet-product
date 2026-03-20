@@ -82,7 +82,7 @@ export default function DashboardPage() {
             </h2>
             <p className="font-sans text-[13.5px] text-sub mb-8 max-w-[36ch] mx-auto leading-[1.65]">
               Start your first structured research project.
-              Tenet will build evidence maps and grounded synthesis.
+              Lumen will build evidence maps and grounded synthesis.
             </p>
             <button
               onClick={() => router.push("/dashboard/new")}

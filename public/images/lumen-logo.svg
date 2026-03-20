@@ -1,6 +1,6 @@
 <svg viewBox="0 0 140 32" fill="none" xmlns="http://www.w3.org/2000/svg">
   <!--
-    Tenet horizontal lockup: Synthesis Aperture mark + serif wordmark.
+    Lumen horizontal lockup: Synthesis Aperture mark + serif wordmark.
     Uses currentColor throughout for universal theme adaptation.
     Wordmark renders with Newsreader when available, falls back to Georgia.
   -->
@@ -28,5 +28,5 @@
     font-weight="400"
     letter-spacing="-0.5"
     fill="currentColor"
-  >Tenet</text>
+  >Lumen</text>
 </svg>

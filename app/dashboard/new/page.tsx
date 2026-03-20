@@ -111,7 +111,7 @@ export default function DashboardPage() {
             </h1>
             <p className="font-sans text-[14px] leading-[1.7] text-sub max-w-[48ch]">
               Describe your research question. Upload papers if you have them.
-              Tenet will build a structured analysis with grounded evidence.
+              Lumen will build a structured analysis with grounded evidence.
             </p>
           </div>
 

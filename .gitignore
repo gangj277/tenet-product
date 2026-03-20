@@ -47,5 +47,6 @@ next-env.d.ts
 /build-resources/*.ico
 
 # runtime data stores
+.lumen-blob-store/
 .tenet-blob-store/
 .playwright-cli/

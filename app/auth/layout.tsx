@@ -26,7 +26,7 @@ export default function AuthLayout({
             not just retrieves
           </h2>
           <p className="font-sans text-[14px] leading-[1.7] text-ink-100">
-            Tenet turns rough questions into structured research workspaces with
+            Lumen turns rough questions into structured research workspaces with
             grounded synthesis, tracked claims, and visible contradictions.
           </p>
         </div>

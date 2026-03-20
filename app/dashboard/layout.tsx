@@ -19,7 +19,7 @@ export default function DashboardLayout({
             href="/dashboard"
             className="font-serif text-[17px] tracking-tight text-heading"
           >
-            Tenet
+            Lumen
           </Link>
 
           <div className="flex items-center gap-4">

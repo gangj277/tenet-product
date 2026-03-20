@@ -8,7 +8,7 @@ import {
 
 // Clear the globalThis tracker before each test suite run
 const g = globalThis as typeof globalThis & {
-  __tenetUserCostTracker?: Map<unknown, unknown>;
+  __lumenUserCostTracker?: Map<unknown, unknown>;
 };
 
 test("checkUserBudget returns allowed for a new user", () => {

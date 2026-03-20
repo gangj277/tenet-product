@@ -27,7 +27,7 @@ else
 fi
 
 # ── Create database if it doesn't exist ───────────────────────────────────────
-DB_NAME="tenet_dev"
+DB_NAME="lumen_dev"
 if ! psql -h localhost -p 5432 -lqt 2>/dev/null | cut -d\| -f1 | grep -qw "$DB_NAME"; then
   echo "⏳ Creating database $DB_NAME..."
   createdb -h localhost -p 5432 "$DB_NAME"

@@ -3,17 +3,17 @@ import { Manrope, Newsreader } from "next/font/google";
 import "./globals.css";
 
 const sans = Manrope({
-  variable: "--font-tenet-sans",
+  variable: "--font-lumen-sans",
   subsets: ["latin"],
 });
 
 const serif = Newsreader({
-  variable: "--font-tenet-serif",
+  variable: "--font-lumen-serif",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Tenet — AI-Native Research Workspace",
+  title: "Lumen — AI-Native Research Workspace",
   description:
     "Turn rough questions into structured synthesis with tracked claims, visible contradictions, evidence maps, and an AI partner grounded in your sources.",
   icons: {

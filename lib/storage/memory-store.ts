@@ -215,17 +215,17 @@ function createMemoryStore(state: MemoryStoreState) {
 type MemoryStore = ReturnType<typeof createMemoryStore>;
 
 const globalForMemoryStore = globalThis as typeof globalThis & {
-  __tenetMemoryStore?: MemoryStore;
-  __tenetMemoryStoreState?: Partial<MemoryStoreState>;
+  __lumenMemoryStore?: MemoryStore;
+  __lumenMemoryStoreState?: Partial<MemoryStoreState>;
 };
 
 // Keep only the mutable state on globalThis so hot reload picks up the latest API shape.
 const memoryStoreState = createMemoryStoreState(
-  globalForMemoryStore.__tenetMemoryStoreState
+  globalForMemoryStore.__lumenMemoryStoreState
 );
 
-globalForMemoryStore.__tenetMemoryStoreState = memoryStoreState;
+globalForMemoryStore.__lumenMemoryStoreState = memoryStoreState;
 
 export const memoryStore = createMemoryStore(memoryStoreState);
 
-globalForMemoryStore.__tenetMemoryStore = memoryStore;
+globalForMemoryStore.__lumenMemoryStore = memoryStore;

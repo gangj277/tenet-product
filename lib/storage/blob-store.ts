@@ -143,7 +143,7 @@ class R2BlobStore implements BlobStore {
 }
 
 const globalForBlobStore = globalThis as typeof globalThis & {
-  __tenetBlobStore?: BlobStore;
+  __lumenBlobStore?: BlobStore;
 };
 
 function createBlobStore(): BlobStore {
@@ -159,11 +159,11 @@ function createBlobStore(): BlobStore {
 
   const rootDir =
     process.env.LOCAL_BLOB_ROOT ??
-    path.join(process.cwd(), ".tenet-blob-store");
+    path.join(process.cwd(), ".lumen-blob-store");
 
   return new LocalBlobStore(rootDir);
 }
 
 export const blobStore =
-  globalForBlobStore.__tenetBlobStore ??
-  (globalForBlobStore.__tenetBlobStore = createBlobStore());
+  globalForBlobStore.__lumenBlobStore ??
+  (globalForBlobStore.__lumenBlobStore = createBlobStore());

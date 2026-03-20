@@ -1,6 +1,6 @@
 <svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
   <!--
-    Tenet Logomark: "The Synthesis Aperture"
+    Lumen Logomark: "The Synthesis Aperture"
 
     Two overlapping circles of knowledge. Where they intersect —
     the vesica piscis — is where synthesis happens. The luminous
@@ -15,7 +15,7 @@
     Uses currentColor for universal theme adaptation.
   -->
   <defs>
-    <clipPath id="tenet-clip-r">
+    <clipPath id="lumen-clip-r">
       <circle cx="20" cy="16" r="10.5"/>
     </clipPath>
   </defs>
@@ -27,7 +27,7 @@
   <circle cx="20" cy="16" r="10.5" stroke="currentColor" stroke-width="1.3" opacity="0.28"/>
 
   <!-- Intersection fill (vesica piscis) — the synthesis zone -->
-  <circle cx="12" cy="16" r="10.5" fill="currentColor" opacity="0.07" clip-path="url(#tenet-clip-r)"/>
+  <circle cx="12" cy="16" r="10.5" fill="currentColor" opacity="0.07" clip-path="url(#lumen-clip-r)"/>
 
   <!-- Vesica outline — left arc -->
   <path d="M16 5.87A10.5 10.5 0 0 0 16 26.13" stroke="currentColor" stroke-width="1.4" fill="none" opacity="0.55"/>

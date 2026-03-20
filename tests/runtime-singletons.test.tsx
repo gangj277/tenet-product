@@ -5,8 +5,8 @@ import test from "node:test";
 const require = createRequire(import.meta.url);
 
 interface MemoryStoreGlobals {
-  __tenetMemoryStore?: unknown;
-  __tenetMemoryStoreState?: unknown;
+  __lumenMemoryStore?: unknown;
+  __lumenMemoryStoreState?: unknown;
 }
 
 function reloadModule<T>(modulePath: string): T {
@@ -17,16 +17,16 @@ function reloadModule<T>(modulePath: string): T {
 function resetMemoryStoreGlobals(previous: MemoryStoreGlobals) {
   const globals = globalThis as typeof globalThis & MemoryStoreGlobals;
 
-  if (previous.__tenetMemoryStore === undefined) {
-    delete globals.__tenetMemoryStore;
+  if (previous.__lumenMemoryStore === undefined) {
+    delete globals.__lumenMemoryStore;
   } else {
-    globals.__tenetMemoryStore = previous.__tenetMemoryStore;
+    globals.__lumenMemoryStore = previous.__lumenMemoryStore;
   }
 
-  if (previous.__tenetMemoryStoreState === undefined) {
-    delete globals.__tenetMemoryStoreState;
+  if (previous.__lumenMemoryStoreState === undefined) {
+    delete globals.__lumenMemoryStoreState;
   } else {
-    globals.__tenetMemoryStoreState = previous.__tenetMemoryStoreState;
+    globals.__lumenMemoryStoreState = previous.__lumenMemoryStoreState;
   }
 }
 
@@ -72,13 +72,13 @@ test("init graph survives module re-evaluation", () => {
 test("memory store replaces stale cached instances that are missing newer APIs", () => {
   const globals = globalThis as typeof globalThis & MemoryStoreGlobals;
   const previous = {
-    __tenetMemoryStore: globals.__tenetMemoryStore,
-    __tenetMemoryStoreState: globals.__tenetMemoryStoreState,
+    __lumenMemoryStore: globals.__lumenMemoryStore,
+    __lumenMemoryStoreState: globals.__lumenMemoryStoreState,
   };
 
   try {
-    delete globals.__tenetMemoryStoreState;
-    globals.__tenetMemoryStore = {
+    delete globals.__lumenMemoryStoreState;
+    globals.__lumenMemoryStore = {
       getRun() {
         return undefined;
       },

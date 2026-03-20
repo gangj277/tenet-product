@@ -57,7 +57,7 @@ export const initGraph = globalGraph.__initGraph ??= buildInitGraph();
 
 Replace both in-memory stores with persistent backends:
 
-1. Replace `MemorySaver` with `@langchain/langgraph-checkpoint-postgres` — LangGraph's official PostgreSQL checkpointer. We already have a PostgreSQL database (`tenet_dev`) with Drizzle set up.
+1. Replace `MemorySaver` with `@langchain/langgraph-checkpoint-postgres` — LangGraph's official PostgreSQL checkpointer. We already have a PostgreSQL database (`lumen_dev`) with Drizzle set up.
 2. Replace `memoryStore` run/artifact tracking with actual DB writes to the existing `runs`, `artifacts`, `projects` tables in `lib/db/schema.ts` (these tables already exist but are unused by the engine).
 
 **Pros**: Fully durable, production-ready, uses existing DB infrastructure.
