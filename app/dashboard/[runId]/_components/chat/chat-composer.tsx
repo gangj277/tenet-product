@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import type { FileEntry } from "../../_lib/workspace-types";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import { SKILL_LIST, type SkillInfo } from "../../_lib/skill-definitions";
@@ -160,17 +160,11 @@ function ModelPicker({
 
 // ─── ChatComposer ─────────────────────────────────────────────────────────
 
-export function ChatComposer({
-  agentTyping,
-  files,
-  onSend,
-  searchFilters,
-  onSearchFiltersChange,
-  autoAcceptEdits,
-  onAutoAcceptEditsChange,
-  selectedModel,
-  onModelChange,
-}: {
+export interface ChatComposerHandle {
+  injectQuotedContext: (text: string, sourceLabel: string) => void;
+}
+
+export const ChatComposer = forwardRef<ChatComposerHandle, {
   agentTyping: boolean;
   files: FileEntry[];
   onSend: (text: string, attachments?: File[]) => void;
@@ -180,7 +174,17 @@ export function ChatComposer({
   onAutoAcceptEditsChange?: () => void;
   selectedModel?: string;
   onModelChange?: (model: string) => void;
-}) {
+}>(function ChatComposer({
+  agentTyping,
+  files,
+  onSend,
+  searchFilters,
+  onSearchFiltersChange,
+  autoAcceptEdits,
+  onAutoAcceptEditsChange,
+  selectedModel,
+  onModelChange,
+}, ref) {
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [skillQuery, setSkillQuery] = useState("");
   const [showFilePicker, setShowFilePicker] = useState(false);
@@ -198,6 +202,72 @@ export function ChatComposer({
 
   const filteredFiles = useMemo(() => files, [files]);
 
+  function createQuoteChip(text: string, sourceLabel: string): HTMLSpanElement {
+    const chip = document.createElement("span");
+    chip.setAttribute("contenteditable", "false");
+    chip.dataset.quotedContext = "true";
+    chip.dataset.fullText = text;
+    chip.dataset.sourceLabel = sourceLabel;
+
+    const preview = text.length > 40 ? text.slice(0, 38) + "\u2026" : text;
+
+    chip.style.cssText = [
+      "display:inline-flex",
+      "align-items:center",
+      "gap:3px",
+      "padding:1px 7px",
+      "margin:0 1px",
+      "border-radius:5px",
+      "background:color-mix(in srgb,var(--t-accent) 12%,transparent)",
+      "border:1px solid color-mix(in srgb,var(--t-accent) 20%,transparent)",
+      "color:var(--t-accent)",
+      "font-size:11px",
+      "font-weight:500",
+      "vertical-align:baseline",
+      "user-select:none",
+      "line-height:1.5",
+      "cursor:default",
+      "max-width:260px",
+    ].join(";");
+
+    const iconEl = document.createElement("span");
+    iconEl.textContent = "\u201C";
+    iconEl.style.cssText = "font-size:13px;flex-shrink:0;opacity:0.7";
+
+    const labelEl = document.createElement("span");
+    labelEl.textContent = `${preview}\u201D \u2014 ${sourceLabel}`;
+    labelEl.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
+
+    chip.appendChild(iconEl);
+    chip.appendChild(labelEl);
+    return chip;
+  }
+
+  function injectQuotedContext(text: string, sourceLabel: string) {
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const chip = createQuoteChip(text, sourceLabel);
+    editor.appendChild(chip);
+
+    // Add a space after the chip so the cursor has somewhere to go
+    const space = document.createTextNode("\u00A0");
+    editor.appendChild(space);
+
+    const range = document.createRange();
+    range.setStart(space, 1);
+    range.collapse(true);
+    const sel = window.getSelection();
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    editor.focus();
+    setEditorEmpty(false);
+  }
+
+  useImperativeHandle(ref, () => ({ injectQuotedContext }));
+
   function serializeEditor(): string {
     const editor = editorRef.current;
     if (!editor) return "";
@@ -207,7 +277,12 @@ export function ChatComposer({
       if (node.nodeType === Node.TEXT_NODE) {
         result += node.textContent || "";
       } else if (node instanceof HTMLElement) {
-        if (node.dataset.skillSlash) {
+        if (node.dataset.quotedContext) {
+          const fullText = node.dataset.fullText || "";
+          const sourceLabel = node.dataset.sourceLabel || "";
+          result += `> "${fullText}"\n> \u2014 ${sourceLabel}\n\n`;
+          return;
+        } else if (node.dataset.skillSlash) {
           result += node.dataset.skillSlash;
         } else if (node.dataset.fileLabel) {
           result += `@${node.dataset.fileLabel}`;
@@ -227,7 +302,7 @@ export function ChatComposer({
     const editor = editorRef.current;
     if (!editor) return true;
     const hasChips =
-      editor.querySelectorAll("[data-skill-slash],[data-file-key]").length > 0;
+      editor.querySelectorAll("[data-skill-slash],[data-file-key],[data-quoted-context]").length > 0;
     const text = (editor.textContent || "")
       .replace(/\u200B/g, "")
       .replace(/\u00A0/g, "")
@@ -726,4 +801,4 @@ export function ChatComposer({
       </div>
     </div>
   );
-}
+});

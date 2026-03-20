@@ -1,0 +1,498 @@
+{
+  "query": "retrieval augmented generation hallucination reduction enterprise",
+  "discoveredCount": 15,
+  "sources": [
+    {
+      "index": 0,
+      "title": "RadioRAG: Online Retrieval–Augmented Generation for Radiology Question Answering",
+      "url": "https://doi.org/10.1148/ryai.240476",
+      "pdfUrl": "https://arxiv.org/pdf/2407.15621.pdf",
+      "providers": [
+        "openalex",
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2407.15621.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1517703,
+          "durationMs": 119
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://arxiv.org/pdf/2407.15621.pdf",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 1517703,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 14407,
+      "extractedTextLength": 14407,
+      "extractedTextPreview": "# RadioRAG: Online Retrieval-augmented Generation for Radiology Question Answering\n\n## Abstract\n\nLarge language models (LLMs) often generate outdated or inaccurate information due to static training d",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 3602
+      }
+    },
+    {
+      "index": 1,
+      "title": "Generative AI",
+      "url": "https://doi.org/10.1007/s12599-023-00834-7",
+      "pdfUrl": "https://link.springer.com/content/pdf/10.1007/s12599-023-00834-7.pdf",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://link.springer.com/content/pdf/10.1007/s12599-023-00834-7.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1024077,
+          "durationMs": 1751
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://link.springer.com/content/pdf/10.1007/s12599-023-00834-7.pdf",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 1024077,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 13990,
+      "extractedTextLength": 13990,
+      "extractedTextPreview": "# Generative AI\n\nStefan Feuerriegel, Jochen Hartmann, Christian Janiesch, Patrick Zschech\n\n## 1 Introduction\n\nRecent advances in artificial intelligence (AI) have enabled generative AI systems to crea",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 3498
+      }
+    },
+    {
+      "index": 2,
+      "title": "Retrieval-Augmented Generation for Large Language Models: A Survey",
+      "url": "http://arxiv.org/abs/2312.10997",
+      "pdfUrl": "https://arxiv.org/pdf/2312.10997",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2312.10997",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1662567,
+          "durationMs": 69
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://arxiv.org/pdf/2312.10997",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 1662567,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 16077,
+      "extractedTextLength": 16077,
+      "extractedTextPreview": "# Retrieval-Augmented Generation for Large Language Models: A Survey\n\n## Abstract\n\nLarge Language Models (LLMs) exhibit impressive capabilities but face challenges like hallucination, outdated knowled",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 4020
+      }
+    },
+    {
+      "index": 3,
+      "title": "A Review on Large Language Models: Architectures, Applications, Taxonomies, Open Issues and Challenges",
+      "url": "https://doi.org/10.1109/access.2024.3365742",
+      "pdfUrl": "https://ieeexplore.ieee.org/ielx7/6287639/6514899/10433480.pdf",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://ieeexplore.ieee.org/ielx7/6287639/6514899/10433480.pdf",
+          "status": "failed",
+          "error": "Source fetch timed out after 30s: https://ieeexplore.ieee.org/ielx7/6287639/6514899/10433480.pdf",
+          "durationMs": 30003
+        },
+        {
+          "url": "https://doi.org/10.1109/access.2024.3365742",
+          "status": "ok",
+          "contentType": "text/html;charset=UTF-8",
+          "bytes": 60390,
+          "durationMs": 939
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://doi.org/10.1109/access.2024.3365742",
+      "fetchedContentType": "text/html;charset=UTF-8",
+      "fetchedBytes": 60390,
+      "sniffedMime": "text/html",
+      "extractedTextLength": 862,
+      "extractedTextPreview": "A Review on Large Language Models: Architectures, Applications, Taxonomies, Open Issues and Challenges | IEEE Journals & Magazine | IEEE Xplore --> --> IEEE Account Change Username/Password Update Add",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 216
+      },
+      "pdfParseStatus": "skipped"
+    },
+    {
+      "index": 4,
+      "title": "A Categorical Archive of ChatGPT Failures",
+      "url": "https://doi.org/10.21203/rs.3.rs-2895792/v1",
+      "pdfUrl": "https://www.researchsquare.com/article/rs-2895792/latest.pdf",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.researchsquare.com/article/rs-2895792/latest.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 8222721,
+          "durationMs": 3503
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://www.researchsquare.com/article/rs-2895792/latest.pdf",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 8222721,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 7239,
+      "extractedTextLength": 7239,
+      "extractedTextPreview": "# A Categorical Archive of ChatGPT Failures\n\n**Ali Borji**\nQuintic AI\naliborji@gmail.com\n\nMay 4, 2023\n\n## Abstract\n\nLarge language models (LLMs) like ChatGPT have demonstrated significant capabilities",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 1810
+      }
+    },
+    {
+      "index": 5,
+      "title": "Generative AI in Medicine and Healthcare: Promises, Opportunities and Challenges",
+      "url": "https://doi.org/10.3390/fi15090286",
+      "pdfUrl": "https://www.mdpi.com/1999-5903/15/9/286/pdf?version=1692864615",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.mdpi.com/1999-5903/15/9/286/pdf?version=1692864615",
+          "status": "ok",
+          "contentType": "",
+          "bytes": 659035,
+          "durationMs": 1525
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://www.mdpi.com/1999-5903/15/9/286/pdf?version=1692864615",
+      "fetchedContentType": "",
+      "fetchedBytes": 659035,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 14753,
+      "extractedTextLength": 14753,
+      "extractedTextPreview": "# Generative AI in Medicine and Healthcare: Promises, Opportunities and Challenges\n\n## 1. Introduction\n\nArtificial intelligence (AI) is revolutionizing various industries, with a profound impact on he",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 3689
+      }
+    },
+    {
+      "index": 6,
+      "title": "Artificial intelligence in logistics and supply chain management: A primer and roadmap for research",
+      "url": "https://doi.org/10.1111/jbl.12364",
+      "pdfUrl": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jbl.12364",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jbl.12364",
+          "status": "failed",
+          "error": "Source fetch failed: 403 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jbl.12364",
+          "httpStatus": 403,
+          "durationMs": 32
+        },
+        {
+          "url": "https://doi.org/10.1111/jbl.12364",
+          "status": "failed",
+          "error": "Source fetch failed: 403 https://doi.org/10.1111/jbl.12364",
+          "httpStatus": 403,
+          "durationMs": 290
+        }
+      ],
+      "fetchStatus": "failed",
+      "finalStatus": "failed",
+      "failureReason": "https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jbl.12364: Source fetch failed: 403 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jbl.12364; https://doi.org/10.1111/jbl.12364: Source fetch failed: 403 https://doi.org/10.1111/jbl.12364",
+      "failurePhase": "fetch"
+    },
+    {
+      "index": 7,
+      "title": "GPT models in construction industry: Opportunities, limitations, and a use case validation",
+      "url": "https://doi.org/10.1016/j.dibe.2023.100300",
+      "pdfUrl": "https://ars.els-cdn.com/content/image/1-s2.0-S2666165923001825-ga1_lrg.jpg",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://ars.els-cdn.com/content/image/1-s2.0-S2666165923001825-ga1_lrg.jpg",
+          "status": "ok",
+          "contentType": "image/jpeg",
+          "bytes": 376842,
+          "durationMs": 513
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "failed",
+      "fetchedUrl": "https://ars.els-cdn.com/content/image/1-s2.0-S2666165923001825-ga1_lrg.jpg",
+      "fetchedContentType": "image/jpeg",
+      "fetchedBytes": 376842,
+      "sniffedMime": "application/octet-stream",
+      "failureReason": "Unsupported MIME (content-type: image/jpeg, 376842 bytes)",
+      "failurePhase": "mime"
+    },
+    {
+      "index": 8,
+      "title": "A Survey of Multimodal Retrieval-Augmented Generation",
+      "url": "https://doi.org/10.48550/arXiv.2504.08748",
+      "pdfUrl": "https://arxiv.org/pdf/2504.08748.pdf",
+      "providers": [
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2504.08748.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 2287639,
+          "durationMs": 98
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://arxiv.org/pdf/2504.08748.pdf",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 2287639,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 13428,
+      "extractedTextLength": 13428,
+      "extractedTextPreview": "# A Survey on Multimodal Retrieval-Augmented Generation\n\n**LANG MEI, SIYU MO, ZHIHAN YANG, CHONG CHEN**\nHuawei Cloud BU, China\n\nMultimodal Retrieval-Augmented Generation (MRAG) enhances Large Language",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 3357
+      }
+    },
+    {
+      "index": 9,
+      "title": "A Systematic Review of Key Retrieval-Augmented Generation (RAG) Systems: Progress, Gaps, and Future Directions",
+      "url": "https://doi.org/10.48550/arXiv.2507.18910",
+      "pdfUrl": "https://arxiv.org/pdf/2507.18910.pdf",
+      "providers": [
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2507.18910.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 875467,
+          "durationMs": 67
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://arxiv.org/pdf/2507.18910.pdf",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 875467,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 73806,
+      "extractedTextLength": 73806,
+      "extractedTextPreview": "# A Systematic Review of Key Retrieval-Augmented Generation (RAG) Systems: Progress, Gaps, and Future Directions\n\nAgada Joseph Oche*¹, Ademola Glory Folashade⁺¹, Tirthankar Ghosal², and Arpan Biswas³\n",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 18452
+      }
+    },
+    {
+      "index": 10,
+      "title": "Credible plan-driven RAG method for Multi-hop Question Answering",
+      "url": "https://doi.org/10.48550/arXiv.2504.16787",
+      "pdfUrl": "https://arxiv.org/pdf/2504.16787.pdf",
+      "providers": [
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2504.16787.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1015987,
+          "durationMs": 76
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://arxiv.org/pdf/2504.16787.pdf",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 1015987,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 99124,
+      "extractedTextLength": 99124,
+      "extractedTextPreview": "# CREDIBLE PLAN-DRIVEN RAG METHOD FOR MULTI-HOP QUESTION ANSWERING\n\nNingning Zhang¹, Chi Zhang¹, Zhizhong Tan¹, Xingxing Yang¹, Weiping Deng¹, and Wenyong Wang*¹\n¹Macau University of Science and Techn",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 12963
+      }
+    },
+    {
+      "index": 11,
+      "title": "FACTOID: FACtual enTailment fOr hallucInation Detection",
+      "url": "https://doi.org/10.48550/arXiv.2403.19113",
+      "pdfUrl": "https://arxiv.org/pdf/2403.19113.pdf",
+      "providers": [
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2403.19113.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 2378614,
+          "durationMs": 101
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://arxiv.org/pdf/2403.19113.pdf",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 2378614,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 38622,
+      "extractedTextLength": 38622,
+      "extractedTextPreview": "# FACtual enTailment fOr hallucInation Detection\n\nVipula Rawte¹, S.M Towhidul Islam Tonmoy², Krishnav Rajbangshi³, Shravani Nag¹, Aman Chadha\", Amit Sheth¹, Amitava Das¹\n¹AI Institute, University of S",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 9656
+      }
+    },
+    {
+      "index": 12,
+      "title": "Retrieval-Augmented Text Generation: Methods, Challenges, and Applications",
+      "url": "https://doi.org/10.20944/preprints202504.0443.v1",
+      "pdfUrl": "https://www.preprints.org/frontend/manuscript/10ab5f6e770b5db14b32928998dab73c/download_pub",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.preprints.org/frontend/manuscript/10ab5f6e770b5db14b32928998dab73c/download_pub",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 862401,
+          "durationMs": 422
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://www.preprints.org/frontend/manuscript/10ab5f6e770b5db14b32928998dab73c/download_pub",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 862401,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 45396,
+      "extractedTextLength": 45396,
+      "extractedTextPreview": "# Retrieval-Augmented Text Generation: Methods, Challenges, and Applications\n\n## Review\n\n### Retrieval-Augmented Text Generation\n\n**Jeanie Genesis**\nDepartment of Computer Science, Lancaster Universit",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 11349
+      }
+    },
+    {
+      "index": 13,
+      "title": "What We Know About the Role of Large Language Models for Medical Synthetic Dataset Generation",
+      "url": "https://doi.org/10.3390/ai6060109",
+      "pdfUrl": "https://www.mdpi.com/2673-2688/6/6/109/pdf?version=1748336901",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.mdpi.com/2673-2688/6/6/109/pdf?version=1748336901",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 354845,
+          "durationMs": 629
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "parsed",
+      "fetchedUrl": "https://www.mdpi.com/2673-2688/6/6/109/pdf?version=1748336901",
+      "fetchedContentType": "application/pdf",
+      "fetchedBytes": 354845,
+      "sniffedMime": "application/pdf",
+      "pdfParseStatus": "ok",
+      "pdfParsedTextLength": 454788,
+      "extractedTextLength": 454788,
+      "extractedTextPreview": "# What We Know About the Role of Large Language Models for Medical Synthetic Dataset Generation\n\n## Abstract\n\nSynthetic medical text generation is crucial for addressing data scarcity and privacy conc",
+      "validationResult": {
+        "ok": true,
+        "estimatedTokens": 2578
+      }
+    },
+    {
+      "index": 14,
+      "title": "Attention is not all you need: the complicated case of ethically using large language models in healthcare and medicine",
+      "url": "https://doi.org/10.1016/j.ebiom.2023.104512",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://doi.org/10.1016/j.ebiom.2023.104512",
+          "status": "ok",
+          "contentType": "text/html;charset=UTF-8",
+          "bytes": 2672,
+          "durationMs": 1141
+        }
+      ],
+      "fetchStatus": "ok",
+      "finalStatus": "failed",
+      "fetchedUrl": "https://doi.org/10.1016/j.ebiom.2023.104512",
+      "fetchedContentType": "text/html;charset=UTF-8",
+      "fetchedBytes": 2672,
+      "sniffedMime": "text/html",
+      "extractedTextLength": 11,
+      "extractedTextPreview": "Redirecting",
+      "validationResult": {
+        "ok": false,
+        "estimatedTokens": 3,
+        "reason": "Normalized document was too short to analyze"
+      },
+      "pdfParseStatus": "skipped",
+      "failureReason": "Normalized document was too short to analyze",
+      "failurePhase": "validate"
+    }
+  ],
+  "summary": {
+    "parsed": 12,
+    "failed": 3,
+    "failuresByPhase": {
+      "fetch": 1,
+      "mime": 1,
+      "validate": 1
+    },
+    "failureReasons": [
+      "[fetch] Artificial intelligence in logistics ...: https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jbl.12364: Source fetch failed: 403 https://onlinelibrary.wiley.com/doi/pdfdirect/10.1111/jbl.12364; https://doi.org/10.1111/jbl.12364: Source fetch failed: 403 https://doi.org/10.1111/jbl.12364",
+      "[mime] GPT models in construction industry: ...: Unsupported MIME (content-type: image/jpeg, 376842 bytes)",
+      "[validate] Attention is not all you need: the co...: Normalized document was too short to analyze"
+    ]
+  }
+}

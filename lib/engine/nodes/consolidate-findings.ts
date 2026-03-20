@@ -104,8 +104,13 @@ export async function consolidateFindings(
 
   try {
     const systemPrompt = buildConsolidationPrompt();
+
+    // Strip personaFindings — it duplicates items already in the top-level arrays
+    // and wastes context tokens that the model needs for producing thorough output.
+    const { personaFindings: _, ...evidenceForConsolidation } = evidenceMap;
+
     const userContent = JSON.stringify(
-      { perspective, evidenceMap },
+      { perspective, evidenceMap: evidenceForConsolidation },
       null,
       2
     );

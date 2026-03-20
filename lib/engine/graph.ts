@@ -6,8 +6,7 @@ import { inferUserPerspective } from "./nodes/infer-user-perspective";
 import { confirmInferredBrief } from "./nodes/confirm-inferred-brief";
 import { planSearchQueries } from "./nodes/plan-search-queries";
 import { buildSourceSet } from "./nodes/build-source-set";
-import { classifySourceFolders } from "./nodes/classify-source-folders";
-import { analyzeEvidence } from "./nodes/analyze-evidence";
+import { classifyAndAnalyze } from "./nodes/classify-and-analyze";
 import { consolidateFindings } from "./nodes/consolidate-findings";
 import { synthesizeProject } from "./nodes/synthesize-project";
 import { persistProject } from "./nodes/persist-project";
@@ -42,8 +41,7 @@ function buildInitGraph() {
     .addNode("confirm_inferred_brief", confirmInferredBrief)
     .addNode("plan_search_queries", planSearchQueries)
     .addNode("build_source_set", buildSourceSet)
-    .addNode("classify_source_folders", classifySourceFolders)
-    .addNode("analyze_evidence", analyzeEvidence)
+    .addNode("classify_and_analyze", classifyAndAnalyze)
     .addNode("consolidate_findings", consolidateFindings)
     .addNode("synthesize_project", synthesizeProject)
     .addNode("persist_project", persistProject)
@@ -54,9 +52,8 @@ function buildInitGraph() {
     .addEdge("infer_user_perspective", "confirm_inferred_brief")
     .addEdge("confirm_inferred_brief", "plan_search_queries")
     .addEdge("plan_search_queries", "build_source_set")
-    .addEdge("build_source_set", "classify_source_folders")
-    .addEdge("classify_source_folders", "analyze_evidence")
-    .addEdge("analyze_evidence", "consolidate_findings")
+    .addEdge("build_source_set", "classify_and_analyze")
+    .addEdge("classify_and_analyze", "consolidate_findings")
     .addEdge("consolidate_findings", "synthesize_project")
     .addEdge("synthesize_project", "persist_project")
     .addEdge("persist_project", END);

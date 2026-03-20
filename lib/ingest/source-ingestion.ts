@@ -15,6 +15,7 @@ import {
   validateNormalizedDocument,
 } from "./document-quality";
 import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
+import { sleep } from "@/lib/utils/async";
 
 const PDF_PARSE_PRIMARY_MODEL = "google/gemini-2.5-flash-lite";
 const PDF_PARSE_FALLBACK_MODEL = "google/gemini-2.5-flash";
@@ -111,26 +112,41 @@ export async function ingestDiscoveredSource(params: {
   throw lastError ?? new Error(`Unable to fetch source: ${params.sourceUrl}`);
 }
 
+const SOURCE_FETCH_TIMEOUT_MS = 30_000;
+
 export async function fetchSourceBytes(url: string): Promise<SourceFetchResult> {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-      Accept: "application/pdf,text/html,*/*",
-    },
-    redirect: "follow",
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), SOURCE_FETCH_TIMEOUT_MS);
 
-  if (!response.ok) {
-    throw new Error(`Source fetch failed: ${response.status} ${url}`);
+  try {
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        Accept: "application/pdf,text/html,*/*",
+      },
+      redirect: "follow",
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Source fetch failed: ${response.status} ${url}`);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    return {
+      buffer: Buffer.from(arrayBuffer),
+      contentType: response.headers.get("content-type") ?? "",
+      resolvedUrl: response.url || url,
+    };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error(`Source fetch timed out after ${SOURCE_FETCH_TIMEOUT_MS / 1000}s: ${url}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  const arrayBuffer = await response.arrayBuffer();
-  return {
-    buffer: Buffer.from(arrayBuffer),
-    contentType: response.headers.get("content-type") ?? "",
-    resolvedUrl: response.url || url,
-  };
 }
 
 export async function ingestSourceFromBytes(params: {
@@ -205,16 +221,24 @@ async function ingestPdfSource(params: {
 }): Promise<IngestedSource> {
   const { source, rawBuffer, metadata } = params;
   const filename = ensurePdfFilename(source.name);
-  const primary = await parsePDF(rawBuffer, filename, {
-    model: PDF_PARSE_PRIMARY_MODEL,
-  });
-  const primaryValidation = validateNormalizedDocument(primary.text);
 
-  let finalText = primary.text;
+  // Race primary parse with a 15s timeout — if slow or invalid, start fallback immediately
+  const primaryResult = await Promise.race([
+    parsePDF(rawBuffer, filename, { model: PDF_PARSE_PRIMARY_MODEL })
+      .then((r) => ({ ok: true as const, result: r }))
+      .catch(() => ({ ok: false as const, result: null })),
+    sleep(15_000).then(() => ({ ok: false as const, result: null })),
+  ]);
+
+  const primaryValidation = primaryResult.ok
+    ? validateNormalizedDocument(primaryResult.result!.text)
+    : { ok: false as const, reason: "Primary parse timed out or failed" };
+
+  let finalText = primaryResult.ok ? primaryResult.result!.text : "";
   let parseEngine = PDF_PARSE_PRIMARY_MODEL;
   let parseAttempts = 1;
   let parseQuality: SourceMetadata["parseQuality"] = "validated";
-  let validation = primaryValidation;
+  let validation: { ok: boolean; reason?: string } = primaryValidation;
 
   if (!primaryValidation.ok) {
     const fallback = await parsePDF(rawBuffer, filename, {
@@ -323,23 +347,20 @@ async function buildNormalizedSource(params: {
     text: normalizedText,
   });
 
-  const sourceChunks: SourceChunk[] = [];
-  for (const chunk of chunksWithContent) {
-    await blobStore.putText(
-      chunk.blobKey,
-      chunk.content,
-      "text/markdown; charset=utf-8"
-    );
-    sourceChunks.push({
-      sourceId: chunk.sourceId,
-      sourceName: chunk.sourceName,
-      chunkIndex: chunk.chunkIndex,
-      headingPath: chunk.headingPath,
-      tokenEstimate: chunk.tokenEstimate,
-      charCount: chunk.charCount,
-      blobKey: chunk.blobKey,
-    });
-  }
+  await Promise.all(
+    chunksWithContent.map((chunk) =>
+      blobStore.putText(chunk.blobKey, chunk.content, "text/markdown; charset=utf-8")
+    )
+  );
+  const sourceChunks: SourceChunk[] = chunksWithContent.map((chunk) => ({
+    sourceId: chunk.sourceId,
+    sourceName: chunk.sourceName,
+    chunkIndex: chunk.chunkIndex,
+    headingPath: chunk.headingPath,
+    tokenEstimate: chunk.tokenEstimate,
+    charCount: chunk.charCount,
+    blobKey: chunk.blobKey,
+  }));
 
   const estimatedTokens = estimateTokens(normalizedText);
   const parsedSource: ParsedSource = {
