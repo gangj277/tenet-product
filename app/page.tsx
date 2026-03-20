@@ -12,14 +12,14 @@ export default function Home() {
       .catch(() => setAuthed(false));
   }, []);
 
-  const ctaHref = authed ? "/dashboard" : "/auth/signup";
-  const ctaLabel = authed ? "Go to dashboard" : "Request early access";
+  const ctaHref = authed ? "/dashboard" : "/auth/login";
+  const ctaLabel = authed ? "Go to dashboard" : "Sign in";
   const navLabel = authed ? "Dashboard" : "Sign in";
 
   return (
     <main className="relative grain">
       {/* ═══════════════════════════════════════
-          NAVIGATION — stronger blur + subtle border
+          NAVIGATION
           ═══════════════════════════════════════ */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-page/70 backdrop-blur-md border-b border-edge/30">
         <div className="mx-auto max-w-[1080px] px-6 lg:px-8 py-5 flex items-center justify-between">
@@ -38,22 +38,29 @@ export default function Home() {
             </svg>
             Lumen
           </a>
-          {authed !== null && (
-            <Link
-              href={ctaHref}
-              className="font-sans text-[13px] font-medium text-sub hover:text-heading transition-colors duration-300"
+          <div className="flex items-center gap-6">
+            <a
+              href="#artifacts"
+              className="hidden sm:inline font-sans text-[13px] text-dim hover:text-sub transition-colors duration-300"
             >
-              {navLabel}
-            </Link>
-          )}
+              Artifacts
+            </a>
+            {authed !== null && (
+              <Link
+                href={ctaHref}
+                className="font-sans text-[13px] font-medium text-sub hover:text-heading transition-colors duration-300"
+              >
+                {navLabel}
+              </Link>
+            )}
+          </div>
         </div>
       </nav>
 
       {/* ═══════════════════════════════════════
-          HERO — problem-recognition + two CTAs
+          HERO — calm supremacy + recognition
           ═══════════════════════════════════════ */}
       <section className="relative min-h-[100svh] flex flex-col justify-end pb-16 sm:pb-24 md:pb-32 pt-32 overflow-hidden">
-        {/* Atmospheric background layer: generated image + CSS gradient overlay */}
         <div className="section-bg fade-bottom">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/hero-bg.png" alt="" aria-hidden="true" />
@@ -61,40 +68,33 @@ export default function Home() {
         <div className="section-bg bg-hero-atmosphere" />
 
         <div className="relative z-10 max-w-[1080px] mx-auto px-6 lg:px-8 w-full">
-          <h1 className="reveal font-serif font-normal text-[clamp(2.8rem,8vw,6.5rem)] leading-[0.95] tracking-[-0.035em] text-heading max-w-[20ch]">
-            You&apos;ve read the papers.{" "}
-            <em className="not-italic text-accent">Now what does the evidence say?</em>
+          <p className="reveal font-sans text-[11px] font-semibold uppercase tracking-[0.2em] text-accent mb-6">
+            AI-native research workspace
+          </p>
+
+          <h1 className="reveal reveal-delay-1 font-serif font-normal text-[clamp(2.8rem,8vw,6.5rem)] leading-[0.95] tracking-[-0.035em] text-heading">
+            Research that shows<br />
+            <em className="not-italic text-accent">its work.</em>
           </h1>
 
           <div className="mt-10 sm:mt-14 flex flex-col sm:flex-row sm:items-end justify-between gap-10">
-            <p className="reveal reveal-delay-1 font-sans text-[15px] sm:text-base leading-relaxed text-sub max-w-[46ch]">
-              Lumen is the AI-native research workspace that turns rough questions
-              into structured synthesis &mdash; with tracked claims, visible
-              contradictions, evidence maps, and an AI partner grounded in your
-              sources.
+            <p className="reveal reveal-delay-2 font-sans text-[15px] sm:text-base leading-relaxed text-sub max-w-[46ch]">
+              Lumen turns rough questions into structured synthesis &mdash;
+              with tracked claims, visible contradictions, evidence maps,
+              and an AI partner grounded in your sources.
             </p>
 
-            <div className="reveal reveal-delay-2 flex items-center gap-4 self-start sm:self-auto">
+            <div className="reveal reveal-delay-3 self-start sm:self-auto">
               <Link
                 href={ctaHref}
                 className="inline-flex items-center font-sans text-[14px] font-medium px-7 py-3.5 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 whitespace-nowrap glow-accent-sm hover:glow-accent"
               >
                 {ctaLabel}
               </Link>
-              <a
-                href="#specimen"
-                className="group inline-flex items-center gap-1.5 font-sans text-[13px] font-medium text-sub hover:text-heading transition-colors duration-300 whitespace-nowrap"
-              >
-                <span className="border-b border-edge/0 group-hover:border-sub/40 transition-all duration-300 pb-px">See the synthesis</span>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="translate-y-px group-hover:translate-y-[3px] transition-transform duration-300" aria-hidden="true">
-                  <path d="M8 3v8.5M4.5 8.5L8 12l3.5-3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </a>
             </div>
           </div>
 
-          {/* Thin rule as a quiet hero closer */}
-          <div className="reveal reveal-delay-3 mt-16 sm:mt-20 h-px bg-edge/60" />
+          <div className="reveal reveal-delay-4 mt-16 sm:mt-20 h-px bg-edge/60" />
         </div>
       </section>
 
@@ -129,7 +129,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════
-          EDITORIAL PASSAGE (THE PROBLEM) — ambient bg + fade-both
+          THE SHIFT — empathetic recognition, not lecturing
           ═══════════════════════════════════════ */}
       <section className="relative py-24 sm:py-32 overflow-hidden">
         <div className="section-bg fade-both">
@@ -140,9 +140,6 @@ export default function Home() {
 
         <div className="relative z-10 max-w-[1080px] mx-auto px-6 lg:px-8">
           <div className="max-w-[640px]">
-            <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-8">
-              The problem
-            </p>
             <h2 className="font-serif text-[clamp(1.6rem,3.5vw,2.6rem)] leading-[1.2] tracking-[-0.02em] text-heading mb-8">
               You spend a weekend reading thirty papers. Monday morning, you still
               can&apos;t articulate what the evidence actually says.
@@ -152,78 +149,112 @@ export default function Home() {
               on page twelve are buried somewhere. You know the literature has gaps,
               but you can&apos;t map exactly where.
             </p>
-            <p className="font-sans text-[15px] leading-[1.75] text-sub max-w-[54ch]">
+            <p className="font-sans text-[15px] leading-[1.75] text-sub max-w-[54ch] mb-6">
               Generic AI makes this worse &mdash; plausible-sounding summaries with
               no provenance, no tension, no uncertainty. What you need isn&apos;t
-              more information. It&apos;s{" "}
-              <em className="text-heading not-italic">structured judgment</em>.
+              another summary.
+            </p>
+            <p className="font-sans text-[16px] leading-[1.6] text-heading max-w-[54ch]">
+              It&apos;s{" "}
+              <em className="not-italic text-accent">structured inference</em>{" "}
+              from your actual evidence.
             </p>
           </div>
         </div>
       </section>
 
       {/* ═══════════════════════════════════════
-          SYNTHESIS SPECIMEN — glass-panel card + glow-accent
+          THE WORKSPACE — unified 3-panel mockup
           ═══════════════════════════════════════ */}
-      <section id="specimen" className="py-24 sm:py-32 scroll-mt-24">
-        <div className="max-w-[1080px] mx-auto px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row gap-12 lg:gap-20">
-            {/* Left: label + description */}
-            <div className="lg:w-[280px] flex-shrink-0">
-              <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-5">
-                What Lumen produces
-              </p>
-              <h2 className="font-serif text-[clamp(1.5rem,2.8vw,2rem)] leading-[1.2] tracking-[-0.02em] text-heading mb-5">
-                Synthesis, not summaries
-              </h2>
-              <p className="font-sans text-[14px] leading-[1.7] text-sub mb-8">
-                From a rough question, Lumen builds a full research workspace:
-                evidence-grounded synthesis, tracked claims with citations, visible
-                contradictions, identified gaps, and concrete next steps.
-              </p>
+      <section id="artifacts" className="relative py-24 sm:py-36 overflow-hidden scroll-mt-24">
+        <div className="section-bg fade-both">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/images/agent-glow.png" alt="" aria-hidden="true" loading="lazy" />
+        </div>
+        <div className="section-bg bg-workspace-atmosphere" />
 
-              {/* File tree */}
-              <div className="space-y-1.5">
-                <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-3">
-                  Project files
-                </p>
+        <div className="relative z-10 max-w-[1180px] mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Section intro */}
+          <div className="max-w-[640px] mb-14 sm:mb-20">
+            <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-6">
+              The workspace
+            </p>
+            <h2 className="font-serif text-[clamp(1.5rem,3vw,2.4rem)] leading-[1.15] tracking-[-0.02em] text-heading mb-5">
+              Sources, synthesis, and an AI partner &mdash;{" "}
+              <em className="not-italic text-accent">in one view</em>
+            </h2>
+            <p className="font-sans text-[15px] leading-[1.75] text-sub max-w-[52ch]">
+              Every source you upload lives alongside the structured artifacts Lumen
+              produces. A workspace agent &mdash; grounded in your evidence, not the
+              open internet &mdash; sits beside your work, ready to challenge, extend,
+              or refine your thinking.
+            </p>
+          </div>
+
+          {/* ── Workspace mockup ── */}
+          <div className="workspace-mockup">
+            {/* Chrome bar */}
+            <div className="workspace-chrome">
+              <div className="workspace-chrome-dots">
+                <span className="workspace-chrome-dot" style={{ background: "#ff5f57" }} />
+                <span className="workspace-chrome-dot" style={{ background: "#febc2e" }} />
+                <span className="workspace-chrome-dot" style={{ background: "#28c840" }} />
+              </div>
+              <span className="workspace-chrome-title">model-collapse-research</span>
+            </div>
+
+            {/* 3-panel body */}
+            <div className="workspace-body">
+              {/* ── Left: Sidebar ── */}
+              <div className="workspace-sidebar">
+                <div className="workspace-sidebar-label">Artifacts</div>
                 {[
                   { name: "synthesis.md", active: true },
                   { name: "claims.md", active: false },
                   { name: "gaps.md", active: false },
                   { name: "next-steps.md", active: false },
-                  { name: "sources/", active: false },
                 ].map((file) => (
                   <div
                     key={file.name}
-                    className={`font-mono text-[12.5px] py-1 ${
-                      file.active
-                        ? "text-accent"
-                        : "text-dim"
-                    }`}
+                    className={`workspace-sidebar-file ${file.active ? "active" : ""}`}
                   >
-                    {file.active && <span className="mr-1.5">&rsaquo;</span>}
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: file.active ? 0.8 : 0.45 }}>
+                      <path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.1" />
+                      <path d="M9 2v4h4" stroke="currentColor" strokeWidth="1.1" />
+                    </svg>
+                    {file.name}
+                  </div>
+                ))}
+
+                <div className="workspace-sidebar-label">Sources</div>
+                {[
+                  { name: "shumailov-2023.pdf" },
+                  { name: "alemohammad-2023.pdf" },
+                  { name: "dohmatob-2024.pdf" },
+                ].map((file) => (
+                  <div key={file.name} className="workspace-sidebar-file">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, opacity: 0.45 }}>
+                      <path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.1" />
+                      <path d="M9 2v4h4" stroke="currentColor" strokeWidth="1.1" />
+                      <path d="M5.5 9h5M5.5 11h3" stroke="currentColor" strokeWidth="0.9" opacity="0.5" />
+                    </svg>
                     {file.name}
                   </div>
                 ))}
               </div>
-            </div>
 
-            {/* Right: the actual synthesis specimen — glass + glow */}
-            <div className="flex-1 min-w-0">
-              <div className="glass-panel glow-accent rounded-lg overflow-hidden">
-                {/* Document title bar */}
-                <div className="flex items-center justify-between px-5 py-3 border-b border-edge/30">
-                  <span className="font-mono text-[12px] text-sub">
+              {/* ── Center: Document viewer ── */}
+              <div className="workspace-viewer">
+                <div className="workspace-viewer-tabs">
+                  <div className="workspace-viewer-tab">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" className="opacity-50">
+                      <path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.1" />
+                    </svg>
                     synthesis.md
-                  </span>
-                  <span className="font-mono text-[11px] text-dim">
-                    model-collapse-research
-                  </span>
+                  </div>
                 </div>
 
-                {/* Document content */}
-                <div className="p-5 sm:p-7 lg:p-9 synthesis-doc">
+                <div className="workspace-viewer-content synthesis-doc">
                   <h2>Is model collapse an inevitable risk for AI training?</h2>
 
                   <p>
@@ -267,9 +298,7 @@ export default function Home() {
                     Three classes of mitigation appear in the literature: data provenance
                     tracking, synthetic-data filtering, and mixed training regimes.
                     Dohmatob et al. show that mixing as little as 10% fresh human data
-                    prevents collapse across all tested model families. However, this
-                    assumes ongoing access to human-generated data at scale &mdash; an
-                    assumption that weakens over time.
+                    prevents collapse across all tested model families.
                   </p>
 
                   <p className="mt-4 text-[12px] text-dim leading-relaxed">
@@ -277,100 +306,90 @@ export default function Home() {
                   </p>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      </section>
 
-      {/* ═══════════════════════════════════════
-          THE WORKSPACE AGENT — violet glow bg + glass card
-          ═══════════════════════════════════════ */}
-      <section className="relative py-24 sm:py-32 overflow-hidden">
-        <div className="section-bg fade-both">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/agent-glow.png" alt="" aria-hidden="true" loading="lazy" />
-        </div>
-        <div className="section-bg bg-agent-glow" />
-
-        <div className="relative z-10 max-w-[1080px] mx-auto px-6 lg:px-8">
-          {/* Thin rule */}
-          <div className="h-px bg-edge/30 mb-24 sm:mb-32" />
-
-          <div className="flex flex-col lg:flex-row gap-16 lg:gap-24">
-            {/* Narrative text */}
-            <div className="lg:w-[440px] flex-shrink-0">
-              <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-8">
-                The workspace agent
-              </p>
-              <h2 className="font-serif text-[clamp(1.5rem,2.8vw,2rem)] leading-[1.2] tracking-[-0.02em] text-heading mb-8">
-                Your judgment, amplified &mdash; not replaced
-              </h2>
-              <p className="font-sans text-[15px] leading-[1.75] text-sub mb-6">
-                After Lumen builds your project, a workspace agent stays with you.
-                It has read every source, every claim, every contradiction. Ask it
-                to challenge your hypothesis, and it argues from your own evidence.
-                Ask for gaps, and it shows you where your literature is thin.
-              </p>
-              <p className="font-sans text-[15px] leading-[1.75] text-sub mb-6">
-                It finds new sources and weighs them against what you already have.
-                It updates your synthesis while preserving provenance. This is not
-                a general-purpose chatbot &mdash; it is grounded entirely in your
-                project context, your sources, your evidence.
-              </p>
-              <p className="font-sans text-[14px] leading-[1.7] text-dim italic">
-                &ldquo;Challenge my hypothesis that model collapse is inevitable.
-                What&apos;s the strongest counterargument from the evidence?&rdquo;
-              </p>
-            </div>
-
-            {/* Agent response specimen — glass + violet glow */}
-            <div className="flex-1 min-w-0">
-              <div className="glass-panel glow-violet rounded-lg overflow-hidden">
-                <div className="flex items-center gap-2.5 px-5 py-3 border-b border-edge/30">
-                  <div className="w-[6px] h-[6px] rounded-full bg-dot animate-pulse" />
-                  <span className="font-mono text-[12px] text-sub">
+              {/* ── Right: Chat agent ── */}
+              <div className="workspace-chat">
+                <div className="workspace-chat-header">
+                  <div className="workspace-chat-dot" />
+                  <span className="font-mono text-[12px] text-sub relative z-[1]">
                     Workspace Agent
                   </span>
                 </div>
 
-                <div className="p-5 sm:p-7 lg:p-9">
-                  <p className="font-sans text-[14px] leading-[1.75] text-body mb-5">
-                    The strongest counterargument comes from Dohmatob et al. (2024).
-                    Their Theorem 3.1 shows collapse requires <em className="text-heading">closed-loop</em>{" "}
-                    training &mdash; but production systems almost never operate this way.
-                  </p>
-
-                  <div className="space-y-4 mb-5">
-                    <div className="flex gap-3">
-                      <span className="font-serif text-[14px] text-accent leading-[1.75] flex-shrink-0">1.</span>
-                      <p className="font-sans text-[13.5px] leading-[1.75] text-sub">
-                        Data mixing with 10% fresh human data prevents collapse in all
-                        tested scenarios.{" "}
-                        <span className="text-cite text-[11px]">[dohmatob-2024, Table 2]</span>
-                      </p>
-                    </div>
-                    <div className="flex gap-3">
-                      <span className="font-serif text-[14px] text-accent leading-[1.75] flex-shrink-0">2.</span>
-                      <p className="font-sans text-[13.5px] leading-[1.75] text-sub">
-                        Curation filters on synthetic data preserve distributional coverage
-                        across 50+ generations.{" "}
-                        <span className="text-cite text-[11px]">[alemohammad-2023, Fig 7]</span>
-                      </p>
-                    </div>
-                    <div className="flex gap-3">
-                      <span className="font-serif text-[14px] text-accent leading-[1.75] flex-shrink-0">3.</span>
-                      <p className="font-sans text-[13.5px] leading-[1.75] text-sub">
-                        Multi-model ensembles show no measurable drift after 50 generations.{" "}
-                        <span className="text-cite text-[11px]">[workshop-2024]</span>
-                      </p>
-                    </div>
+                <div className="workspace-chat-messages">
+                  {/* User message */}
+                  <div className="workspace-chat-msg-user">
+                    Challenge my hypothesis that model collapse is inevitable.
+                    What&apos;s the strongest counterargument?
                   </div>
 
-                  <p className="font-sans text-[13px] leading-[1.7] text-dim italic">
-                    Confidence: High for delay, moderate for full prevention. The
-                    tail-risk argument remains theoretically unresolved.
-                  </p>
+                  {/* Agent response */}
+                  <div className="workspace-chat-msg-agent">
+                    <p style={{ marginBottom: 8 }}>
+                      The strongest counterargument comes from Dohmatob et al.
+                      Their Theorem 3.1 shows collapse requires{" "}
+                      <strong className="text-heading font-medium">closed-loop</strong>{" "}
+                      training &mdash; but production systems almost never operate this way.
+                    </p>
+
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <span className="text-accent" style={{ flexShrink: 0, fontWeight: 500 }}>1.</span>
+                        <span>
+                          Data mixing with 10% fresh human data prevents collapse in all tested scenarios.{" "}
+                          <span className="workspace-chat-cite">[dohmatob-2024, Table 2]</span>
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <span className="text-accent" style={{ flexShrink: 0, fontWeight: 500 }}>2.</span>
+                        <span>
+                          Curation filters preserve distributional coverage across 50+ generations.{" "}
+                          <span className="workspace-chat-cite">[alemohammad-2023, Fig 7]</span>
+                        </span>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <span className="text-accent" style={{ flexShrink: 0, fontWeight: 500 }}>3.</span>
+                        <span>
+                          Multi-model ensembles show no measurable drift after 50 generations.{" "}
+                          <span className="workspace-chat-cite">[workshop-2024]</span>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="workspace-chat-confidence">
+                      Confidence: High for delay, moderate for full prevention.
+                    </div>
+                  </div>
                 </div>
+
+                <div className="workspace-chat-input">
+                  <div className="workspace-chat-input-field">
+                    Ask about your research&hellip;
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile hint bar */}
+            <div className="workspace-mobile-hint">
+              <div className="workspace-mobile-hint-item">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="opacity-60">
+                  <path d="M2 4h4v8H2zM8 4h6" stroke="currentColor" strokeWidth="1.1" />
+                </svg>
+                Sidebar
+              </div>
+              <div className="workspace-mobile-hint-item">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="opacity-60">
+                  <path d="M4 2h5.5L13 5.5V13a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z" stroke="currentColor" strokeWidth="1.1" />
+                </svg>
+                Viewer
+              </div>
+              <div className="workspace-mobile-hint-item">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="opacity-60">
+                  <circle cx="8" cy="8" r="2" fill="currentColor" opacity="0.6" />
+                  <path d="M3 4h10v8H3z" stroke="currentColor" strokeWidth="1.1" />
+                </svg>
+                Agent
               </div>
             </div>
           </div>
@@ -378,7 +397,7 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════
-          HOW IT WORKS — 3-step clarity
+          HOW IT WORKS — 3-step workflow journey
           ═══════════════════════════════════════ */}
       <section className="py-20 sm:py-28">
         <div className="max-w-[1080px] mx-auto px-6 lg:px-8">
@@ -389,38 +408,34 @@ export default function Home() {
           </p>
 
           <div className="relative grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-6">
-            {/* Connecting line (desktop only) */}
             <div className="hidden sm:block absolute top-[28px] left-[calc(16.67%+12px)] right-[calc(16.67%+12px)] h-px bg-edge/40" aria-hidden="true" />
 
             {[
               {
                 step: "01",
-                title: "Upload your sources",
-                desc: "Drop PDFs, paste links, or point Lumen at a research question. It ingests and indexes everything.",
+                title: "Drop your sources",
+                desc: "Upload PDFs, paste links, or describe a research question. Lumen ingests, indexes, and discovers relevant literature.",
               },
               {
                 step: "02",
                 title: "Ask your question",
-                desc: "Frame the question you\u2019re actually trying to answer. Lumen builds a structured project around it.",
+                desc: "Frame the question you\u2019re actually trying to answer. Lumen builds a structured project around it \u2014 not a summary, a workspace.",
               },
               {
                 step: "03",
-                title: "Get grounded synthesis",
-                desc: "Receive a workspace with tracked claims, visible contradictions, evidence maps, and an AI partner to develop your thesis.",
+                title: "Get structured synthesis",
+                desc: "Receive tracked claims, visible contradictions, evidence maps, gap analysis, and an AI partner to develop your thesis.",
               },
             ].map((item, i) => (
               <div key={item.step} className="hiw-card group relative">
-                {/* Step number node */}
                 <div className="relative z-10 flex items-center gap-3 mb-5">
                   <span className="flex items-center justify-center w-[56px] h-[56px] rounded-full border border-edge/50 group-hover:border-accent/40 bg-page/80 transition-all duration-400">
                     <span className="font-mono text-[13px] text-accent tracking-wide">{item.step}</span>
                   </span>
-                  {/* Mobile step connector */}
                   {i < 2 && (
                     <div className="sm:hidden absolute left-[28px] top-[56px] w-px h-[calc(100%+16px)] bg-edge/30" aria-hidden="true" />
                   )}
                 </div>
-                {/* Card body */}
                 <div className="hiw-card-body rounded-lg p-5 sm:p-6 transition-all duration-400">
                   <h3 className="font-serif text-[17px] tracking-[-0.01em] text-heading mb-2.5 leading-snug">
                     {item.title}
@@ -436,14 +451,52 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════
-          QUALITY TESTIMONIAL — attributed quote + diamond
+          QUALITY — what sets Lumen apart
+          ═══════════════════════════════════════ */}
+      <section className="py-20 sm:py-28">
+        <div className="max-w-[1080px] mx-auto px-6 lg:px-8">
+          <div className="h-px bg-edge/30 mb-20 sm:mb-28" />
+
+          <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-14">
+            Built for rigor
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8 sm:gap-6">
+            {[
+              {
+                title: "Evidence, not assertion",
+                desc: "Every claim in a Lumen synthesis is source-traceable. If the evidence is weak, Lumen says so. If sources contradict, Lumen surfaces the tension.",
+              },
+              {
+                title: "Inference, not imitation",
+                desc: "Lumen doesn\u2019t paraphrase your papers back at you. It performs structured inference \u2014 connecting findings across sources, identifying patterns, and flagging where the reasoning depends on assumptions.",
+              },
+              {
+                title: "Uncertainty, not confidence",
+                desc: "Generic AI sounds confident about everything. Lumen labels confidence levels, distinguishes well-supported claims from speculative ones, and shows you where the literature is thin.",
+              },
+            ].map((item) => (
+              <div key={item.title} className="hiw-card-body rounded-lg p-5 sm:p-6">
+                <h3 className="font-serif text-[17px] tracking-[-0.01em] text-heading mb-2.5 leading-snug">
+                  {item.title}
+                </h3>
+                <p className="font-sans text-[13.5px] leading-[1.7] text-sub">
+                  {item.desc}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══════════════════════════════════════
+          TESTIMONIAL — attributed quote
           ═══════════════════════════════════════ */}
       <section className="py-28 sm:py-36">
         <div className="max-w-[1080px] mx-auto px-6 lg:px-8">
           <div className="h-px bg-edge/30 mb-28 sm:mb-36" />
 
           <div className="max-w-[640px] mx-auto text-center">
-            {/* Decorative diamond */}
             <div className="flex justify-center mb-10">
               <div className="decorative-diamond" />
             </div>
@@ -453,7 +506,6 @@ export default function Home() {
               weekend of reading.&rdquo;
             </blockquote>
 
-            {/* Editorial attribution */}
             <div className="flex items-center justify-center gap-4 mb-12">
               <span className="block w-8 h-px bg-accent/40" />
               <p className="font-sans text-[12px] tracking-[0.06em] uppercase text-dim">
@@ -472,9 +524,9 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════
-          CTA — warm glow bg + early access framing
+          CTA — sign in
           ═══════════════════════════════════════ */}
-      <section id="access" className="relative py-24 sm:py-36 overflow-hidden">
+      <section className="relative py-24 sm:py-36 overflow-hidden">
         <div className="section-bg fade-both">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/cta-glow.png" alt="" aria-hidden="true" loading="lazy" />
@@ -486,7 +538,7 @@ export default function Home() {
 
           <div className="max-w-[480px]">
             <p className="font-sans text-[10.5px] font-semibold uppercase tracking-[0.18em] text-dim mb-8">
-              {authed ? "Your workspace" : "Early access"}
+              {authed ? "Your workspace" : "Get started"}
             </p>
             <h2 className="font-serif text-[clamp(1.5rem,2.8vw,2rem)] leading-[1.2] tracking-[-0.02em] text-heading mb-5">
               From scattered papers to structured judgment
@@ -494,25 +546,15 @@ export default function Home() {
             <p className="font-sans text-[14px] leading-[1.7] text-sub mb-10">
               {authed
                 ? "Your research workspace is ready. Continue where you left off or start a new structured analysis."
-                : "Lumen is in research preview. Request early access and be among the first researchers to use evidence-grounded synthesis."}
+                : "Sign in to start building evidence-grounded synthesis from your sources."}
             </p>
 
-            <div className="flex items-center gap-4">
-              <Link
-                href={ctaHref}
-                className="inline-flex items-center font-sans text-[14px] font-medium px-8 py-3.5 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 whitespace-nowrap glow-accent-sm hover:glow-accent"
-              >
-                {ctaLabel}
-              </Link>
-              {!authed && authed !== null && (
-                <Link
-                  href="/auth/login"
-                  className="font-sans text-[13px] font-medium text-sub hover:text-heading transition-colors duration-300"
-                >
-                  Sign in
-                </Link>
-              )}
-            </div>
+            <Link
+              href={ctaHref}
+              className="inline-flex items-center font-sans text-[14px] font-medium px-8 py-3.5 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 whitespace-nowrap glow-accent-sm hover:glow-accent"
+            >
+              {ctaLabel}
+            </Link>
             {!authed && (
               <p className="mt-4 font-sans text-[12px] text-mute tracking-wide">
                 Free during research preview &middot; No credit card required
@@ -523,10 +565,9 @@ export default function Home() {
       </section>
 
       {/* ═══════════════════════════════════════
-          FOOTER — softer border + gradient fade-in
+          FOOTER
           ═══════════════════════════════════════ */}
       <footer className="relative py-10 border-t border-edge/30">
-        {/* Subtle gradient fade-in above footer */}
         <div className="absolute -top-24 left-0 right-0 h-24 bg-gradient-to-b from-transparent to-page pointer-events-none" />
 
         <div className="max-w-[1080px] mx-auto px-6 lg:px-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -545,7 +586,7 @@ export default function Home() {
             Lumen
           </span>
           <p className="font-sans text-[12px] text-mute">
-            Your evidence. Structured.
+            Research that shows its work.
           </p>
         </div>
       </footer>

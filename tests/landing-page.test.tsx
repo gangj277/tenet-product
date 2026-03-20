@@ -8,8 +8,7 @@ test("homepage presents Lumen as a thesis-development workspace", () => {
   const html = renderToStaticMarkup(<Home />);
 
   assert.match(html, /Lumen/i);
-  assert.match(html, /Try demo/i);
-  assert.match(html, /href="#demo"/i);
+  assert.match(html, /Sign in/i);
   assert.match(html, /href="#artifacts"/i);
   assert.match(html, /synthesis\.md/i);
   assert.match(html, /claims\.md/i);
