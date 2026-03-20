@@ -13,7 +13,7 @@ import {
   buildSourceSummaryPrompt,
 } from "../prompts/synthesis-writing";
 
-const MAX_CONCURRENT_SOURCE_SUMMARIES = 8;
+const MAX_CONCURRENT_SOURCE_SUMMARIES = 20;
 
 export async function synthesizeProject(
   state: InitRunState
@@ -23,10 +23,10 @@ export async function synthesizeProject(
 
   memoryStore.updateProgress(runId, "synthesize_project", {
     status: "running",
-    detail: "Writing overview, synthesis, claims, gaps, and next steps...",
+    detail: "Writing core deliverables and per-source summaries...",
     subSteps: [
       { label: "Core deliverables (5 files)", status: "running" },
-      { label: "Per-source summaries", status: "pending" },
+      { label: "Per-source summaries", status: "running" },
     ],
   });
 
@@ -49,9 +49,21 @@ export async function synthesizeProject(
     2
   );
 
-  // Generate 5 core artifacts in parallel
-  const [overviewRes, synthesisRes, claimsRes, gapsRes, nextStepsRes] =
-    await Promise.all([
+  const parsed = parsedSources ?? [];
+
+  // Pre-fetch all normalized texts before concurrent LLM calls (avoids I/O inside workers)
+  const sourceTexts = await Promise.all(
+    parsed.map((ps) => blobStore.getText(ps.normalizedBlobKey))
+  );
+
+  // Run core artifacts AND source summaries concurrently — both depend only on
+  // consolidatedFindings + perspective, not on each other.
+  const [
+    [overviewRes, synthesisRes, claimsRes, gapsRes, nextStepsRes],
+    sourceResults,
+  ] = await Promise.all([
+    // 5 core artifacts
+    Promise.all([
       callLLM({
         model: MODEL_LIGHT,
         messages: [
@@ -93,45 +105,34 @@ export async function synthesizeProject(
         ],
         maxTokens: 4096,
       }),
-    ]);
+    ]),
+    // Per-source summaries (using pre-fetched texts)
+    allSettledWithConcurrency(
+      parsed.map((ps, i) => ({ ps, text: sourceTexts[i] })),
+      MAX_CONCURRENT_SOURCE_SUMMARIES,
+      async ({ ps, text }) => {
+        const src = sources.find((s) => s.sourceId === ps.sourceId);
+        const result = await callLLM({
+          model: MODEL_LITE,
+          messages: [
+            { role: "system", content: buildSourceSummaryPrompt() },
+            {
+              role: "user",
+              content: JSON.stringify({
+                sourceName: src?.name ?? ps.name,
+                content: text.slice(0, 30000),
+                perspective,
+              }),
+            },
+          ],
+          maxTokens: 4096,
+        });
+        return { sourceId: ps.sourceId, markdown: result.content };
+      }
+    ),
+  ]);
 
-  // Generate per-source summaries in parallel
-  memoryStore.updateProgress(runId, "synthesize_project", {
-    detail: `Writing per-source summaries for ${(parsedSources ?? []).length} sources...`,
-    subSteps: [
-      { label: "Core deliverables (5 files)", status: "completed" },
-      { label: "Per-source summaries", status: "running" },
-    ],
-  });
-
-  const parsed = parsedSources ?? [];
   const sourceSummaries: Record<string, string> = {};
-
-  const sourceResults = await allSettledWithConcurrency(
-    parsed,
-    MAX_CONCURRENT_SOURCE_SUMMARIES,
-    async (ps) => {
-      const src = sources.find((s) => s.sourceId === ps.sourceId);
-      const normalizedText = await blobStore.getText(ps.normalizedBlobKey);
-      const result = await callLLM({
-        model: MODEL_LITE,
-        messages: [
-          { role: "system", content: buildSourceSummaryPrompt() },
-          {
-            role: "user",
-            content: JSON.stringify({
-              sourceName: src?.name ?? ps.name,
-              content: normalizedText.slice(0, 30000),
-              perspective,
-            }),
-          },
-        ],
-        maxTokens: 4096,
-      });
-      return { sourceId: ps.sourceId, markdown: result.content };
-    }
-  );
-
   for (const r of sourceResults) {
     if (r.status === "fulfilled") {
       sourceSummaries[r.value.sourceId] = r.value.markdown;

@@ -21,6 +21,7 @@ export function DocumentViewer({
   pendingUpdate,
   onAcceptUpdate,
   onRejectUpdate,
+  onQuoteToChat,
 }: {
   activeFile: FileEntry | undefined;
   content: string;
@@ -36,6 +37,7 @@ export function DocumentViewer({
   pendingUpdate?: PendingUpdateContext | null;
   onAcceptUpdate?: (messageId: string, updateId: string) => void;
   onRejectUpdate?: (messageId: string, updateId: string) => void;
+  onQuoteToChat?: (text: string, sourceLabel: string) => void;
 }) {
   if (activeFile?.fileType === "latex") {
     return (
@@ -96,6 +98,7 @@ export function DocumentViewer({
       pendingUpdate={pendingUpdate}
       onAcceptUpdate={onAcceptUpdate}
       onRejectUpdate={onRejectUpdate}
+      onQuoteToChat={onQuoteToChat}
     />
   );
 }

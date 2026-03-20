@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
 import type { ChatMessage, FileEntry, SessionSummary } from "../../_lib/workspace-types";
 import type { LineRange, SourceRef } from "../../../_lib/citation-utils";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import { ChatMessageBubble } from "./message/chat-message";
 import { SessionHistory } from "./session-history";
-import { ChatComposer } from "./chat-composer";
+import { ChatComposer, type ChatComposerHandle } from "./chat-composer";
 
 const SUGGESTED_PROMPTS = [
   "Summarize the key findings",
@@ -221,33 +221,7 @@ function ThinkingIndicator() {
   );
 }
 
-export function AgentChat({
-  messages,
-  agentTyping,
-  collapsed,
-  onToggle,
-  onSend,
-  onAcceptUpdate,
-  onRejectUpdate,
-  onAnswerQuestion,
-  sessions,
-  activeSessionId,
-  showHistory,
-  onToggleHistory,
-  onSelectSession,
-  onNewSession,
-  onDeleteSession,
-  onRenameSession,
-  files,
-  onNavigateSource,
-  searchFilters,
-  onSearchFiltersChange,
-  getContent,
-  autoAcceptEdits,
-  onAutoAcceptEditsChange,
-  selectedModel,
-  onModelChange,
-}: {
+export const AgentChat = forwardRef<ChatComposerHandle, {
   messages: ChatMessage[];
   agentTyping: boolean;
   collapsed: boolean;
@@ -273,8 +247,41 @@ export function AgentChat({
   onAutoAcceptEditsChange?: () => void;
   selectedModel?: string;
   onModelChange?: (model: string) => void;
-}) {
+}>(function AgentChat({
+  messages,
+  agentTyping,
+  collapsed,
+  onToggle,
+  onSend,
+  onAcceptUpdate,
+  onRejectUpdate,
+  onAnswerQuestion,
+  sessions,
+  activeSessionId,
+  showHistory,
+  onToggleHistory,
+  onSelectSession,
+  onNewSession,
+  onDeleteSession,
+  onRenameSession,
+  files,
+  onNavigateSource,
+  searchFilters,
+  onSearchFiltersChange,
+  getContent,
+  autoAcceptEdits,
+  onAutoAcceptEditsChange,
+  selectedModel,
+  onModelChange,
+}, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<ChatComposerHandle>(null);
+
+  useImperativeHandle(ref, () => ({
+    injectQuotedContext: (text: string, sourceLabel: string) => {
+      composerRef.current?.injectQuotedContext(text, sourceLabel);
+    },
+  }));
 
   const sourceFiles: SourceRef[] = useMemo(
     () => files.map((file) => ({ key: file.key, label: file.shortLabel, group: file.group })),
@@ -347,6 +354,7 @@ export function AgentChat({
       </div>
 
       <ChatComposer
+        ref={composerRef}
         agentTyping={agentTyping}
         files={files}
         onSend={onSend}
@@ -359,4 +367,4 @@ export function AgentChat({
       />
     </div>
   );
-}
+});

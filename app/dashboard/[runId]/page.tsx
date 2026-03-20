@@ -1,12 +1,12 @@
 "use client";
 
-import { use } from "react";
+import { use, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useWorkspace } from "./_hooks/use-workspace";
 import { WorkspaceLayout } from "./_components/layout";
 import { FileSidebar } from "./_components/sidebar";
 import { DocumentViewer } from "./_components/viewer";
-import { AgentChat } from "./_components/chat";
+import { AgentChat, type ChatComposerHandle } from "./_components/chat";
 import { findPendingUpdateForFile } from "./_lib/workspace-types";
 
 export default function ResultsPage({
@@ -16,6 +16,12 @@ export default function ResultsPage({
 }) {
   const { runId } = use(params);
   const ws = useWorkspace(runId);
+  const chatRef = useRef<ChatComposerHandle>(null);
+
+  const handleQuoteToChat = useCallback((text: string, sourceLabel: string) => {
+    if (ws.chatCollapsed) ws.toggleChat();
+    chatRef.current?.injectQuotedContext(text, sourceLabel);
+  }, [ws.chatCollapsed, ws.toggleChat]);
 
   if (ws.loading) {
     return (
@@ -89,10 +95,12 @@ export default function ResultsPage({
           pendingUpdate={pendingUpdate}
           onAcceptUpdate={ws.acceptProposedUpdate}
           onRejectUpdate={ws.rejectProposedUpdate}
+          onQuoteToChat={handleQuoteToChat}
         />
       }
       chat={
         <AgentChat
+          ref={chatRef}
           messages={ws.chatMessages}
           agentTyping={ws.agentTyping}
           collapsed={ws.chatCollapsed}

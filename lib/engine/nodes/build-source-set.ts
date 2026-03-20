@@ -15,7 +15,7 @@ import {
 } from "@/lib/ingest/source-ingestion";
 import { memoryStore } from "@/lib/storage/memory-store";
 
-const MAX_CONCURRENT_SOURCE_INGESTS = 8;
+const MAX_CONCURRENT_SOURCE_INGESTS = 20;
 /** The discovery layer caps results before ingestion. */
 
 type IngestJob =
@@ -72,7 +72,7 @@ export async function buildSourceSet(
 
       const discovered = await discoverScholarlySources({
         query: primaryQuery,
-        numResults: 15,
+        numResults: 30,
         queryVariations,
         filters: state.input.searchFilters,
       });
@@ -144,13 +144,20 @@ export async function buildSourceSet(
                 paperQuality: job.paperQuality,
               });
 
+        if (ingested.source.parseStatus === "parsed") {
+          parsed += 1;
+        } else if (ingested.source.parseStatus === "failed") {
+          failed += 1;
+        }
+
         return { job, ingested };
       } catch (error) {
+        failed += 1;
         return { job, ingested: buildFailedIngest(job, error) };
       } finally {
         completed += 1;
         memoryStore.updateProgress(runId, "build_source_set", {
-          detail: `Fetched and classified ${completed}/${jobs.length} sources. Parsed ${parsed}, failed ${failed}.`,
+          detail: `Processing sources: ${completed}/${jobs.length} done (${parsed} parsed, ${failed} failed)`,
         });
       }
     }
@@ -168,12 +175,6 @@ export async function buildSourceSet(
 
     const { ingested } = result.value;
     sourceUpdates.push(ingested.source);
-
-    if (ingested.source.parseStatus === "parsed") {
-      parsed += 1;
-    } else {
-      failed += 1;
-    }
 
     if (ingested.parsedSource) {
       parsedSources.push(ingested.parsedSource);

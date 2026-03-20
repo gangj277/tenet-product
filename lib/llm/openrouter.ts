@@ -2,7 +2,6 @@ import {
   RetryableRequestError,
   TimeoutError,
   retryAsync,
-  sleep,
   withTimeout,
 } from "@/lib/utils/async";
 
@@ -250,7 +249,6 @@ export async function callLLMJson<T = unknown>(
     return { data, raw: response };
   } catch {
     // Retry once asking the model to fix the JSON
-    await sleep(250);
     const retryResponse = await callLLM({
       ...options,
       messages: [

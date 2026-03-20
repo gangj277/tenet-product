@@ -9,6 +9,8 @@ import { DiffActionBar, InlineDiffView } from "../diff";
 import { SourceMetadataBar } from "./source-metadata-bar";
 import { buildMarkdownEditorExtensions } from "./markdown-editor-config";
 import { getPlainTextNeedleForLineRange } from "./scroll-to-line-range";
+import { useTextSelection } from "../../_hooks/use-text-selection";
+import { SelectionQuoteButton } from "./selection-quote-button";
 
 export function MarkdownDocumentViewer({
   activeFile,
@@ -23,6 +25,7 @@ export function MarkdownDocumentViewer({
   pendingUpdate,
   onAcceptUpdate,
   onRejectUpdate,
+  onQuoteToChat,
 }: {
   activeFile: FileEntry | undefined;
   content: string;
@@ -36,11 +39,14 @@ export function MarkdownDocumentViewer({
   pendingUpdate?: PendingUpdateContext | null;
   onAcceptUpdate?: (messageId: string, updateId: string) => void;
   onRejectUpdate?: (messageId: string, updateId: string) => void;
+  onQuoteToChat?: (text: string, sourceLabel: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const switchingRef = useRef(false);
   const lastSyncedContentRef = useRef(content);
+  const contentAreaRef = useRef<HTMLDivElement>(null);
+  const selection = useTextSelection(contentAreaRef);
 
   const copyToClipboard = useCallback(() => {
     navigator.clipboard.writeText(content).then(() => {
@@ -250,7 +256,7 @@ export function MarkdownDocumentViewer({
           />
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto px-6 sm:px-10 lg:px-14 py-8">
+        <div ref={contentAreaRef} className="flex-1 overflow-y-auto px-6 sm:px-10 lg:px-14 py-8 relative">
           {editing ? (
             <EditorContent editor={editor} />
           ) : (
@@ -260,6 +266,16 @@ export function MarkdownDocumentViewer({
               onSourceClick={onNavigateSource}
               pendingLineRange={pendingLineRange}
               onScrollComplete={onScrollComplete}
+            />
+          )}
+          {selection.visible && onQuoteToChat && (
+            <SelectionQuoteButton
+              rect={selection.rect!}
+              containerRef={contentAreaRef}
+              onQuote={() => {
+                onQuoteToChat(selection.text, activeFile?.label ?? "Unknown");
+                window.getSelection()?.removeAllRanges();
+              }}
             />
           )}
         </div>

@@ -13,7 +13,7 @@ import { memoryStore } from "@/lib/storage/memory-store";
 import { blobStore } from "@/lib/storage/blob-store";
 import { allSettledWithConcurrency } from "@/lib/utils/async";
 
-const MAX_CONCURRENT_CHUNK_EXTRACTIONS = 12;
+const MAX_CONCURRENT_CHUNK_EXTRACTIONS = 30;
 
 const CHUNK_EVIDENCE_SCHEMA = {
   name: "chunk_evidence_items",
@@ -95,11 +95,13 @@ export async function analyzeEvidence(
     detail: `Extracting evidence from ${chunksToAnalyze.length} bounded chunks across ${parsedSources.length} sources...`,
   });
 
+  const perspectiveJson = JSON.stringify(perspective, null, 2);
+
   const errors: RunError[] = [];
   const settled = await allSettledWithConcurrency(
     chunksToAnalyze,
     MAX_CONCURRENT_CHUNK_EXTRACTIONS,
-    async (chunk) => analyzeChunk(chunk, parsedSourceMap.get(chunk.sourceId)!, perspective)
+    async (chunk) => analyzeChunk(chunk, parsedSourceMap.get(chunk.sourceId)!, perspectiveJson)
   );
 
   const extractedItems: EvidenceItem[] = [];
@@ -176,17 +178,16 @@ export async function analyzeEvidence(
 async function analyzeChunk(
   chunk: SourceChunk,
   parsedSource: ParsedSource,
-  perspective: InitRunState["perspective"]
+  perspectiveJson: string
 ): Promise<EvidenceItem[]> {
   const chunkText = await blobStore.getText(chunk.blobKey);
-  const perspectiveSummary = JSON.stringify(perspective, null, 2);
 
   const { data } = await callLLMJson<{ items: EvidenceItem[] }>({
     model: MODEL_LITE,
     messages: [
       {
         role: "system",
-        content: buildChunkExtractionPrompt(parsedSource.name, chunk.headingPath, perspectiveSummary),
+        content: buildChunkExtractionPrompt(parsedSource.name, chunk.headingPath, perspectiveJson),
       },
       {
         role: "user",
@@ -252,18 +253,23 @@ function buildChunkExtractionPrompt(
   headingPath: string,
   perspectiveSummary: string
 ) {
-  return `You extract atomic evidence from a single research-document chunk.
+  return `You extract atomic evidence items from a single research-document chunk.
 
 Return only evidence grounded in the provided chunk. Do not invent or generalize beyond the text.
 
 Classify each item as one of:
-- supporting
-- contradictory
-- methodological
-- neutral
+- supporting — evidence that supports a hypothesis, claim, or trend relevant to the research question
+- contradictory — evidence that undermines, qualifies, or opposes a claim
+- methodological — observations about research methods, sample sizes, study design, or data quality
+- neutral — factual context, definitions, or background that informs but doesn't directly argue for/against
 
-Prefer a small number of high-signal items over exhaustive repetition.
-Use the exact language from the chunk for quotes whenever possible.
+EXTRACTION GUIDELINES:
+- Extract 3-8 items per chunk. Err on the side of capturing MORE distinct claims rather than fewer.
+- Each item should represent a DISTINCT atomic claim — do not merge separate findings into one.
+- A single paragraph may contain multiple extractable claims (e.g., a result AND its effect size AND a caveat).
+- Quantitative data (numbers, percentages, p-values, effect sizes) should always be extracted as separate items.
+- Preserve the exact language from the chunk for quotes whenever possible.
+- Do not skip evidence just because it seems minor — downstream consolidation will handle ranking.
 
 Research perspective:
 ${perspectiveSummary}
