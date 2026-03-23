@@ -60,11 +60,18 @@ interface ModelOption {
   icon: string;
 }
 
-const MODEL_OPTIONS: ModelOption[] = [
+const OPENROUTER_MODELS: ModelOption[] = [
   { id: "google/gemini-3-flash-preview", label: "Gemini Flash", tier: "Fast", cost: "$", icon: "⚡" },
   { id: "google/gemini-3.1-pro", label: "Gemini Pro", tier: "Pro", cost: "$$", icon: "◆" },
   { id: "openai/gpt-5.4", label: "GPT-5.4", tier: "Premium", cost: "$$$", icon: "◉" },
 ];
+
+export const CODEX_MODELS: ModelOption[] = [
+  { id: "openai/gpt-5.4", label: "GPT-5.4", tier: "Default", cost: "Sub", icon: "◉" },
+  { id: "openai/gpt-5.4-mini", label: "GPT-5.4 Mini", tier: "Fast", cost: "Sub", icon: "⚡" },
+];
+
+const MODEL_OPTIONS = OPENROUTER_MODELS;
 
 function ModelPicker({
   selectedModel,
@@ -75,7 +82,9 @@ function ModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
-  const current = MODEL_OPTIONS.find((m) => m.id === selectedModel) ?? MODEL_OPTIONS[0];
+  const isCodex = selectedModel.startsWith("openai/");
+  const models = isCodex ? CODEX_MODELS : OPENROUTER_MODELS;
+  const current = models.find((m) => m.id === selectedModel) ?? models[0];
 
   useEffect(() => {
     if (!open) return;
@@ -113,7 +122,7 @@ function ModelPicker({
               Agent Model
             </span>
           </div>
-          {MODEL_OPTIONS.map((model) => {
+          {models.map((model) => {
             const isActive = model.id === selectedModel;
             return (
               <button
@@ -158,6 +167,90 @@ function ModelPicker({
   );
 }
 
+// ─── Reasoning Effort Picker ──────────────────────────────────────────────
+
+const REASONING_LEVELS = [
+  { id: "none", label: "Off", icon: "—", color: "text-dim" },
+  { id: "low", label: "Low", icon: "◔", color: "text-emerald-400/90" },
+  { id: "medium", label: "Med", icon: "◑", color: "text-sky-400/90" },
+  { id: "high", label: "High", icon: "◕", color: "text-amber-400/90" },
+] as const;
+
+function ReasoningPicker({
+  effort,
+  onChange,
+}: {
+  effort: string;
+  onChange: (effort: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  const current = REASONING_LEVELS.find((l) => l.id === effort) ?? REASONING_LEVELS[0];
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  return (
+    <div ref={pickerRef} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center gap-1 h-[26px] px-2 rounded-md bg-page/60 hover:bg-page border border-edge/30 hover:border-edge/50 transition-all cursor-pointer group"
+      >
+        <span className={`text-[11px] ${current.color}`}>{current.icon}</span>
+        <span className="text-[10px] font-medium text-sub group-hover:text-heading transition-colors">
+          Think
+        </span>
+      </button>
+
+      {open && (
+        <div
+          className="absolute bottom-full left-0 mb-1.5 w-[160px] glass-panel rounded-lg border border-edge/40 py-1 z-30 shadow-xl"
+          style={{ backdropFilter: "blur(24px)" }}
+        >
+          <div className="px-2.5 py-1.5 mb-0.5">
+            <span className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">
+              Reasoning Depth
+            </span>
+          </div>
+          {REASONING_LEVELS.map((level) => {
+            const isActive = level.id === effort;
+            return (
+              <button
+                key={level.id}
+                onClick={() => {
+                  onChange(level.id);
+                  setOpen(false);
+                }}
+                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
+                  isActive
+                    ? "bg-accent-fill/8 text-heading"
+                    : "text-sub hover:bg-page/80 hover:text-heading"
+                }`}
+              >
+                <span className={`w-4 text-center text-[12px] ${level.color}`}>{level.icon}</span>
+                <span className="text-[11.5px] font-medium">{level.label}</span>
+                {isActive && (
+                  <svg className="w-3 h-3 text-accent flex-shrink-0 ml-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── ChatComposer ─────────────────────────────────────────────────────────
 
 export interface ChatComposerHandle {
@@ -174,6 +267,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   onAutoAcceptEditsChange?: () => void;
   selectedModel?: string;
   onModelChange?: (model: string) => void;
+  reasoningEffort?: string;
+  onReasoningEffortChange?: (effort: string) => void;
 }>(function ChatComposer({
   agentTyping,
   files,
@@ -184,6 +279,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   onAutoAcceptEditsChange,
   selectedModel,
   onModelChange,
+  reasoningEffort,
+  onReasoningEffortChange,
 }, ref) {
   const [showSkillPicker, setShowSkillPicker] = useState(false);
   const [skillQuery, setSkillQuery] = useState("");
@@ -715,12 +812,18 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
 
           {/* Bottom row — Toolbar */}
           <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
-            {/* Left — Model picker */}
+            {/* Left — Model picker + Reasoning */}
             <div className="flex items-center gap-1.5">
               {selectedModel && onModelChange && (
                 <ModelPicker
                   selectedModel={selectedModel}
                   onModelChange={onModelChange}
+                />
+              )}
+              {reasoningEffort !== undefined && onReasoningEffortChange && (
+                <ReasoningPicker
+                  effort={reasoningEffort}
+                  onChange={onReasoningEffortChange}
                 />
               )}
             </div>

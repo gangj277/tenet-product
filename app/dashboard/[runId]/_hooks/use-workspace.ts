@@ -5,7 +5,7 @@ import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import type { ExperimentMeta, NoteMeta, SourceMeta } from "@/lib/db/research-projects";
 import type { LineRange } from "../../_lib/citation-utils";
-import type { AskUserQuestion } from "@/lib/agent/state";
+import type { AskUserQuestion, TaskState } from "@/lib/agent/state";
 import {
   buildFileList,
   getArtifactContent,
@@ -26,6 +26,7 @@ function buildPersistedMessageMetadata(message: {
   proposedUpdates?: ProposedUpdate[];
   searchResults?: DiscoveredSource[];
   askUserQuestion?: ChatAskUserQuestion;
+  taskPlan?: TaskState[];
 }) {
   const metadata: Record<string, unknown> = {};
 
@@ -37,6 +38,9 @@ function buildPersistedMessageMetadata(message: {
   }
   if (message.askUserQuestion) {
     metadata.askUserQuestion = message.askUserQuestion;
+  }
+  if (message.taskPlan?.length) {
+    metadata.taskPlan = message.taskPlan;
   }
 
   return metadata;
@@ -83,16 +87,31 @@ export function useWorkspace(runId: string) {
   }, []);
 
   // Selected agent model (persisted in localStorage)
-  const DEFAULT_MODEL = "google/gemini-3-flash-preview";
+  // Codex (OpenAI OAuth) users default to GPT-5.4; OpenRouter users default to Gemini Flash
+  const DEFAULT_MODEL_OPENROUTER = "google/gemini-3-flash-preview";
+  const DEFAULT_MODEL_CODEX = "openai/gpt-5.4";
   const [selectedModel, setSelectedModelState] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("selectedAgentModel") || DEFAULT_MODEL;
+      return localStorage.getItem("selectedAgentModel") || DEFAULT_MODEL_OPENROUTER;
     }
-    return DEFAULT_MODEL;
+    return DEFAULT_MODEL_OPENROUTER;
   });
   const setSelectedModel = useCallback((model: string) => {
     setSelectedModelState(model);
     localStorage.setItem("selectedAgentModel", model);
+  }, []);
+
+  // Reasoning effort (persisted in localStorage, only used with Codex/OpenAI models)
+  type ReasoningEffort = "none" | "low" | "medium" | "high";
+  const [reasoningEffort, setReasoningEffortState] = useState<ReasoningEffort>(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("reasoningEffort") as ReasoningEffort) || "none";
+    }
+    return "none";
+  });
+  const setReasoningEffort = useCallback((effort: ReasoningEffort) => {
+    setReasoningEffortState(effort);
+    localStorage.setItem("reasoningEffort", effort);
   }, []);
 
   // Session state
@@ -595,6 +614,7 @@ export function useWorkspace(runId: string) {
       let finalProposedUpdates: ProposedUpdate[] | undefined;
       let finalSearchResults: DiscoveredSource[] | undefined;
       let finalAskUserQuestion: ChatAskUserQuestion | undefined;
+      let finalTaskPlan: TaskState[] | undefined;
 
       try {
         // Base64-encode file attachments for the API
@@ -629,6 +649,7 @@ export function useWorkspace(runId: string) {
             ...(encodedAttachments?.length ? { attachments: encodedAttachments } : {}),
             conversationHistory: history,
             model: selectedModel,
+            reasoningEffort: reasoningEffort !== "none" ? reasoningEffort : undefined,
             workspaceContext: {
               editedContents: editedObj,
               activeFileKey,
@@ -674,6 +695,9 @@ export function useWorkspace(runId: string) {
               sources?: Array<{ sourceId: string; key: string; label: string; content: string; sourceUrl?: string; paperQuality?: PaperQualityMeta; folder?: string }>;
               skills?: string[];
               question?: AskUserQuestion;
+              tasks?: TaskState[];
+              taskId?: string;
+              status?: string;
               message?: string;
               usage?: { totalTokens: number };
             };
@@ -852,6 +876,40 @@ export function useWorkspace(runId: string) {
                 }
                 break;
 
+              case "task_plan":
+                if (event.tasks) {
+                  finalTaskPlan = event.tasks;
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? { ...m, taskPlan: event.tasks }
+                        : m
+                    )
+                  );
+                }
+                break;
+
+              case "task_update":
+                if (event.taskId && event.status) {
+                  updateChatMessages((prev) =>
+                    prev.map((m) => {
+                      if (m.id !== agentMsgId || !m.taskPlan) return m;
+                      const updatedTasks = m.taskPlan.map((t) =>
+                        t.id === event.taskId
+                          ? {
+                              ...t,
+                              status: event.status as TaskState["status"],
+                              ...(event.result ? { result: event.result } : {}),
+                            }
+                          : t
+                      );
+                      finalTaskPlan = updatedTasks;
+                      return { ...m, taskPlan: updatedTasks };
+                    })
+                  );
+                }
+                break;
+
               case "error":
                 updateChatMessages((prev) =>
                   prev.map((m) =>
@@ -917,6 +975,8 @@ export function useWorkspace(runId: string) {
               currentAgentMessage?.searchResults ?? finalSearchResults,
             askUserQuestion:
               currentAgentMessage?.askUserQuestion ?? finalAskUserQuestion,
+            taskPlan:
+              currentAgentMessage?.taskPlan ?? finalTaskPlan,
           });
 
           fetch(
@@ -1509,6 +1569,9 @@ export function useWorkspace(runId: string) {
     // Model selection
     selectedModel,
     setSelectedModel,
+    // Reasoning effort
+    reasoningEffort,
+    setReasoningEffort,
     // Session-related
     sessions,
     activeSessionId,

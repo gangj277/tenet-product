@@ -1,8 +1,9 @@
 "use client";
 
-import { use, useCallback, useRef } from "react";
+import { use, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useWorkspace } from "./_hooks/use-workspace";
+import { useUser } from "@/lib/auth/use-user";
 import { WorkspaceLayout } from "./_components/layout";
 import { FileSidebar } from "./_components/sidebar";
 import { DocumentViewer } from "./_components/viewer";
@@ -16,7 +17,15 @@ export default function ResultsPage({
 }) {
   const { runId } = use(params);
   const ws = useWorkspace(runId);
+  const { user } = useUser();
   const chatRef = useRef<ChatComposerHandle>(null);
+
+  // Auto-set default model for Codex users on first visit
+  useEffect(() => {
+    if (user?.openaiConnected && !localStorage.getItem("selectedAgentModel")) {
+      ws.setSelectedModel("openai/gpt-5.4");
+    }
+  }, [user?.openaiConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleQuoteToChat = useCallback((text: string, sourceLabel: string) => {
     if (ws.chatCollapsed) ws.toggleChat();
@@ -126,6 +135,8 @@ export default function ResultsPage({
           onAutoAcceptEditsChange={ws.toggleAutoAcceptEdits}
           selectedModel={ws.selectedModel}
           onModelChange={ws.setSelectedModel}
+          reasoningEffort={ws.reasoningEffort}
+          onReasoningEffortChange={ws.setReasoningEffort as (effort: string) => void}
         />
       }
     />

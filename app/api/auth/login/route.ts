@@ -34,6 +34,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!user.passwordHash) {
+      return NextResponse.json(
+        { error: "This account uses OpenAI sign-in. Please use the \"Sign in with OpenAI\" button." },
+        { status: 400 }
+      );
+    }
+
     const valid = await verifyPassword(body.password, user.passwordHash);
     if (!valid) {
       return NextResponse.json(

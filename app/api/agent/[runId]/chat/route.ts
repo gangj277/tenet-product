@@ -11,6 +11,7 @@ import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import type { Artifacts } from "@/lib/engine/state";
 import { parsePDF } from "@/lib/pdf/gemini-extract";
 import { checkUserBudget, recordUserCost } from "@/lib/rate-limit";
+import { createProviderForUser } from "@/lib/llm/provider-factory";
 
 export const maxDuration = 300;
 
@@ -26,6 +27,7 @@ interface ChatRequestBody {
   attachments?: ChatAttachment[];
   conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
   model?: string;
+  reasoningEffort?: "none" | "low" | "medium" | "high";
   workspaceContext?: {
     editedContents?: Record<string, string>;
     activeFileKey?: string;
@@ -37,6 +39,7 @@ const ALLOWED_MODELS = new Set([
   "google/gemini-3-flash-preview",
   "google/gemini-3.1-pro",
   "openai/gpt-5.4",
+  "openai/gpt-5.4-mini",
 ]);
 
 function formatSSE(event: SSEEvent): string {
@@ -55,15 +58,28 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Per-user daily cost budget check
-  const budgetCheck = checkUserBudget(session.userId);
-  if (!budgetCheck.allowed) {
+  // Resolve LLM provider for this user
+  let provider;
+  try {
+    provider = await createProviderForUser(session.userId);
+  } catch (err) {
     return NextResponse.json(
-      {
-        error: `Daily usage limit reached ($${budgetCheck.spentUsd.toFixed(2)}/$${budgetCheck.limitUsd}). Resets at midnight UTC.`,
-      },
-      { status: 429 }
+      { error: err instanceof Error ? err.message : "No LLM provider configured" },
+      { status: 400 }
     );
+  }
+
+  // Per-user daily cost budget check (skip for Codex OAuth users — OpenAI enforces its own limits)
+  if (provider.kind !== "codex") {
+    const budgetCheck = checkUserBudget(session.userId);
+    if (!budgetCheck.allowed) {
+      return NextResponse.json(
+        {
+          error: `Daily usage limit reached ($${budgetCheck.spentUsd.toFixed(2)}/$${budgetCheck.limitUsd}). Resets at midnight UTC.`,
+        },
+        { status: 429 }
+      );
+    }
   }
 
   // Verify ownership
@@ -193,6 +209,7 @@ export async function POST(
       try {
         // Resolve model: use client-selected model if allowed, otherwise default
         const requestedModel = body.model && ALLOWED_MODELS.has(body.model) ? body.model : undefined;
+        const reasoningEffort = body.reasoningEffort || undefined;
 
         for await (const event of runAgentLoop(
           augmentedMessage,
@@ -200,6 +217,8 @@ export async function POST(
           workspaceCtx,
           imageContentParts.length > 0 ? imageContentParts : undefined,
           requestedModel,
+          provider,
+          reasoningEffort,
         )) {
           controller.enqueue(encoder.encode(formatSSE(event)));
         }
@@ -213,7 +232,9 @@ export async function POST(
         // Clean up any pending ask_user question (e.g. if stream was aborted)
         memoryStore.cancelPendingQuestion(runId);
         const costAfter = costTracker.snapshot().totalCostUsd;
-        recordUserCost(session.userId, costAfter - costBefore);
+        if (provider.kind !== "codex") {
+          recordUserCost(session.userId, costAfter - costBefore);
+        }
         controller.close();
       }
     },

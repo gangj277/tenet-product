@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getOwnedResearchRun } from "@/lib/db/research-projects";
 import { updateSessionTitle } from "@/lib/db/chat-sessions";
-import { callLLM } from "@/lib/llm/openrouter";
 import { MODEL_LITE } from "@/lib/llm/models";
+import { createProviderForUser } from "@/lib/llm/provider-factory";
 
 export async function POST(
   req: NextRequest,
@@ -35,7 +35,8 @@ export async function POST(
   const truncatedAgent = (agentReply ?? "").slice(0, 500);
 
   try {
-    const response = await callLLM({
+    const provider = await createProviderForUser(session.userId);
+    const response = await provider.callLLM({
       messages: [
         {
           role: "system",

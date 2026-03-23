@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { db } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
+import { users, userLlmCredentials } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 export async function GET() {
@@ -16,6 +16,7 @@ export async function GET() {
       email: users.email,
       name: users.name,
       organization: users.organization,
+      authProvider: users.authProvider,
     })
     .from(users)
     .where(eq(users.id, session.userId))
@@ -25,5 +26,17 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  return NextResponse.json({ user });
+  // Check if user has Codex OAuth connected
+  const [creds] = await db
+    .select({ provider: userLlmCredentials.provider })
+    .from(userLlmCredentials)
+    .where(eq(userLlmCredentials.userId, user.id))
+    .limit(1);
+
+  return NextResponse.json({
+    user: {
+      ...user,
+      openaiConnected: creds?.provider === "codex",
+    },
+  });
 }

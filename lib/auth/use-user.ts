@@ -7,6 +7,8 @@ export interface User {
   email: string;
   name: string;
   organization: string | null;
+  authProvider: "email" | "openai_codex";
+  openaiConnected: boolean;
 }
 
 interface UseUserReturn {

@@ -247,6 +247,8 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onAutoAcceptEditsChange?: () => void;
   selectedModel?: string;
   onModelChange?: (model: string) => void;
+  reasoningEffort?: string;
+  onReasoningEffortChange?: (effort: string) => void;
 }>(function AgentChat({
   messages,
   agentTyping,
@@ -273,6 +275,8 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onAutoAcceptEditsChange,
   selectedModel,
   onModelChange,
+  reasoningEffort,
+  onReasoningEffortChange,
 }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -364,6 +368,8 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
         onAutoAcceptEditsChange={onAutoAcceptEditsChange}
         selectedModel={selectedModel}
         onModelChange={onModelChange}
+        reasoningEffort={reasoningEffort}
+        onReasoningEffortChange={onReasoningEffortChange}
       />
     </div>
   );

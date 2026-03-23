@@ -1,15 +1,22 @@
 import type { LLMMessage, ContentPart } from "@/lib/llm/openrouter";
 import { MODEL_AGENT } from "@/lib/llm/models";
 import { callLLMStreaming } from "@/lib/llm/openrouter-streaming";
+import type { LLMProvider } from "@/lib/llm/provider";
 import { getToolSchemas, executeTool } from "./tools";
 import { executeAskUser } from "./tools/ask-user";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { buildSystemPrompt } from "./prompts/constitution";
 import { SKILL_BY_SLASH, SKILL_MAP, type SkillDefinition } from "./prompts/skills";
-import type { AgentState, AskUserOption, SSEEvent, WorkspaceContext } from "./state";
+import type { AgentState, AskUserOption, SSEEvent, TaskPlan, TaskState, TaskStatus, WorkspaceContext } from "./state";
 import { sleep } from "@/lib/utils/async";
 
-const MAX_ITERATIONS = 8;
+const MAX_ITERATIONS = 20;
+const MAX_ITERATIONS_WITH_PLAN = 40;
+
+export function getMaxIterations(plan?: TaskPlan): number {
+  if (!plan) return MAX_ITERATIONS;
+  return Math.min(MAX_ITERATIONS + plan.tasks.length * 4, MAX_ITERATIONS_WITH_PLAN);
+}
 
 /** Human-readable labels for tool-call activities. */
 const TOOL_ACTIVITY_LABELS: Record<string, string> = {
@@ -22,6 +29,8 @@ const TOOL_ACTIVITY_LABELS: Record<string, string> = {
   load_skill: "Loading skill",
   read_skill_reference: "Reading reference material",
   ask_user: "Waiting for your input",
+  plan_tasks: "Planning task decomposition",
+  complete_task: "Recording task findings",
 };
 
 /** Detect all known slash commands in a message. Returns deduped array of matched skills. */
@@ -57,6 +66,8 @@ export async function* runAgentLoop(
   workspaceCtx: WorkspaceContext,
   imageAttachments?: ContentPart[],
   model?: string,
+  provider?: LLMProvider,
+  reasoningEffort?: "none" | "low" | "medium" | "high",
 ): AsyncGenerator<SSEEvent> {
   // 1. Pre-detect slash commands and build active skills array
   const preDetected = detectSlashCommands(userMessage);
@@ -99,7 +110,7 @@ export async function* runAgentLoop(
   // 4. ReAct loop
   yield { type: "activity", activity: "Analyzing your question" };
 
-  while (state.iterations < MAX_ITERATIONS) {
+  while (state.iterations < getMaxIterations(state.taskPlan)) {
     state.iterations++;
 
     if (state.iterations > 1) {
@@ -114,13 +125,18 @@ export async function* runAgentLoop(
 
     // Stream LLM response
     try {
-      for await (const chunk of callLLMStreaming({
+      const streamOpts = {
         messages: state.messages,
         tools: currentTools,
         model: model || MODEL_AGENT,
         temperature: 0.3,
         maxTokens: 4096,
-      })) {
+        reasoningEffort,
+      };
+      const stream = provider
+        ? provider.callLLMStreaming(streamOpts)
+        : callLLMStreaming(streamOpts);
+      for await (const chunk of stream) {
         switch (chunk.type) {
           case "text_delta":
             yield { type: "text_delta", content: chunk.content };
@@ -217,7 +233,7 @@ export async function* runAgentLoop(
       let toolResult: Awaited<ReturnType<typeof executeTool>> | undefined;
       let toolError: unknown;
 
-      const toolPromise = executeTool(tc.name, args, workspaceCtx, onProgress, activeSkills)
+      const toolPromise = executeTool(tc.name, args, workspaceCtx, onProgress, activeSkills, state.taskPlan)
         .then((r) => { toolResult = r; })
         .catch((e) => { toolError = e; });
 
@@ -287,6 +303,57 @@ export async function* runAgentLoop(
         }
         state.activatedSkills.push(tr.loadedSkillId);
         yield { type: "skill_activated", skills: [tr.loadedSkillId] };
+      }
+
+      // Task plan management: emit SSE events for plan creation and task completion
+      if (tr.taskPlan) {
+        state.taskPlan = tr.taskPlan;
+
+        if (tr.completedTaskId) {
+          // A task was completed — emit update for it
+          const completedTask = tr.taskPlan.tasks.find(
+            (t: TaskState) => t.id === tr.completedTaskId
+          );
+          if (completedTask) {
+            yield {
+              type: "task_update" as const,
+              taskId: completedTask.id,
+              status: completedTask.status as TaskStatus,
+              result: completedTask.result,
+            };
+          }
+
+          // If there's a next task, emit its activation
+          if (tr.nextTask) {
+            yield {
+              type: "task_update" as const,
+              taskId: tr.nextTask.id,
+              status: "active" as TaskStatus,
+            };
+            yield {
+              type: "activity",
+              activity: `Working on: ${tr.nextTask.objective}`,
+            };
+          } else {
+            yield {
+              type: "activity",
+              activity: "All tasks complete — composing final response",
+            };
+          }
+        } else {
+          // New plan created — emit full plan
+          yield { type: "task_plan" as const, tasks: tr.taskPlan.tasks };
+
+          const activeTask = tr.taskPlan.tasks.find(
+            (t: TaskState) => t.status === "active"
+          );
+          if (activeTask) {
+            yield {
+              type: "activity",
+              activity: `Working on: ${activeTask.objective}`,
+            };
+          }
+        }
       }
 
       // Append tool result as role:"tool" with matching tool_call_id

@@ -46,15 +46,34 @@ export const chatMessageRoleEnum = pgEnum("chat_message_role", [
   "agent",
 ]);
 
+export const llmProviderEnum = pgEnum("llm_provider", [
+  "openrouter",
+  "codex",
+]);
+
 // ── Users ──
 
 export const users = pgTable("users", {
   id: uuid("id").defaultRandom().primaryKey(),
   email: varchar("email", { length: 255 }).notNull().unique(),
-  passwordHash: text("password_hash").notNull(),
+  passwordHash: text("password_hash"),
   name: varchar("name", { length: 255 }).notNull(),
   organization: varchar("organization", { length: 255 }),
+  authProvider: varchar("auth_provider", { length: 50 }).default("email").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+// ── User LLM Credentials ──
+
+export const userLlmCredentials = pgTable("user_llm_credentials", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull()
+    .unique(),
+  provider: llmProviderEnum("provider").notNull(),
+  encryptedTokens: text("encrypted_tokens").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 // ── Projects (workspaces) ──
