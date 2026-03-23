@@ -6,7 +6,7 @@ const SECRET = new TextEncoder().encode(
   process.env.JWT_SECRET || "lumen-dev-secret-change-in-production"
 );
 
-const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup"];
+const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/onboarding"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

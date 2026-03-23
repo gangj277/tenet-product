@@ -78,7 +78,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Token validation failed");
 
-      router.push("/dashboard");
+      router.push(data.isNewUser ? "/auth/onboarding" : "/dashboard");
     } catch (err) {
       setError((err as Error).message);
     } finally {

@@ -60,6 +60,7 @@ export async function POST(request: NextRequest) {
   const existingSession = await getSession();
 
   let userId: string;
+  let isNewUser = false;
   const normalizedEmail = email.toLowerCase().trim() || `openai-${accountId}@codex.local`;
 
   if (existingSession) {
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
 
     if (existingUser) {
       userId = existingUser.id;
+      isNewUser = false;
       await db
         .update(users)
         .set({ authProvider: "openai_codex" })
@@ -85,11 +87,12 @@ export async function POST(request: NextRequest) {
         .values({
           email: normalizedEmail,
           passwordHash: null,
-          name,
+          name: name || "Researcher",
           authProvider: "openai_codex",
         })
         .returning({ id: users.id });
       userId = newUser.id;
+      isNewUser = true;
     }
   }
 
@@ -109,5 +112,5 @@ export async function POST(request: NextRequest) {
     await setSessionCookie(token);
   }
 
-  return NextResponse.json({ ok: true, userId });
+  return NextResponse.json({ ok: true, userId, isNewUser });
 }
