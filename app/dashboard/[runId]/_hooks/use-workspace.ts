@@ -6,6 +6,7 @@ import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import type { ExperimentMeta, NoteMeta, SourceMeta } from "@/lib/db/research-projects";
 import type { LineRange } from "../../_lib/citation-utils";
 import type { AskUserQuestion, TaskState } from "@/lib/agent/state";
+import type { ReasoningEffort } from "@/lib/llm/types";
 import {
   buildFileList,
   getArtifactContent,
@@ -18,32 +19,28 @@ import {
   type SessionSummary,
 } from "../_lib/workspace-types";
 import {
+  completeActiveProcessTrace,
+  failActiveProcessTrace,
+  recordProcessActivity,
+  recordToolCallTrace,
+} from "../_lib/agent-process-trace";
+import {
+  buildPersistedMessageMetadata,
+  hydrateStoredChatMessage,
+} from "../_lib/chat-message-metadata";
+import {
   acceptProposedUpdateInMessages,
   updateProposedUpdateStatusInMessages,
 } from "../_lib/proposed-update-acceptance";
 
-function buildPersistedMessageMetadata(message: {
-  proposedUpdates?: ProposedUpdate[];
-  searchResults?: DiscoveredSource[];
-  askUserQuestion?: ChatAskUserQuestion;
-  taskPlan?: TaskState[];
-}) {
-  const metadata: Record<string, unknown> = {};
+type ChatReasoningEffort = Exclude<ReasoningEffort, "none">;
 
-  if (message.proposedUpdates?.length) {
-    metadata.proposedUpdates = message.proposedUpdates;
-  }
-  if (message.searchResults?.length) {
-    metadata.searchResults = message.searchResults;
-  }
-  if (message.askUserQuestion) {
-    metadata.askUserQuestion = message.askUserQuestion;
-  }
-  if (message.taskPlan?.length) {
-    metadata.taskPlan = message.taskPlan;
-  }
-
-  return metadata;
+function parseStoredReasoningEffort(
+  value: string | null
+): ChatReasoningEffort {
+  return value === "low" || value === "medium" || value === "high" || value === "xhigh"
+    ? value
+    : "medium";
 }
 
 export function useWorkspace(runId: string) {
@@ -74,6 +71,15 @@ export function useWorkspace(runId: string) {
     }
     return false;
   });
+  const [reasoningEffort, setReasoningEffort] =
+    useState<ChatReasoningEffort>(() => {
+      if (typeof window !== "undefined") {
+        return parseStoredReasoningEffort(
+          localStorage.getItem("chatReasoningEffort")
+        );
+      }
+      return "medium";
+    });
   const autoAcceptEditsRef = useRef(autoAcceptEdits);
   useEffect(() => {
     autoAcceptEditsRef.current = autoAcceptEdits;
@@ -85,33 +91,9 @@ export function useWorkspace(runId: string) {
       return next;
     });
   }, []);
-
-  // Selected agent model (persisted in localStorage)
-  // Codex (OpenAI OAuth) users default to GPT-5.4; OpenRouter users default to Gemini Flash
-  const DEFAULT_MODEL_OPENROUTER = "google/gemini-3-flash-preview";
-  const DEFAULT_MODEL_CODEX = "openai/gpt-5.4";
-  const [selectedModel, setSelectedModelState] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("selectedAgentModel") || DEFAULT_MODEL_OPENROUTER;
-    }
-    return DEFAULT_MODEL_OPENROUTER;
-  });
-  const setSelectedModel = useCallback((model: string) => {
-    setSelectedModelState(model);
-    localStorage.setItem("selectedAgentModel", model);
-  }, []);
-
-  // Reasoning effort (persisted in localStorage, only used with Codex/OpenAI models)
-  type ReasoningEffort = "none" | "low" | "medium" | "high";
-  const [reasoningEffort, setReasoningEffortState] = useState<ReasoningEffort>(() => {
-    if (typeof window !== "undefined") {
-      return (localStorage.getItem("reasoningEffort") as ReasoningEffort) || "none";
-    }
-    return "none";
-  });
-  const setReasoningEffort = useCallback((effort: ReasoningEffort) => {
-    setReasoningEffortState(effort);
-    localStorage.setItem("reasoningEffort", effort);
+  const updateReasoningEffort = useCallback((next: ChatReasoningEffort) => {
+    setReasoningEffort(next);
+    localStorage.setItem("chatReasoningEffort", next);
   }, []);
 
   // Session state
@@ -119,6 +101,10 @@ export function useWorkspace(runId: string) {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+
+  // Active task plan (lifted from per-message to top-level for persistent panel)
+  const [activeTaskPlan, setActiveTaskPlan] = useState<TaskState[] | null>(null);
+  const dismissTaskPlan = useCallback(() => setActiveTaskPlan(null), []);
 
   // Auto-save state
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -248,16 +234,13 @@ export function useWorkspace(runId: string) {
         if (!res.ok) return;
         const data = await res.json();
         const messages: ChatMessage[] = (data.messages ?? []).map(
-          (m: { id: string; role: "user" | "agent"; text: string; metadata: Record<string, unknown> | null; createdAt: string }) => ({
-            id: m.id,
-            role: m.role,
-            text: m.text,
-            timestamp: new Date(m.createdAt).getTime(),
-            proposedUpdates: m.metadata?.proposedUpdates as ProposedUpdate[] | undefined,
-            searchResults: m.metadata?.searchResults as DiscoveredSource[] | undefined,
-            activityLabel: m.metadata?.activityLabel as string | undefined,
-            askUserQuestion: m.metadata?.askUserQuestion as ChatAskUserQuestion | undefined,
-          })
+          (m: {
+            id: string;
+            role: "user" | "agent";
+            text: string;
+            metadata: Record<string, unknown> | null;
+            createdAt: string;
+          }) => hydrateStoredChatMessage(m)
         );
         replaceChatMessages(messages);
         setActiveSessionId(sessionId);
@@ -587,6 +570,7 @@ export function useWorkspace(runId: string) {
         isStreaming: true,
         proposedUpdates: [],
         searchResults: [],
+        processTrace: [],
       };
 
       const previousMessages = chatMessagesRef.current;
@@ -609,6 +593,9 @@ export function useWorkspace(runId: string) {
 
       const controller = new AbortController();
       abortRef.current = controller;
+      const traceFileLabels = Object.fromEntries(
+        files.map((file) => [file.key, file.shortLabel])
+      ) as Record<string, string>;
 
       let finalAgentText = "";
       let finalProposedUpdates: ProposedUpdate[] | undefined;
@@ -646,10 +633,9 @@ export function useWorkspace(runId: string) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: text,
+            reasoningEffort,
             ...(encodedAttachments?.length ? { attachments: encodedAttachments } : {}),
             conversationHistory: history,
-            model: selectedModel,
-            reasoningEffort: reasoningEffort !== "none" ? reasoningEffort : undefined,
             workspaceContext: {
               editedContents: editedObj,
               activeFileKey,
@@ -709,13 +695,30 @@ export function useWorkspace(runId: string) {
 
             switch (event.type) {
               case "activity":
-                updateChatMessages((prev) =>
-                  prev.map((m) =>
-                    m.id === agentMsgId
-                      ? { ...m, activityLabel: event.activity }
-                      : m
-                  )
-                );
+                if (event.activity) {
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? {
+                            ...m,
+                            activityLabel: event.activity,
+                            processTrace: recordProcessActivity(
+                              m.processTrace ?? [],
+                              event.activity!
+                            ),
+                          }
+                        : m
+                    )
+                  );
+                } else {
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? { ...m, activityLabel: event.activity }
+                        : m
+                    )
+                  );
+                }
                 break;
 
               case "text_delta":
@@ -727,6 +730,26 @@ export function useWorkspace(runId: string) {
                       : m
                   )
                 );
+                break;
+
+              case "tool_call":
+                if (event.name) {
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? {
+                            ...m,
+                            processTrace: recordToolCallTrace(
+                              m.processTrace ?? [],
+                              event.name!,
+                              event.args ?? {},
+                              traceFileLabels
+                            ),
+                          }
+                        : m
+                    )
+                  );
+                }
                 break;
 
               case "proposed_update":
@@ -810,6 +833,7 @@ export function useWorkspace(runId: string) {
                     const newFiles = [...prev];
                     for (const s of event.sources!) {
                       if (newFiles.some((f) => f.key === s.key)) continue;
+                      traceFileLabels[s.key] = s.label;
                       newFiles.push({
                         key: s.key,
                         label: s.label,
@@ -858,6 +882,18 @@ export function useWorkspace(runId: string) {
                 break;
 
               case "tool_result":
+                updateChatMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === agentMsgId
+                      ? {
+                          ...m,
+                          processTrace: completeActiveProcessTrace(
+                            m.processTrace ?? []
+                          ),
+                        }
+                      : m
+                  )
+                );
                 // Detect ask_user timeout: if the tool_result is for ask_user
                 // and the question is still "pending", mark it as timed out
                 if (event.name === "ask_user" && finalAskUserQuestion?.status === "pending") {
@@ -879,6 +915,7 @@ export function useWorkspace(runId: string) {
               case "task_plan":
                 if (event.tasks) {
                   finalTaskPlan = event.tasks;
+                  setActiveTaskPlan(event.tasks);
                   updateChatMessages((prev) =>
                     prev.map((m) =>
                       m.id === agentMsgId
@@ -904,6 +941,7 @@ export function useWorkspace(runId: string) {
                           : t
                       );
                       finalTaskPlan = updatedTasks;
+                      setActiveTaskPlan(updatedTasks);
                       return { ...m, taskPlan: updatedTasks };
                     })
                   );
@@ -924,12 +962,33 @@ export function useWorkspace(runId: string) {
                       : m
                   )
                 );
+                updateChatMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === agentMsgId
+                      ? {
+                          ...m,
+                          processTrace: failActiveProcessTrace(
+                            m.processTrace ?? [],
+                            event.message ?? "Agent error"
+                          ),
+                        }
+                      : m
+                  )
+                );
                 break;
 
               case "done":
                 updateChatMessages((prev) =>
                   prev.map((m) =>
-                    m.id === agentMsgId ? { ...m, isStreaming: false } : m
+                    m.id === agentMsgId
+                      ? {
+                          ...m,
+                          isStreaming: false,
+                          processTrace: completeActiveProcessTrace(
+                            m.processTrace ?? []
+                          ),
+                        }
+                      : m
                   )
                 );
                 setAgentTyping(false);
@@ -941,7 +1000,13 @@ export function useWorkspace(runId: string) {
         // Ensure streaming is marked complete
         updateChatMessages((prev) =>
           prev.map((m) =>
-            m.id === agentMsgId ? { ...m, isStreaming: false } : m
+            m.id === agentMsgId
+              ? {
+                  ...m,
+                  isStreaming: false,
+                  processTrace: completeActiveProcessTrace(m.processTrace ?? []),
+                }
+              : m
           )
         );
       } catch (err) {
@@ -977,6 +1042,8 @@ export function useWorkspace(runId: string) {
               currentAgentMessage?.askUserQuestion ?? finalAskUserQuestion,
             taskPlan:
               currentAgentMessage?.taskPlan ?? finalTaskPlan,
+            processTrace:
+              currentAgentMessage?.processTrace,
           });
 
           fetch(
@@ -1049,10 +1116,13 @@ export function useWorkspace(runId: string) {
       fetchSessions,
       persistMessageMetadata,
       replaceChatMessages,
+      reasoningEffort,
       runId,
       searchFilters,
       sessions,
+      files,
       updateChatMessages,
+      updateContent,
     ]
   );
 
@@ -1260,28 +1330,32 @@ export function useWorkspace(runId: string) {
         if (!prev) return prev;
         if (key.startsWith("source:")) {
           const sourceId = key.slice(7);
-          const { [sourceId]: _, ...restSources } = prev.sources;
+          const restSources = { ...prev.sources };
+          delete restSources[sourceId];
           const next = { ...prev, sources: restSources };
           artifactsRef.current = next;
           return next;
         }
         if (key.startsWith("paper:")) {
           const paperId = key.slice(6);
-          const { [paperId]: _, ...restPapers } = prev.papers || {};
+          const restPapers = { ...(prev.papers || {}) };
+          delete restPapers[paperId];
           const next = { ...prev, papers: restPapers };
           artifactsRef.current = next;
           return next;
         }
         if (key.startsWith("experiment:")) {
           const experimentId = key.slice(11);
-          const { [experimentId]: _, ...restExperiments } = prev.experiments || {};
+          const restExperiments = { ...(prev.experiments || {}) };
+          delete restExperiments[experimentId];
           const next = { ...prev, experiments: restExperiments };
           artifactsRef.current = next;
           return next;
         }
         if (key.startsWith("note:")) {
           const noteId = key.slice(5);
-          const { [noteId]: _, ...restNotes } = prev.notes || {};
+          const restNotes = { ...(prev.notes || {}) };
+          delete restNotes[noteId];
           const next = { ...prev, notes: restNotes };
           artifactsRef.current = next;
           return next;
@@ -1566,12 +1640,11 @@ export function useWorkspace(runId: string) {
     // Auto-accept edits
     autoAcceptEdits,
     toggleAutoAcceptEdits,
-    // Model selection
-    selectedModel,
-    setSelectedModel,
-    // Reasoning effort
     reasoningEffort,
-    setReasoningEffort,
+    setReasoningEffort: updateReasoningEffort,
+    // Task plan (top-level for persistent panel)
+    activeTaskPlan,
+    dismissTaskPlan,
     // Session-related
     sessions,
     activeSessionId,

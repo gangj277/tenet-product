@@ -5,12 +5,15 @@ import { ActivityIndicator } from "./activity-indicator";
 import { ProposedUpdateCard } from "./proposed-update-card";
 import { AskUserCard } from "./ask-user-card";
 import { SearchResultsList } from "./search-results-list";
+// TaskProgressCard removed — task plan now renders in persistent panel above chat
+import { ProcessTraceCard } from "./process-trace-card";
 
 export function AgentBubble({
   message,
   onAcceptUpdate,
   onRejectUpdate,
   onAnswerQuestion,
+  onOpenProposal,
   sourceFiles,
   onSourceClick,
   getContent,
@@ -19,12 +22,14 @@ export function AgentBubble({
   onAcceptUpdate?: (updateId: string) => void;
   onRejectUpdate?: (updateId: string) => void;
   onAnswerQuestion?: (questionId: string, answer: string, isCustom: boolean) => void;
+  onOpenProposal?: (fileKey: string) => void;
   sourceFiles?: SourceRef[];
   onSourceClick?: (sourceKey: string, lineRange?: LineRange) => void;
   getContent?: (key: string) => string;
 }) {
   const hasUpdates = message.proposedUpdates && message.proposedUpdates.length > 0;
   const hasSearchResults = message.searchResults && message.searchResults.length > 0;
+  const hasProcessTrace = message.processTrace && message.processTrace.length > 0;
 
   return (
     <div className="flex justify-start">
@@ -36,6 +41,10 @@ export function AgentBubble({
           </span>
         </div>
         <div className="glass-panel rounded-2xl rounded-tl-sm px-4 py-3">
+          {hasProcessTrace && (
+            <ProcessTraceCard steps={message.processTrace!} />
+          )}
+
           {message.text && (
             <div>
               <ChatMarkdown content={message.text} sourceFiles={sourceFiles} onSourceClick={onSourceClick} />
@@ -45,9 +54,11 @@ export function AgentBubble({
             </div>
           )}
 
-          {!message.text && message.isStreaming && (
+          {!message.text && message.isStreaming && !hasProcessTrace && (
             <ActivityIndicator label={message.activityLabel} />
           )}
+
+          {/* Task plan now renders in persistent panel — see TaskPlanPanel */}
 
           {hasUpdates &&
             message.proposedUpdates!.map((update) => (
@@ -56,6 +67,7 @@ export function AgentBubble({
                 update={update}
                 onAccept={() => onAcceptUpdate?.(update.id)}
                 onReject={() => onRejectUpdate?.(update.id)}
+                onOpen={() => onOpenProposal?.(update.key)}
                 currentContent={update.type === "edit" && getContent ? getContent(update.key) : undefined}
               />
             ))}

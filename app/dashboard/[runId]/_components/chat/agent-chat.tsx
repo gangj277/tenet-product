@@ -7,6 +7,7 @@ import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import { ChatMessageBubble } from "./message/chat-message";
 import { SessionHistory } from "./session-history";
 import { ChatComposer, type ChatComposerHandle } from "./chat-composer";
+import { TaskPlanPanel } from "./task-plan-panel";
 
 const SUGGESTED_PROMPTS = [
   "Summarize the key findings",
@@ -230,6 +231,9 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onAcceptUpdate?: (messageId: string, updateId: string) => void;
   onRejectUpdate?: (messageId: string, updateId: string) => void;
   onAnswerQuestion?: (messageId: string, questionId: string, answer: string, isCustom: boolean) => void;
+  onOpenProposal?: (fileKey: string) => void;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+  onReasoningEffortChange?: (value: "low" | "medium" | "high" | "xhigh") => void;
   sessions: SessionSummary[];
   activeSessionId: string | null;
   showHistory: boolean;
@@ -245,10 +249,8 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   getContent?: (key: string) => string;
   autoAcceptEdits?: boolean;
   onAutoAcceptEditsChange?: () => void;
-  selectedModel?: string;
-  onModelChange?: (model: string) => void;
-  reasoningEffort?: string;
-  onReasoningEffortChange?: (effort: string) => void;
+  activeTaskPlan?: import("@/lib/agent/state").TaskState[] | null;
+  onDismissTaskPlan?: () => void;
 }>(function AgentChat({
   messages,
   agentTyping,
@@ -258,6 +260,9 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onAcceptUpdate,
   onRejectUpdate,
   onAnswerQuestion,
+  onOpenProposal,
+  reasoningEffort,
+  onReasoningEffortChange,
   sessions,
   activeSessionId,
   showHistory,
@@ -273,10 +278,8 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   getContent,
   autoAcceptEdits,
   onAutoAcceptEditsChange,
-  selectedModel,
-  onModelChange,
-  reasoningEffort,
-  onReasoningEffortChange,
+  activeTaskPlan,
+  onDismissTaskPlan,
 }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
@@ -327,6 +330,10 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
         onNewSession={onNewSession}
       />
 
+      {activeTaskPlan && activeTaskPlan.length > 0 && onDismissTaskPlan && (
+        <TaskPlanPanel tasks={activeTaskPlan} onDismiss={onDismissTaskPlan} />
+      )}
+
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
         {isEmpty && <EmptyState onSuggestion={(text) => onSend(text)} />}
 
@@ -346,6 +353,7 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
                     onAnswerQuestion(msg.id, questionId, answer, isCustom)
                 : undefined
             }
+            onOpenProposal={onOpenProposal}
             sourceFiles={sourceFiles}
             onSourceClick={onNavigateSource}
             getContent={getContent}
@@ -366,8 +374,6 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
         onSearchFiltersChange={onSearchFiltersChange}
         autoAcceptEdits={autoAcceptEdits}
         onAutoAcceptEditsChange={onAutoAcceptEditsChange}
-        selectedModel={selectedModel}
-        onModelChange={onModelChange}
         reasoningEffort={reasoningEffort}
         onReasoningEffortChange={onReasoningEffortChange}
       />
