@@ -5,13 +5,13 @@ import type { LLMProvider } from "../provider";
 import type {
   CallLLMOptions,
   LLMResponse,
+  LLMMessage,
   StreamingLLMOptions,
   StreamChunk,
   AccumulatedToolCall,
 } from "../types";
 
-const CODEX_BASE_URL = "https://chatgpt.com/backend-api/wham";
-const COMPLETIONS_PATH = "/v1/chat/completions";
+const CODEX_URL = "https://chatgpt.com/backend-api/codex/responses";
 
 export interface CodexCredentials {
   accessToken: string;
@@ -22,6 +22,110 @@ export interface CodexCredentials {
 
 type OnTokenRefresh = (newCreds: CodexCredentials) => Promise<void>;
 
+// ─── Helpers: convert chat/completions format → Responses API format ─────────
+
+function extractSystemAndInput(messages: LLMMessage[]): {
+  instructions: string;
+  input: Array<{ role: string; content: unknown }>;
+} {
+  let instructions = "You are a helpful assistant.";
+  const input: Array<{ role: string; content: unknown }> = [];
+
+  for (const msg of messages) {
+    if (msg.role === "system") {
+      instructions = typeof msg.content === "string" ? msg.content : instructions;
+    } else if (msg.role === "tool") {
+      // Responses API uses "function_call_output" for tool results
+      input.push({
+        role: "function_call_output",
+        content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+      });
+    } else if (msg.role === "assistant" && msg.tool_calls?.length) {
+      // Convert assistant tool_calls to function_call items
+      for (const tc of msg.tool_calls) {
+        input.push({
+          role: "function_call",
+          content: JSON.stringify({
+            id: tc.id,
+            name: tc.function.name,
+            arguments: tc.function.arguments,
+          }),
+        });
+      }
+      // Also include text content if present
+      if (msg.content) {
+        input.push({ role: "assistant", content: msg.content });
+      }
+    } else {
+      input.push({ role: msg.role, content: msg.content ?? "" });
+    }
+  }
+
+  return { instructions, input };
+}
+
+function convertToolsForResponsesAPI(
+  tools?: Array<{ type: string; function: { name: string; description: string; parameters: Record<string, unknown> } }>
+): Array<Record<string, unknown>> | undefined {
+  if (!tools?.length) return undefined;
+  return tools.map((t) => ({
+    type: "function",
+    name: t.function.name,
+    description: t.function.description,
+    parameters: t.function.parameters,
+  }));
+}
+
+// ─── SSE Parser for Responses API ────────────────────────────────────────────
+
+interface ParsedResponsesStream {
+  content: string;
+  toolCalls: AccumulatedToolCall[];
+  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
+  model: string;
+}
+
+async function* parseResponsesSSE(
+  body: ReadableStream<Uint8Array>,
+  onTextDelta?: (text: string) => void,
+  onToolCallStart?: (index: number, id: string, name: string) => void,
+  onToolCallDelta?: (index: number, args: string) => void,
+): AsyncGenerator<{ type: string; data: Record<string, unknown> }> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+
+      let currentEvent = "";
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("event: ")) {
+          currentEvent = trimmed.slice(7);
+        } else if (trimmed.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(trimmed.slice(6));
+            yield { type: currentEvent, data };
+          } catch {
+            // skip malformed data
+          }
+        }
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+// ─── Provider ────────────────────────────────────────────────────────────────
+
 export function createCodexProvider(
   credentials: CodexCredentials,
   onTokenRefresh: OnTokenRefresh
@@ -30,7 +134,6 @@ export function createCodexProvider(
 
   async function ensureValidToken(): Promise<string> {
     const now = Date.now();
-    // Refresh if less than 30 seconds remaining
     if (creds.expiresAt - now < 30_000) {
       try {
         const response = await refreshAccessToken(creds.refreshToken);
@@ -61,76 +164,100 @@ export function createCodexProvider(
     return headers;
   }
 
+  async function makeRequest(
+    token: string,
+    body: Record<string, unknown>
+  ): Promise<Response> {
+    const response = await fetch(CODEX_URL, {
+      method: "POST",
+      headers: buildHeaders(token),
+      body: JSON.stringify(body),
+    });
+
+    if (response.status === 401) {
+      const freshToken = await ensureValidToken();
+      return fetch(CODEX_URL, {
+        method: "POST",
+        headers: buildHeaders(freshToken),
+        body: JSON.stringify(body),
+      });
+    }
+
+    return response;
+  }
+
   return {
     kind: "codex",
 
     async callLLM(options: CallLLMOptions): Promise<LLMResponse> {
       const token = await ensureValidToken();
       const model = mapModelToCodex(options.model);
-
-      const {
-        messages,
-        temperature = 0.3,
-        maxTokens = 8192,
-        reasoningEffort,
-        jsonSchema,
-      } = options;
+      const { instructions, input } = extractSystemAndInput(options.messages);
 
       const body: Record<string, unknown> = {
         model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
+        instructions,
+        input,
+        store: false,
+        stream: true,
       };
 
-      if (reasoningEffort && reasoningEffort !== "none") {
-        body.reasoning = { effort: reasoningEffort };
+      if (options.reasoningEffort && options.reasoningEffort !== "none") {
+        body.reasoning = { effort: options.reasoningEffort };
       }
 
-      if (jsonSchema) {
-        body.response_format = {
-          type: "json_schema",
-          json_schema: {
-            name: jsonSchema.name,
+      if (options.jsonSchema) {
+        body.text = {
+          format: {
+            type: "json_schema",
+            name: options.jsonSchema.name,
             strict: true,
-            schema: jsonSchema.schema,
+            schema: options.jsonSchema.schema,
           },
         };
       }
 
       const start = Date.now();
-      const response = await fetch(`${CODEX_BASE_URL}${COMPLETIONS_PATH}`, {
-        method: "POST",
-        headers: buildHeaders(token),
-        body: JSON.stringify(body),
-      });
-
-      if (response.status === 401) {
-        // Token might have expired mid-flight — retry once
-        const freshToken = await ensureValidToken();
-        const retryResponse = await fetch(
-          `${CODEX_BASE_URL}${COMPLETIONS_PATH}`,
-          {
-            method: "POST",
-            headers: buildHeaders(freshToken),
-            body: JSON.stringify(body),
-          }
-        );
-        if (!retryResponse.ok) {
-          const errorBody = await retryResponse.text();
-          throw new Error(`Codex ${retryResponse.status}: ${errorBody}`);
-        }
-        const data = await retryResponse.json();
-        return parseCompletionResponse(data, model, Date.now() - start);
-      }
+      const response = await makeRequest(token, body);
 
       if (!response.ok) {
         const errorBody = await response.text();
         throw new Error(`Codex ${response.status}: ${errorBody}`);
       }
 
-      const data = await response.json();
-      return parseCompletionResponse(data, model, Date.now() - start);
+      // Parse streaming response to collect full content
+      let fullContent = "";
+      let usageData: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+      let responseModel = model;
+
+      for await (const event of parseResponsesSSE(response.body!)) {
+        if (event.type === "response.output_text.delta") {
+          fullContent += (event.data as { delta?: string }).delta ?? "";
+        } else if (event.type === "response.completed") {
+          const resp = event.data.response as Record<string, unknown> | undefined;
+          if (resp?.usage) {
+            const u = resp.usage as Record<string, number>;
+            usageData = {
+              promptTokens: u.input_tokens ?? 0,
+              completionTokens: u.output_tokens ?? 0,
+              totalTokens: (u.input_tokens ?? 0) + (u.output_tokens ?? 0),
+            };
+          }
+          if (resp?.model) responseModel = resp.model as string;
+        }
+      }
+
+      const latencyMs = Date.now() - start;
+      if (usageData) {
+        costTracker.record(responseModel, usageData.promptTokens, usageData.completionTokens);
+      }
+
+      return {
+        content: fullContent,
+        model: responseModel,
+        usage: usageData ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        latencyMs,
+      };
     },
 
     async *callLLMStreaming(
@@ -138,37 +265,26 @@ export function createCodexProvider(
     ): AsyncGenerator<StreamChunk> {
       const token = await ensureValidToken();
       const model = mapModelToCodex(options.model);
-
-      const {
-        messages,
-        tools,
-        temperature = 0.3,
-        maxTokens = 4096,
-        reasoningEffort,
-      } = options;
+      const { instructions, input } = extractSystemAndInput(options.messages);
 
       const body: Record<string, unknown> = {
         model,
-        messages,
-        temperature,
-        max_tokens: maxTokens,
+        instructions,
+        input,
+        store: false,
         stream: true,
       };
 
-      if (reasoningEffort && reasoningEffort !== "none") {
-        body.reasoning = { effort: reasoningEffort };
+      if (options.reasoningEffort && options.reasoningEffort !== "none") {
+        body.reasoning = { effort: options.reasoningEffort };
       }
 
-      if (tools && tools.length > 0) {
-        body.tools = tools;
-        body.tool_choice = "auto";
+      const codexTools = convertToolsForResponsesAPI(options.tools);
+      if (codexTools) {
+        body.tools = codexTools;
       }
 
-      const response = await fetch(`${CODEX_BASE_URL}${COMPLETIONS_PATH}`, {
-        method: "POST",
-        headers: buildHeaders(token),
-        body: JSON.stringify(body),
-      });
+      const response = await makeRequest(token, body);
 
       if (!response.ok) {
         const errorBody = await response.text();
@@ -179,107 +295,82 @@ export function createCodexProvider(
         throw new Error("No response body from Codex streaming");
       }
 
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
       let fullContent = "";
       const toolCalls = new Map<number, AccumulatedToolCall>();
-      let usage:
-        | { promptTokens: number; completionTokens: number; totalTokens: number }
-        | undefined;
-      let buffer = "";
+      let toolCallIndex = 0;
+      let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
 
-      try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+      for await (const event of parseResponsesSSE(response.body)) {
+        switch (event.type) {
+          case "response.output_text.delta": {
+            const delta = (event.data as { delta?: string }).delta ?? "";
+            fullContent += delta;
+            yield { type: "text_delta", content: delta };
+            break;
+          }
 
-          buffer += decoder.decode(value, { stream: true });
+          case "response.function_call_arguments.delta": {
+            // Tool call argument streaming
+            const callId = (event.data as { call_id?: string }).call_id ?? "";
+            const argDelta = (event.data as { delta?: string }).delta ?? "";
 
-          const lines = buffer.split("\n");
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith("data: ")) continue;
-
-            const data = trimmed.slice(6);
-            if (data === "[DONE]") continue;
-
-            let parsed: Record<string, unknown>;
-            try {
-              parsed = JSON.parse(data);
-            } catch {
-              continue;
+            // Find existing tool call by ID or create new one
+            let idx = -1;
+            for (const [i, tc] of toolCalls) {
+              if (tc.id === callId) { idx = i; break; }
             }
-
-            if (parsed.error) {
-              const err = parsed.error as Record<string, unknown>;
-              throw new Error(
-                `Codex stream error: ${err.message ?? JSON.stringify(err)}`
-              );
+            if (idx === -1) {
+              idx = toolCallIndex++;
+              toolCalls.set(idx, { id: callId, name: "", arguments: argDelta });
+            } else {
+              toolCalls.get(idx)!.arguments += argDelta;
             }
+            yield { type: "tool_call_delta", index: idx, arguments: argDelta };
+            break;
+          }
 
-            if (parsed.usage) {
-              const u = parsed.usage as Record<string, number>;
-              usage = {
-                promptTokens: u.prompt_tokens ?? 0,
-                completionTokens: u.completion_tokens ?? 0,
-                totalTokens: u.total_tokens ?? 0,
-              };
-            }
-
-            const choices = parsed.choices as
-              | Array<Record<string, unknown>>
-              | undefined;
-            if (!choices || choices.length === 0) continue;
-
-            const delta = choices[0].delta as
-              | Record<string, unknown>
-              | undefined;
-            if (!delta) continue;
-
-            if (delta.content && typeof delta.content === "string") {
-              fullContent += delta.content;
-              yield { type: "text_delta", content: delta.content };
-            }
-
-            if (delta.tool_calls && Array.isArray(delta.tool_calls)) {
-              for (const tc of delta.tool_calls as Array<Record<string, unknown>>) {
-                const index = (tc.index as number) ?? 0;
-                const fn = tc.function as Record<string, string> | undefined;
-
-                if (!toolCalls.has(index)) {
-                  toolCalls.set(index, {
-                    id: (tc.id as string) ?? `call_${index}`,
-                    name: fn?.name ?? "",
-                    arguments: fn?.arguments ?? "",
-                  });
-                  if (fn?.name) {
-                    yield {
-                      type: "tool_call_start",
-                      index,
-                      id: (tc.id as string) ?? `call_${index}`,
-                      name: fn.name,
-                    };
-                  }
-                } else {
-                  const existing = toolCalls.get(index)!;
-                  if (fn?.name && !existing.name) {
-                    existing.name = fn.name;
-                    yield { type: "tool_call_start", index, id: existing.id, name: fn.name };
-                  }
-                  if (fn?.arguments) {
-                    existing.arguments += fn.arguments;
-                    yield { type: "tool_call_delta", index, arguments: fn.arguments };
-                  }
-                }
+          case "response.function_call_arguments.done": {
+            // Tool call complete — name should be in the data
+            const callId = (event.data as { call_id?: string }).call_id ?? "";
+            const name = (event.data as { name?: string }).name ?? "";
+            for (const [idx, tc] of toolCalls) {
+              if (tc.id === callId) {
+                tc.name = name || tc.name;
+                yield { type: "tool_call_start", index: idx, id: tc.id, name: tc.name };
+                break;
               }
             }
+            break;
+          }
+
+          case "response.output_item.added": {
+            // New output item — could be a function call
+            const item = (event.data as { item?: Record<string, unknown> }).item;
+            if (item?.type === "function_call") {
+              const callId = (item.call_id as string) ?? `call_${toolCallIndex}`;
+              const name = (item.name as string) ?? "";
+              const idx = toolCallIndex++;
+              toolCalls.set(idx, { id: callId, name, arguments: "" });
+              if (name) {
+                yield { type: "tool_call_start", index: idx, id: callId, name };
+              }
+            }
+            break;
+          }
+
+          case "response.completed": {
+            const resp = event.data.response as Record<string, unknown> | undefined;
+            if (resp?.usage) {
+              const u = resp.usage as Record<string, number>;
+              usage = {
+                promptTokens: u.input_tokens ?? 0,
+                completionTokens: u.output_tokens ?? 0,
+                totalTokens: (u.input_tokens ?? 0) + (u.output_tokens ?? 0),
+              };
+            }
+            break;
           }
         }
-      } finally {
-        reader.releaseLock();
       }
 
       if (usage) {
@@ -293,33 +384,5 @@ export function createCodexProvider(
         usage,
       };
     },
-  };
-}
-
-function parseCompletionResponse(
-  data: Record<string, unknown>,
-  requestedModel: string,
-  latencyMs: number
-): LLMResponse {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const choices = data.choices as any[];
-  const content = choices?.[0]?.message?.content ?? "";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const usage = data.usage as Record<string, any> | undefined;
-  const promptTokens = usage?.prompt_tokens ?? 0;
-  const completionTokens = usage?.completion_tokens ?? 0;
-
-  const model = (data.model as string) ?? requestedModel;
-  costTracker.record(model, promptTokens, completionTokens);
-
-  return {
-    content,
-    model,
-    usage: {
-      promptTokens,
-      completionTokens,
-      totalTokens: usage?.total_tokens ?? 0,
-    },
-    latencyMs,
   };
 }

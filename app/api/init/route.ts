@@ -141,6 +141,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.error("[init] Pipeline error:", (err as Error).message);
+
     if (projectId && runId) {
       await updateResearchRunStatus({
         projectId,
