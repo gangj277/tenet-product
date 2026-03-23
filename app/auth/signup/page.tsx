@@ -20,24 +20,29 @@ export default function SignupPage() {
     setError(null);
     setTokenLoading(true);
     try {
-      let parsed: { access?: string; refresh?: string; expires?: number };
+      let raw: Record<string, unknown>;
       try {
-        parsed = JSON.parse(tokenJson.trim());
+        raw = JSON.parse(tokenJson.trim());
       } catch {
         throw new Error("Invalid JSON. Paste the full contents of ~/.codex/auth.json");
       }
 
-      if (!parsed.access) {
-        throw new Error('Missing "access" field. Make sure you pasted the full auth.json content.');
+      const tokens = (raw.tokens as Record<string, string> | undefined) ?? raw;
+      const accessToken = tokens.access_token ?? tokens.access;
+      const refreshToken = tokens.refresh_token ?? tokens.refresh ?? "";
+      const accountId = tokens.account_id ?? "";
+
+      if (!accessToken) {
+        throw new Error("Could not find access token. Make sure you pasted the full auth.json content.");
       }
 
       const res = await fetch("/api/auth/openai/token-paste", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          accessToken: parsed.access,
-          refreshToken: parsed.refresh || "",
-          expiresAt: parsed.expires,
+          accessToken,
+          refreshToken,
+          accountId,
         }),
       });
 

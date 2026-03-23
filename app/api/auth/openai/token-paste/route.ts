@@ -9,6 +9,7 @@ import { eq } from "drizzle-orm";
 interface TokenPasteBody {
   accessToken: string;
   refreshToken: string;
+  accountId?: string;
   expiresAt?: number; // Unix ms — optional, defaults to +1h
 }
 
@@ -24,25 +25,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "accessToken is required" }, { status: 400 });
   }
 
-  // Decode the access token to extract accountId
-  let accountId: string;
-  let email: string;
-  let name: string;
+  // Extract accountId + email from body or JWT
+  let accountId = body.accountId || "";
+  let email = "";
+  let name = "";
   try {
     const claims = decodeJwtPayload(body.accessToken);
-    accountId = (claims.sub as string) || (claims.account_id as string) || "";
-    email = (claims.email as string) || "";
+    // OpenAI nests profile under https://api.openai.com/profile
+    const profile = claims["https://api.openai.com/profile"] as Record<string, unknown> | undefined;
+    const auth = claims["https://api.openai.com/auth"] as Record<string, unknown> | undefined;
+    email = (profile?.email as string) || (claims.email as string) || "";
     name = (claims.name as string) || email.split("@")[0] || "User";
+    if (!accountId) {
+      accountId = (auth?.chatgpt_account_id as string) || (claims.sub as string) || "";
+    }
   } catch {
-    return NextResponse.json(
-      { error: "Invalid token format. Make sure you copied the access_token value correctly." },
-      { status: 400 }
-    );
+    // JWT decode failed — if we have accountId from body, proceed anyway
+    if (!accountId) {
+      return NextResponse.json(
+        { error: "Could not read token. Make sure you pasted the full auth.json content." },
+        { status: 400 }
+      );
+    }
   }
 
   if (!accountId) {
     return NextResponse.json(
-      { error: "Token does not contain an account ID. Make sure this is an OpenAI Codex token." },
+      { error: "Missing account ID. Make sure this is a valid Codex auth.json." },
       { status: 400 }
     );
   }
