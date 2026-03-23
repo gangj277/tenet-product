@@ -68,6 +68,7 @@ export async function planSearchQueries(
       currentStep: "plan_search_queries",
     };
   } catch (err) {
+    console.error("[plan-search] Error:", (err as Error).message);
     return {
       currentStep: "plan_search_queries",
       errors: [

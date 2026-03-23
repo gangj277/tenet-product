@@ -92,10 +92,11 @@ export async function POST(
     // Initialize progress tracking
     memoryStore.initProgress(runId);
 
-    // Set request-scoped provider so pipeline nodes use the user's provider
-    let userProvider;
+    // Set request-scoped provider so pipeline nodes use the user's provider.
+    // NOTE: Do NOT clear this until the fire-and-forget pipeline completes,
+    // since the pipeline runs async in the background after this request returns.
     try {
-      userProvider = await createProviderForUser(session.userId);
+      const userProvider = await createProviderForUser(session.userId);
       setRequestProvider(userProvider);
     } catch {
       // Fall back to server default
@@ -105,7 +106,7 @@ export async function POST(
     initGraph
       .invoke(new Command({ resume: resumeValue }), config)
       .then((result) => {
-        clearRequestProvider();
+        clearRequestProvider(); // Pipeline done — safe to clear now
         const currentStep =
           typeof result.currentStep === "string" ? result.currentStep : run.currentStep;
 

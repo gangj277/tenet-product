@@ -31,11 +31,12 @@ export async function synthesizeProject(
   });
 
   if (!consolidatedFindings || !perspective) {
+    console.error(`[synthesize] Missing data — perspective: ${!!perspective}, consolidatedFindings: ${!!consolidatedFindings}`);
     return {
       errors: [
         {
           step: "synthesize_project",
-          message: "Missing consolidated findings or perspective",
+          message: `Missing ${!perspective ? "perspective" : ""}${!perspective && !consolidatedFindings ? " and " : ""}${!consolidatedFindings ? "consolidated findings" : ""}`,
           retryable: false,
           timestamp: new Date().toISOString(),
         },

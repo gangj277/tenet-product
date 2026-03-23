@@ -137,6 +137,7 @@ export async function consolidateFindings(
       currentStep: "consolidate_findings",
     };
   } catch (err) {
+    console.error("[consolidate] Error:", (err as Error).message);
     memoryStore.updateProgress(runId, "consolidate_findings", { status: "failed" });
     return {
       errors: [
