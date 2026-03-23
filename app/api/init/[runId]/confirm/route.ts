@@ -9,6 +9,8 @@ import {
   updateResearchRunStatus,
   updateProjectTitle,
 } from "@/lib/db/research-projects";
+import { setRequestProvider, clearRequestProvider } from "@/lib/llm/openrouter";
+import { createProviderForUser } from "@/lib/llm/provider-factory";
 
 interface ConfirmBody {
   action: "accept" | "edit";
@@ -90,10 +92,20 @@ export async function POST(
     // Initialize progress tracking
     memoryStore.initProgress(runId);
 
+    // Set request-scoped provider so pipeline nodes use the user's provider
+    let userProvider;
+    try {
+      userProvider = await createProviderForUser(session.userId);
+      setRequestProvider(userProvider);
+    } catch {
+      // Fall back to server default
+    }
+
     // Fire-and-forget: run pipeline in background, return immediately
     initGraph
       .invoke(new Command({ resume: resumeValue }), config)
       .then((result) => {
+        clearRequestProvider();
         const currentStep =
           typeof result.currentStep === "string" ? result.currentStep : run.currentStep;
 
@@ -117,6 +129,7 @@ export async function POST(
         });
       })
       .catch((err) => {
+        clearRequestProvider();
         const message = (err as Error).message;
         const timestamp = new Date().toISOString();
         const failedStep = getRunningStepId(runId) ?? run.currentStep ?? ownedRun.currentStep;
