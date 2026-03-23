@@ -53,7 +53,12 @@ export function clearRequestProvider() {
 }
 
 function getActiveProvider(): LLMProvider {
-  return _requestProvider ?? getServerProvider();
+  if (_requestProvider) return _requestProvider;
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("No LLM provider available. Connect your OpenAI account or set OPENROUTER_API_KEY.");
+  }
+  return getServerProvider();
 }
 
 export async function callLLM(options: CallLLMOptions): Promise<LLMResponse> {

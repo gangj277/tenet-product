@@ -1,23 +1,13 @@
 /**
- * PDF text extraction via Gemini 2.5 Flash Lite through OpenRouter.
- * Sends the PDF natively — no external parsing service needed.
+ * PDF text extraction: local pdfjs-dist extraction → LLM normalization.
+ * Works with any LLM provider (Codex, OpenRouter, etc.) via callLLM.
  */
 
-import { costTracker } from "@/lib/llm/openrouter";
-import {
-  RetryableRequestError,
-  TimeoutError,
-  retryAsync,
-  withTimeout,
-} from "@/lib/utils/async";
+import { callLLM } from "@/lib/llm/openrouter";
 
-const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
-const DEFAULT_MODEL = "google/gemini-2.5-flash-lite";
-const PDF_EXTRACTION_TIMEOUT_MS = 45_000;
+export const EXTRACTION_PROMPT = `Read this extracted text from a research paper and produce a faithful, condensed representation of it in markdown.
 
-const EXTRACTION_PROMPT = `Read this research paper and produce a faithful, condensed representation of it in markdown.
-
-YOUR CORE OBLIGATION: Preserve the paper's complete logical flow. The reader of your output should follow the exact same chain of reasoning as the reader of the original PDF — from motivation through methodology through evidence to conclusions. Nothing added, nothing distorted (왜곡 없이).
+YOUR CORE OBLIGATION: Preserve the paper's complete logical flow. The reader of your output should follow the exact same chain of reasoning as the reader of the original — from motivation through methodology through evidence to conclusions. Nothing added, nothing distorted.
 
 You may rephrase for clarity and conciseness, but you must NEVER:
 - Change the meaning or emphasis of any claim
@@ -28,8 +18,8 @@ You may rephrase for clarity and conciseness, but you must NEVER:
 
 You SHOULD:
 - Condense verbose or repetitive prose into tighter language while preserving meaning
-- Drop generic background that explains well-known concepts (e.g., "Neural networks are...")
-- Drop transitions and signposting ("The rest of this paper is organized as follows...")
+- Drop generic background that explains well-known concepts
+- Drop transitions and signposting
 - Drop bibliography list, acknowledgments, author bios, copyright notices
 - Keep the paper's own section structure as markdown headings
 
@@ -49,100 +39,77 @@ export interface ParseResult {
   pageCount: number;
 }
 
-const MAX_RETRIES = 2;
+/**
+ * Extract raw text from a PDF buffer using pdfjs-dist (local, no API needed).
+ */
+async function extractRawText(buffer: Buffer): Promise<{ text: string; pageCount: number }> {
+  // Dynamic import to avoid bundling issues
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
+  const data = new Uint8Array(buffer);
+  const doc = await pdfjsLib.getDocument({ data, useSystemFonts: true }).promise;
+  const pageCount = doc.numPages;
+
+  const pages: string[] = [];
+  for (let i = 1; i <= pageCount; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    const pageText = content.items
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((item: any) => item.str ?? "")
+      .join(" ");
+    pages.push(pageText);
+  }
+
+  await doc.destroy();
+  return { text: pages.join("\n\n"), pageCount };
+}
+
+/**
+ * Parse a PDF: extract text locally, then normalize via the active LLM provider.
+ * Uses whatever provider is set (Codex, OpenRouter, etc.) through callLLM.
+ */
 export async function parsePDF(
   buffer: Buffer,
   filename: string,
   options: {
     model?: string;
+    // Legacy options kept for compat but no longer used
     fetchImpl?: typeof fetch;
     timeoutMs?: number;
     retries?: number;
   } = {}
 ): Promise<ParseResult> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+  // Step 1: Extract raw text locally via pdfjs-dist
+  const { text: rawText, pageCount } = await extractRawText(buffer);
 
-  const pdfBase64 = buffer.toString("base64");
+  if (!rawText || rawText.trim().length < 50) {
+    throw new Error(`PDF extraction returned minimal text for "${filename}" (${rawText.length} chars)`);
+  }
 
-  const model = options.model ?? DEFAULT_MODEL;
-  const fetchImpl = options.fetchImpl ?? fetch;
-  const timeoutMs = options.timeoutMs ?? PDF_EXTRACTION_TIMEOUT_MS;
-  const retries = options.retries ?? MAX_RETRIES;
+  // Step 2: Normalize via LLM (uses request-scoped provider if set, else server default)
+  // Truncate to ~30k chars to stay within context limits
+  const truncated = rawText.slice(0, 30000);
 
-  return retryAsync({
-    retries,
-    shouldRetry: (error) =>
-      error instanceof RetryableRequestError ||
-      error instanceof TimeoutError ||
-      error instanceof TypeError,
-    getDelayMs: (attempt) => 1000 * attempt,
-    operation: async () => {
-      const response = await withTimeout(
-        (signal) =>
-          fetchImpl(OPENROUTER_URL, {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${apiKey}`,
-              "Content-Type": "application/json",
-              "HTTP-Referer": "https://research-cursor.app",
-              "X-OpenRouter-Title": "Research Cursor",
-            },
-            body: JSON.stringify({
-              model,
-              messages: [
-                {
-                  role: "user",
-                  content: [
-                    {
-                      type: "file",
-                      file: {
-                        filename,
-                        file_data: `data:application/pdf;base64,${pdfBase64}`,
-                      },
-                    },
-                    { type: "text", text: EXTRACTION_PROMPT },
-                  ],
-                },
-              ],
-              temperature: 0,
-              max_tokens: 16384,
-            }),
-            signal,
-          }),
-        timeoutMs,
-        `PDF extraction timed out (${model}) after ${Math.round(timeoutMs / 1000)}s`
-      );
-
-      if (!response.ok) {
-        const errorBody = await response.text();
-        const message =
-          `PDF extraction failed (${model}): ${response.status} ${errorBody.slice(0, 300)}`;
-
-        if (response.status === 429 || response.status >= 500) {
-          throw new RetryableRequestError(message);
-        }
-
-        throw new Error(message);
-      }
-
-      const data = await response.json();
-      const text = data.choices?.[0]?.message?.content ?? "";
-
-      // Track cost
-      const promptTokens = data.usage?.prompt_tokens ?? 0;
-      const completionTokens = data.usage?.completion_tokens ?? 0;
-      costTracker.record(data.model ?? model, promptTokens, completionTokens);
-
-      if (!text || text.length < 100) {
-        throw new Error("PDF extraction returned empty or near-empty result");
-      }
-
-      return {
-        text,
-        pageCount: 0, // Gemini doesn't report page count
-      };
-    },
+  const response = await callLLM({
+    model: options.model ?? "google/gemini-2.5-flash-lite", // maps to gpt-5.4-mini for Codex users
+    messages: [
+      { role: "system", content: EXTRACTION_PROMPT },
+      {
+        role: "user",
+        content: `[Source: ${filename}]\n\n${truncated}`,
+      },
+    ],
+    temperature: 0,
+    maxTokens: 16384,
   });
+
+  if (!response.content || response.content.length < 100) {
+    throw new Error("LLM normalization returned empty or near-empty result");
+  }
+
+  return {
+    text: response.content,
+    pageCount,
+  };
 }
