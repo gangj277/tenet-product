@@ -107,52 +107,81 @@ export default function SignupPage() {
         </div>
       )}
 
-      {/* OpenAI Token Paste */}
+      {/* OpenAI Connection */}
       {!showTokenPaste ? (
         <button
           onClick={() => setShowTokenPaste(true)}
-          className="flex items-center justify-center gap-2.5 w-full font-sans text-[14px] font-medium py-3 bg-white text-zinc-900 rounded-lg hover:bg-zinc-100 transition-all duration-300 border border-edge/20 cursor-pointer"
+          className="group flex items-center justify-center gap-2.5 w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 cursor-pointer"
         >
-          <svg viewBox="0 0 24 24" className="w-4.5 h-4.5 shrink-0" fill="currentColor">
+          <svg viewBox="0 0 24 24" className="w-[18px] h-[18px] shrink-0" fill="currentColor">
             <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073zM13.26 22.43a4.476 4.476 0 0 1-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 0 0 .392-.681v-6.737l2.02 1.168a.071.071 0 0 1 .038.052v5.583a4.504 4.504 0 0 1-4.494 4.494zM3.6 18.304a4.47 4.47 0 0 1-.535-3.014l.142.085 4.783 2.759a.771.771 0 0 0 .78 0l5.843-3.369v2.332a.08.08 0 0 1-.033.062L9.74 19.95a4.5 4.5 0 0 1-6.14-1.646zM2.34 7.896a4.485 4.485 0 0 1 2.366-1.973V11.6a.766.766 0 0 0 .388.676l5.815 3.355-2.02 1.168a.076.076 0 0 1-.071 0l-4.83-2.786A4.504 4.504 0 0 1 2.34 7.872zm16.597 3.855l-5.833-3.387L15.119 7.2a.076.076 0 0 1 .071 0l4.83 2.791a4.494 4.494 0 0 1-.676 8.105v-5.678a.79.79 0 0 0-.407-.667zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 0 0-.785 0L9.409 9.23V6.897a.066.066 0 0 1 .028-.061l4.83-2.787a4.5 4.5 0 0 1 6.68 4.66zm-12.64 4.135l-2.02-1.164a.08.08 0 0 1-.038-.057V6.075a4.5 4.5 0 0 1 7.375-3.453l-.142.08L8.704 5.46a.795.795 0 0 0-.393.681zm1.097-2.365l2.602-1.5 2.607 1.5v2.999l-2.597 1.5-2.607-1.5z" />
           </svg>
-          Continue with OpenAI
+          Connect ChatGPT account
         </button>
       ) : (
-        <div className="space-y-3 mb-2">
-          <div className="px-3 py-2.5 rounded-md border border-edge/30 bg-page/50">
-            <p className="font-sans text-[12px] text-sub leading-relaxed">
-              Run <code className="px-1.5 py-0.5 bg-edge/20 rounded text-[11px] font-mono">npx @openai/codex login</code> in your terminal, then paste the contents of <code className="px-1.5 py-0.5 bg-edge/20 rounded text-[11px] font-mono">~/.codex/auth.json</code> below.
-            </p>
+        <div className="rounded-xl border border-edge/40 overflow-hidden">
+          <div className="px-5 pt-5 pb-4 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-zinc-900 flex items-center justify-center">
+                <svg viewBox="0 0 24 24" className="w-4 h-4 text-white" fill="currentColor">
+                  <path d="M22.282 9.821a5.985 5.985 0 0 0-.516-4.91 6.046 6.046 0 0 0-6.51-2.9A6.065 6.065 0 0 0 4.981 4.18a5.985 5.985 0 0 0-3.998 2.9 6.046 6.046 0 0 0 .743 7.097 5.98 5.98 0 0 0 .51 4.911 6.051 6.051 0 0 0 6.515 2.9A5.985 5.985 0 0 0 13.26 24a6.056 6.056 0 0 0 5.772-4.206 5.99 5.99 0 0 0 3.997-2.9 6.056 6.056 0 0 0-.747-7.073z" />
+                </svg>
+              </div>
+              <div>
+                <p className="font-sans text-[13px] font-semibold text-heading leading-tight">Connect OpenAI</p>
+                <p className="font-sans text-[11px] text-mute">Uses your ChatGPT subscription</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setShowTokenPaste(false); setTokenJson(""); setError(null); }}
+              className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-edge/20 text-mute hover:text-sub transition-colors cursor-pointer"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <textarea
-            value={tokenJson}
-            onChange={(e) => setTokenJson(e.target.value)}
-            placeholder='{"access":"eyJ...","refresh":"...","expires":1234567890000}'
-            rows={4}
-            className="w-full bg-transparent border border-edge/60 rounded-lg px-4 py-3 text-[12px] font-mono text-heading placeholder:text-dim/40 focus:outline-none focus:border-accent/40 focus:glow-accent-sm transition-all duration-300 resize-none"
-          />
-          <div className="flex gap-2">
+
+          <div className="px-5 pb-4 space-y-3">
+            <StepItem number={1} label="Run this in your terminal">
+              <CopyableCommand command="npx @openai/codex login" />
+            </StepItem>
+            <StepItem number={2} label="Then run this to copy your token">
+              <CopyableCommand command="cat ~/.codex/auth.json | pbcopy" />
+            </StepItem>
+            <StepItem number={3} label="Paste below">
+              <textarea
+                value={tokenJson}
+                onChange={(e) => setTokenJson(e.target.value)}
+                placeholder="Paste auth.json contents here..."
+                rows={3}
+                className="w-full bg-edge/10 border border-edge/30 rounded-lg px-3.5 py-2.5 text-[12px] font-mono text-heading placeholder:text-dim/30 focus:outline-none focus:border-accent/40 transition-all duration-200 resize-none"
+              />
+            </StepItem>
+          </div>
+
+          <div className="px-5 pb-5">
             <button
               onClick={handleTokenPaste}
               disabled={!tokenJson.trim() || tokenLoading}
-              className="flex-1 font-sans text-[13px] font-medium py-2.5 bg-white text-zinc-900 rounded-lg hover:bg-zinc-100 transition-all duration-300 border border-edge/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              className="w-full font-sans text-[13px] font-medium py-2.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-200 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
             >
-              {tokenLoading ? "Connecting..." : "Connect OpenAI"}
-            </button>
-            <button
-              onClick={() => { setShowTokenPaste(false); setTokenJson(""); setError(null); }}
-              className="px-3 py-2.5 font-sans text-[12px] text-dim hover:text-sub rounded-lg border border-edge/30 hover:border-edge/50 transition-all cursor-pointer"
-            >
-              Cancel
+              {tokenLoading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  Connecting...
+                </span>
+              ) : (
+                "Connect & create workspace"
+              )}
             </button>
           </div>
         </div>
       )}
 
-      <div className="flex items-center gap-3 my-2">
+      <div className="flex items-center gap-3 my-4">
         <div className="flex-1 h-px bg-edge/30" />
-        <span className="font-sans text-[11px] uppercase tracking-[0.12em] text-mute">or sign up with email</span>
+        <span className="font-sans text-[11px] uppercase tracking-[0.12em] text-mute">or</span>
         <div className="flex-1 h-px bg-edge/30" />
       </div>
 
@@ -227,6 +256,46 @@ export default function SignupPage() {
         </Link>
       </p>
     </div>
+  );
+}
+
+/* ── Step + Command helpers ── */
+
+function StepItem({ number, label, children }: { number: number; label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3">
+      <div className="w-5 h-5 rounded-full bg-edge/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+        <span className="font-mono text-[10px] font-bold text-sub">{number}</span>
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="font-sans text-[12px] text-sub mb-1.5">{label}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function CopyableCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => { navigator.clipboard.writeText(command); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+      className="group w-full flex items-center justify-between gap-2 bg-zinc-900 rounded-lg px-3.5 py-2.5 cursor-pointer hover:bg-zinc-800 transition-colors"
+    >
+      <code className="font-mono text-[11.5px] text-zinc-300 truncate">{command}</code>
+      <span className="flex-shrink-0 text-zinc-500 group-hover:text-zinc-300 transition-colors">
+        {copied ? (
+          <svg className="w-3.5 h-3.5 text-emerald-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+          </svg>
+        ) : (
+          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+            <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+          </svg>
+        )}
+      </span>
+    </button>
   );
 }
 
