@@ -22,37 +22,37 @@ export interface CodexCredentials {
 
 type OnTokenRefresh = (newCreds: CodexCredentials) => Promise<void>;
 
-// ─── Helpers: convert chat/completions format → Responses API format ─────────
+// ─── Convert chat/completions messages → Responses API input ─────────────────
 
 function extractSystemAndInput(messages: LLMMessage[]): {
   instructions: string;
-  input: Array<{ role: string; content: unknown }>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  input: Array<Record<string, any>>;
 } {
   let instructions = "You are a helpful assistant.";
-  const input: Array<{ role: string; content: unknown }> = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const input: Array<Record<string, any>> = [];
 
   for (const msg of messages) {
     if (msg.role === "system") {
       instructions = typeof msg.content === "string" ? msg.content : instructions;
     } else if (msg.role === "tool") {
-      // Responses API uses "function_call_output" for tool results
+      // Responses API: function_call_output with call_id + output
       input.push({
-        role: "function_call_output",
-        content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+        type: "function_call_output",
+        call_id: msg.tool_call_id ?? "",
+        output: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
       });
     } else if (msg.role === "assistant" && msg.tool_calls?.length) {
-      // Convert assistant tool_calls to function_call items
+      // Each tool call becomes a separate function_call input item
       for (const tc of msg.tool_calls) {
         input.push({
-          role: "function_call",
-          content: JSON.stringify({
-            id: tc.id,
-            name: tc.function.name,
-            arguments: tc.function.arguments,
-          }),
+          type: "function_call",
+          call_id: tc.id,
+          name: tc.function.name,
+          arguments: tc.function.arguments,
         });
       }
-      // Also include text content if present
       if (msg.content) {
         input.push({ role: "assistant", content: msg.content });
       }
@@ -65,7 +65,14 @@ function extractSystemAndInput(messages: LLMMessage[]): {
 }
 
 function convertToolsForResponsesAPI(
-  tools?: Array<{ type: string; function: { name: string; description: string; parameters: Record<string, unknown> } }>
+  tools?: Array<{
+    type: string;
+    function: {
+      name: string;
+      description: string;
+      parameters: Record<string, unknown>;
+    };
+  }>
 ): Array<Record<string, unknown>> | undefined {
   if (!tools?.length) return undefined;
   return tools.map((t) => ({
@@ -78,18 +85,8 @@ function convertToolsForResponsesAPI(
 
 // ─── SSE Parser for Responses API ────────────────────────────────────────────
 
-interface ParsedResponsesStream {
-  content: string;
-  toolCalls: AccumulatedToolCall[];
-  usage?: { promptTokens: number; completionTokens: number; totalTokens: number };
-  model: string;
-}
-
 async function* parseResponsesSSE(
-  body: ReadableStream<Uint8Array>,
-  onTextDelta?: (text: string) => void,
-  onToolCallStart?: (index: number, id: string, name: string) => void,
-  onToolCallDelta?: (index: number, args: string) => void,
+  body: ReadableStream<Uint8Array>
 ): AsyncGenerator<{ type: string; data: Record<string, unknown> }> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -112,10 +109,13 @@ async function* parseResponsesSSE(
         } else if (trimmed.startsWith("data: ")) {
           try {
             const data = JSON.parse(trimmed.slice(6));
-            yield { type: currentEvent, data };
+            yield { type: currentEvent || data.type || "", data };
           } catch {
-            // skip malformed data
+            // skip malformed
           }
+        } else if (trimmed === "") {
+          // empty line resets event
+          currentEvent = "";
         }
       }
     }
@@ -189,6 +189,7 @@ export function createCodexProvider(
   return {
     kind: "codex",
 
+    // ── Non-streaming (collects full SSE response) ──────────────────────
     async callLLM(options: CallLLMOptions): Promise<LLMResponse> {
       const token = await ensureValidToken();
       const model = mapModelToCodex(options.model);
@@ -225,22 +226,31 @@ export function createCodexProvider(
         throw new Error(`Codex ${response.status}: ${errorBody}`);
       }
 
-      // Parse streaming response to collect full content
       let fullContent = "";
-      let usageData: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+      let usageData:
+        | {
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+          }
+        | undefined;
       let responseModel = model;
 
       for await (const event of parseResponsesSSE(response.body!)) {
         if (event.type === "response.output_text.delta") {
-          fullContent += (event.data as { delta?: string }).delta ?? "";
+          fullContent +=
+            (event.data as { delta?: string }).delta ?? "";
         } else if (event.type === "response.completed") {
-          const resp = event.data.response as Record<string, unknown> | undefined;
+          const resp = event.data.response as
+            | Record<string, unknown>
+            | undefined;
           if (resp?.usage) {
             const u = resp.usage as Record<string, number>;
             usageData = {
               promptTokens: u.input_tokens ?? 0,
               completionTokens: u.output_tokens ?? 0,
-              totalTokens: (u.input_tokens ?? 0) + (u.output_tokens ?? 0),
+              totalTokens:
+                (u.input_tokens ?? 0) + (u.output_tokens ?? 0),
             };
           }
           if (resp?.model) responseModel = resp.model as string;
@@ -249,17 +259,26 @@ export function createCodexProvider(
 
       const latencyMs = Date.now() - start;
       if (usageData) {
-        costTracker.record(responseModel, usageData.promptTokens, usageData.completionTokens);
+        costTracker.record(
+          responseModel,
+          usageData.promptTokens,
+          usageData.completionTokens
+        );
       }
 
       return {
         content: fullContent,
         model: responseModel,
-        usage: usageData ?? { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        usage: usageData ?? {
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+        },
         latencyMs,
       };
     },
 
+    // ── Streaming (yields chunks for real-time UI) ──────────────────────
     async *callLLMStreaming(
       options: StreamingLLMOptions
     ): AsyncGenerator<StreamChunk> {
@@ -296,76 +315,98 @@ export function createCodexProvider(
       }
 
       let fullContent = "";
-      const toolCalls = new Map<number, AccumulatedToolCall>();
+      // Map item_id → { index, AccumulatedToolCall }
+      const toolCallsByItemId = new Map<
+        string,
+        { index: number; tc: AccumulatedToolCall }
+      >();
       let toolCallIndex = 0;
-      let usage: { promptTokens: number; completionTokens: number; totalTokens: number } | undefined;
+      let usage:
+        | {
+            promptTokens: number;
+            completionTokens: number;
+            totalTokens: number;
+          }
+        | undefined;
 
       for await (const event of parseResponsesSSE(response.body)) {
         switch (event.type) {
           case "response.output_text.delta": {
-            const delta = (event.data as { delta?: string }).delta ?? "";
+            const delta =
+              (event.data as { delta?: string }).delta ?? "";
             fullContent += delta;
             yield { type: "text_delta", content: delta };
             break;
           }
 
-          case "response.function_call_arguments.delta": {
-            // Tool call argument streaming
-            const callId = (event.data as { call_id?: string }).call_id ?? "";
-            const argDelta = (event.data as { delta?: string }).delta ?? "";
-
-            // Find existing tool call by ID or create new one
-            let idx = -1;
-            for (const [i, tc] of toolCalls) {
-              if (tc.id === callId) { idx = i; break; }
-            }
-            if (idx === -1) {
-              idx = toolCallIndex++;
-              toolCalls.set(idx, { id: callId, name: "", arguments: argDelta });
-            } else {
-              toolCalls.get(idx)!.arguments += argDelta;
-            }
-            yield { type: "tool_call_delta", index: idx, arguments: argDelta };
-            break;
-          }
-
-          case "response.function_call_arguments.done": {
-            // Tool call complete — name should be in the data
-            const callId = (event.data as { call_id?: string }).call_id ?? "";
-            const name = (event.data as { name?: string }).name ?? "";
-            for (const [idx, tc] of toolCalls) {
-              if (tc.id === callId) {
-                tc.name = name || tc.name;
-                yield { type: "tool_call_start", index: idx, id: tc.id, name: tc.name };
-                break;
-              }
-            }
-            break;
-          }
-
+          // A new function_call output item was added — register it
           case "response.output_item.added": {
-            // New output item — could be a function call
-            const item = (event.data as { item?: Record<string, unknown> }).item;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const item = (event.data as any).item;
             if (item?.type === "function_call") {
-              const callId = (item.call_id as string) ?? `call_${toolCallIndex}`;
+              const itemId = (item.id as string) ?? "";
+              const callId =
+                (item.call_id as string) ?? `call_${toolCallIndex}`;
               const name = (item.name as string) ?? "";
               const idx = toolCallIndex++;
-              toolCalls.set(idx, { id: callId, name, arguments: "" });
+              toolCallsByItemId.set(itemId, {
+                index: idx,
+                tc: { id: callId, name, arguments: "" },
+              });
               if (name) {
-                yield { type: "tool_call_start", index: idx, id: callId, name };
+                yield {
+                  type: "tool_call_start",
+                  index: idx,
+                  id: callId,
+                  name,
+                };
               }
+            }
+            break;
+          }
+
+          // Streaming argument deltas — keyed by item_id
+          case "response.function_call_arguments.delta": {
+            const itemId =
+              (event.data as { item_id?: string }).item_id ?? "";
+            const argDelta =
+              (event.data as { delta?: string }).delta ?? "";
+            const entry = toolCallsByItemId.get(itemId);
+            if (entry) {
+              entry.tc.arguments += argDelta;
+              yield {
+                type: "tool_call_delta",
+                index: entry.index,
+                arguments: argDelta,
+              };
+            }
+            break;
+          }
+
+          // Arguments complete — final arguments string available
+          case "response.function_call_arguments.done": {
+            const itemId =
+              (event.data as { item_id?: string }).item_id ?? "";
+            const fullArgs =
+              (event.data as { arguments?: string }).arguments ?? "";
+            const entry = toolCallsByItemId.get(itemId);
+            if (entry) {
+              entry.tc.arguments = fullArgs; // replace accumulated with final
             }
             break;
           }
 
           case "response.completed": {
-            const resp = event.data.response as Record<string, unknown> | undefined;
+            const resp = event.data.response as
+              | Record<string, unknown>
+              | undefined;
             if (resp?.usage) {
               const u = resp.usage as Record<string, number>;
               usage = {
                 promptTokens: u.input_tokens ?? 0,
                 completionTokens: u.output_tokens ?? 0,
-                totalTokens: (u.input_tokens ?? 0) + (u.output_tokens ?? 0),
+                totalTokens:
+                  (u.input_tokens ?? 0) + (u.output_tokens ?? 0),
               };
             }
             break;
@@ -377,10 +418,19 @@ export function createCodexProvider(
         costTracker.record(model, usage.promptTokens, usage.completionTokens);
       }
 
+      // Collect all tool calls in order
+      const allToolCalls: AccumulatedToolCall[] = [];
+      const sorted = [...toolCallsByItemId.values()].sort(
+        (a, b) => a.index - b.index
+      );
+      for (const { tc } of sorted) {
+        allToolCalls.push(tc);
+      }
+
       yield {
         type: "done",
         content: fullContent,
-        toolCalls: Array.from(toolCalls.values()),
+        toolCalls: allToolCalls,
         usage,
       };
     },
