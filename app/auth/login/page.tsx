@@ -221,72 +221,242 @@ function LoginPageBody({
         </div>
       )}
 
-      {/* ── Setup mode (no Codex installed) ── */}
+      {/* ── Setup mode (no Codex installed — friendly walkthrough) ── */}
       {mode === "setup" && (
-        <div className="space-y-5">
-          <div className="px-4 py-4 rounded-xl border border-edge/40 bg-edge/10 space-y-4">
-            <p className="font-sans text-[12px] font-medium text-heading">
-              One-time setup (takes ~2 minutes)
-            </p>
+        <SetupWalkthrough
+          authJson={authJson}
+          setAuthJson={setAuthJson}
+          submitting={submitting}
+          onSubmit={handleTokenPaste}
+          onBack={() => setMode("auto")}
+        />
+      )}
+    </div>
+  );
+}
 
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <StepNumber n={1} />
-                <div className="flex-1 space-y-2">
-                  <p className="font-sans text-[12.5px] text-sub leading-[1.6]">
-                    Install and login to Codex:
-                  </p>
-                  <CopyCommand command="npx codex login" />
-                  <p className="font-sans text-[11px] text-dim leading-[1.5]">
-                    This opens OpenAI in your browser. Sign in with the account that has your ChatGPT Pro / Plus subscription.
-                  </p>
-                </div>
-              </div>
+// ── Setup walkthrough for users who have never used Codex ──
 
-              <div className="flex items-start gap-3">
-                <StepNumber n={2} />
-                <div className="flex-1 space-y-2">
-                  <p className="font-sans text-[12.5px] text-sub leading-[1.6]">
-                    Copy your session to clipboard:
-                  </p>
-                  <CopyCommand command="cat ~/.codex/auth.json | pbcopy" />
-                </div>
-              </div>
+function SetupWalkthrough({
+  authJson,
+  setAuthJson,
+  submitting,
+  onSubmit,
+  onBack,
+}: {
+  authJson: string;
+  setAuthJson: (v: string) => void;
+  submitting: boolean;
+  onSubmit: () => void;
+  onBack: () => void;
+}) {
+  const [step, setStep] = useState(0);
 
-              <div className="flex items-start gap-3">
-                <StepNumber n={3} />
-                <p className="font-sans text-[12.5px] text-sub leading-[1.6]">
-                  Paste it below and sign in.
-                </p>
-              </div>
+  return (
+    <div className="space-y-6">
+      <div className="space-y-1.5">
+        <p className="font-sans text-[13px] text-sub leading-[1.65]">
+          No worries — this is a quick one-time setup. You just need an
+          OpenAI account with a ChatGPT Plus or Pro subscription.
+        </p>
+        <div className="flex items-center gap-2 pt-2">
+          {[0, 1, 2, 3].map((i) => (
+            <div
+              key={i}
+              className={`h-1 flex-1 rounded-full transition-all duration-300 ${
+                i <= step ? "bg-accent-fill" : "bg-edge/30"
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Step 0: Prerequisites */}
+      {step === 0 && (
+        <div className="space-y-4">
+          <div className="px-5 py-5 rounded-xl border border-edge/40 bg-edge/8 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <StepNumber n={1} />
+              <p className="font-sans text-[13px] font-medium text-heading">
+                Open your terminal
+              </p>
+            </div>
+            <div className="pl-8 space-y-3">
+              <p className="font-sans text-[12.5px] text-sub leading-[1.65]">
+                On <strong>Mac</strong>: press <kbd className="px-1.5 py-0.5 rounded bg-edge/25 border border-edge/30 text-[11px] font-mono">Cmd</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-edge/25 border border-edge/30 text-[11px] font-mono">Space</kbd>, type <strong>Terminal</strong>, and hit Enter.
+              </p>
+              <p className="font-sans text-[12.5px] text-sub leading-[1.65]">
+                On <strong>Windows</strong>: press <kbd className="px-1.5 py-0.5 rounded bg-edge/25 border border-edge/30 text-[11px] font-mono">Win</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-edge/25 border border-edge/30 text-[11px] font-mono">R</kbd>, type <strong>cmd</strong>, and hit Enter.
+              </p>
+              <p className="font-sans text-[12.5px] text-sub leading-[1.65]">
+                On <strong>Linux</strong>: press <kbd className="px-1.5 py-0.5 rounded bg-edge/25 border border-edge/30 text-[11px] font-mono">Ctrl</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-edge/25 border border-edge/30 text-[11px] font-mono">Alt</kbd> + <kbd className="px-1.5 py-0.5 rounded bg-edge/25 border border-edge/30 text-[11px] font-mono">T</kbd>
+              </p>
+            </div>
+            <div className="pl-8">
+              <p className="font-sans text-[11px] text-dim leading-[1.5]">
+                You&apos;ll need <strong>Node.js</strong> installed. If you don&apos;t have it, grab it from{" "}
+                <a href="https://nodejs.org" target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">nodejs.org</a> first (download the LTS version).
+              </p>
             </div>
           </div>
 
-          <textarea
-            value={authJson}
-            onChange={(e) => setAuthJson(e.target.value)}
-            placeholder="Paste your auth.json contents here..."
-            rows={5}
-            disabled={submitting}
-            className="w-full bg-transparent border border-edge/60 rounded-lg px-4 py-3 font-mono text-[12px] leading-[1.6] text-heading placeholder:text-dim/40 focus:outline-none focus:border-accent/40 transition-all resize-y disabled:opacity-50"
-          />
-
           <button
-            onClick={handleTokenPaste}
-            disabled={!authJson.trim() || submitting}
-            className="w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 disabled:opacity-50 cursor-pointer"
+            onClick={() => setStep(1)}
+            className="w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 cursor-pointer"
           >
-            {submitting ? "Signing in\u2026" : "Sign in"}
+            I have my terminal open
           </button>
+        </div>
+      )}
+
+      {/* Step 1: Run codex login */}
+      {step === 1 && (
+        <div className="space-y-4">
+          <div className="px-5 py-5 rounded-xl border border-edge/40 bg-edge/8 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <StepNumber n={2} />
+              <p className="font-sans text-[13px] font-medium text-heading">
+                Sign in to OpenAI via Codex
+              </p>
+            </div>
+            <div className="pl-8 space-y-3">
+              <p className="font-sans text-[12.5px] text-sub leading-[1.65]">
+                Copy this command, paste it into your terminal, and press Enter:
+              </p>
+              <CopyCommand command="npx codex login" />
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                <p className="font-sans text-[12px] text-amber-300/90 leading-[1.6]">
+                  <strong>What happens:</strong> Your browser will open to OpenAI&apos;s
+                  sign-in page. Log in with the account that has your ChatGPT subscription.
+                  After signing in, the terminal will show a success message.
+                </p>
+              </div>
+              <p className="font-sans text-[11px] text-dim leading-[1.5]">
+                If asked &ldquo;Need to install the following packages&rdquo;, type <strong>y</strong> and press Enter.
+                This installs a small tool from OpenAI that handles the sign-in.
+              </p>
+            </div>
+          </div>
 
           <button
-            onClick={() => setMode("auto")}
+            onClick={() => setStep(2)}
+            className="w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 cursor-pointer"
+          >
+            Done — I signed in successfully
+          </button>
+          <button
+            onClick={() => setStep(0)}
             className="w-full font-sans text-[12px] text-dim hover:text-sub transition-colors py-1.5 cursor-pointer"
           >
             Back
           </button>
         </div>
       )}
+
+      {/* Step 2: Copy auth.json */}
+      {step === 2 && (
+        <div className="space-y-4">
+          <div className="px-5 py-5 rounded-xl border border-edge/40 bg-edge/8 space-y-4">
+            <div className="flex items-center gap-2.5">
+              <StepNumber n={3} />
+              <p className="font-sans text-[13px] font-medium text-heading">
+                Copy your session token
+              </p>
+            </div>
+            <div className="pl-8 space-y-3">
+              <p className="font-sans text-[12.5px] text-sub leading-[1.65]">
+                Run this command in the same terminal — it copies your session to the clipboard:
+              </p>
+              <CopyCommand command="cat ~/.codex/auth.json | pbcopy" />
+              <p className="font-sans text-[11px] text-dim leading-[1.5]">
+                <strong>Mac</strong> uses <code className="px-1 py-0.5 rounded bg-edge/20 text-[10.5px]">pbcopy</code>.{" "}
+                <strong>Linux</strong>: replace with{" "}
+                <button
+                  onClick={() => navigator.clipboard.writeText("cat ~/.codex/auth.json | xclip -selection clipboard")}
+                  className="font-mono text-accent hover:underline cursor-pointer"
+                >
+                  xclip -selection clipboard
+                </button>.{" "}
+                <strong>Windows</strong>: replace with{" "}
+                <button
+                  onClick={() => navigator.clipboard.writeText("type %USERPROFILE%\\.codex\\auth.json | clip")}
+                  className="font-mono text-accent hover:underline cursor-pointer"
+                >
+                  clip
+                </button>.
+              </p>
+              <p className="font-sans text-[11px] text-dim leading-[1.5]">
+                Or just open <code className="px-1 py-0.5 rounded bg-edge/20 text-[10.5px]">~/.codex/auth.json</code> in
+                any text editor and copy everything.
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setStep(3)}
+            className="w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 cursor-pointer"
+          >
+            Copied to clipboard
+          </button>
+          <button
+            onClick={() => setStep(1)}
+            className="w-full font-sans text-[12px] text-dim hover:text-sub transition-colors py-1.5 cursor-pointer"
+          >
+            Back
+          </button>
+        </div>
+      )}
+
+      {/* Step 3: Paste and sign in */}
+      {step === 3 && (
+        <div className="space-y-4">
+          <div className="px-5 py-5 rounded-xl border border-edge/40 bg-edge/8 space-y-3">
+            <div className="flex items-center gap-2.5">
+              <StepNumber n={4} />
+              <p className="font-sans text-[13px] font-medium text-heading">
+                Paste and sign in
+              </p>
+            </div>
+            <div className="pl-8">
+              <p className="font-sans text-[12.5px] text-sub leading-[1.65]">
+                Paste what you just copied into the box below. It should look like
+                a block of JSON starting with <code className="px-1 py-0.5 rounded bg-edge/20 text-[10.5px]">{`{`}</code>.
+              </p>
+            </div>
+          </div>
+
+          <textarea
+            value={authJson}
+            onChange={(e) => setAuthJson(e.target.value)}
+            placeholder={'Paste here (Cmd+V or Ctrl+V)...'}
+            rows={5}
+            disabled={submitting}
+            autoFocus
+            className="w-full bg-transparent border border-edge/60 rounded-lg px-4 py-3 font-mono text-[12px] leading-[1.6] text-heading placeholder:text-dim/40 focus:outline-none focus:border-accent/40 transition-all resize-y disabled:opacity-50"
+          />
+
+          <button
+            onClick={onSubmit}
+            disabled={!authJson.trim() || submitting}
+            className="w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? "Signing in\u2026" : "Sign in to Lumen"}
+          </button>
+          <button
+            onClick={() => setStep(2)}
+            className="w-full font-sans text-[12px] text-dim hover:text-sub transition-colors py-1.5 cursor-pointer"
+          >
+            Back
+          </button>
+        </div>
+      )}
+
+      <button
+        onClick={onBack}
+        className="w-full font-sans text-[11px] text-dim/60 hover:text-dim transition-colors py-1 cursor-pointer"
+      >
+        Back to sign in options
+      </button>
     </div>
   );
 }
