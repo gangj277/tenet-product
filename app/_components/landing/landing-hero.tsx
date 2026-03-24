@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { DownloadButton } from "./download-button";
 
 export default function LandingHero({ authed }: { authed: boolean | null }) {
-  const ctaHref = authed ? "/dashboard" : "/auth/login";
-  const ctaLabel = authed ? "Go to dashboard" : "Sign in";
-
   return (
     <section className="relative min-h-[100svh] flex flex-col justify-end pb-16 sm:pb-24 md:pb-32 pt-32 overflow-hidden">
       <div className="section-bg fade-bottom">
@@ -31,13 +29,16 @@ export default function LandingHero({ authed }: { authed: boolean | null }) {
             and an AI partner grounded in your sources.
           </p>
 
-          <div className="reveal reveal-delay-3 self-start sm:self-auto">
-            <Link
-              href={ctaHref}
-              className="inline-flex items-center font-sans text-[14px] font-medium px-7 py-3.5 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 whitespace-nowrap glow-accent-sm hover:glow-accent"
-            >
-              {ctaLabel}
-            </Link>
+          <div className="reveal reveal-delay-3 self-start sm:self-auto flex items-center gap-3">
+            <DownloadButton />
+            {authed && (
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center font-sans text-[13px] font-medium text-sub hover:text-heading transition-colors whitespace-nowrap"
+              >
+                Open dashboard &rarr;
+              </Link>
+            )}
           </div>
         </div>
 

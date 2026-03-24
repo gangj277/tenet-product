@@ -1,11 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { DownloadButton } from "./download-button";
 
 export default function LandingCta({ authed }: { authed: boolean | null }) {
-  const ctaHref = authed ? "/dashboard" : "/auth/login";
-  const ctaLabel = authed ? "Go to dashboard" : "Sign in";
-
   return (
     <section className="relative py-24 sm:py-36 overflow-hidden">
       <div className="section-bg fade-both">
@@ -27,19 +25,18 @@ export default function LandingCta({ authed }: { authed: boolean | null }) {
           <p className="font-sans text-[14px] leading-[1.7] text-sub mb-10">
             {authed
               ? "Your research workspace is ready. Continue where you left off or start a new structured analysis."
-              : "Sign in to start building evidence-grounded synthesis from your sources."}
+              : "Download the desktop app to start building evidence-grounded synthesis from your sources."}
           </p>
 
-          <Link
-            href={ctaHref}
-            className="inline-flex items-center font-sans text-[14px] font-medium px-8 py-3.5 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 whitespace-nowrap glow-accent-sm hover:glow-accent"
-          >
-            {ctaLabel}
-          </Link>
-          {!authed && (
-            <p className="mt-4 font-sans text-[12px] text-mute tracking-wide">
-              Free during research preview &middot; No credit card required
-            </p>
+          {authed ? (
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center font-sans text-[14px] font-medium px-8 py-3.5 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 whitespace-nowrap glow-accent-sm hover:glow-accent"
+            >
+              Go to dashboard
+            </Link>
+          ) : (
+            <DownloadButton />
           )}
         </div>
       </div>
