@@ -21,6 +21,7 @@
     "electron:dev": "npm run electron:compile && electron .",
     "electron:build": "npm run electron:compile && npm run build && electron-builder",
     "electron:build:mac": "npm run electron:compile && npm run build && electron-builder --mac",
+    "electron:verify:mac": "bash scripts/verify-macos-release.sh",
     "electron:build:win": "npm run electron:compile && npm run build && electron-builder --win",
     "electron:build:linux": "npm run electron:compile && npm run build && electron-builder --linux"
   },

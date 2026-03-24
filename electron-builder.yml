@@ -5,6 +5,9 @@ copyright: Copyright © 2025 Lumen
 directories:
   output: release
 
+forceCodeSigning: true
+afterSign: scripts/notarize.cjs
+
 files:
   - dist-electron/**/*
 
@@ -25,6 +28,7 @@ extraResources:
 mac:
   target:
     - dmg
+  hardenedRuntime: true
   category: public.app-category.productivity
   entitlements: build-resources/entitlements.mac.plist
   entitlementsInherit: build-resources/entitlements.mac.plist

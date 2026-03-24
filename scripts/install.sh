@@ -87,10 +87,6 @@ case "$PLATFORM" in
       hdiutil detach "$MOUNT_DIR" -quiet
       rm -f "$DOWNLOAD_PATH"
 
-      echo "  Repairing app signature..."
-      codesign --force --deep --sign - "/Applications/${APP_NAME}.app"
-      xattr -cr "/Applications/${APP_NAME}.app"
-
       echo ""
       echo "  ✓ ${APP_NAME} installed to /Applications/${APP_NAME}.app"
       echo ""
