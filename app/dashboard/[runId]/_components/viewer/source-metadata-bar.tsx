@@ -1,6 +1,7 @@
 "use client";
 
 import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
+import { getArxivPdfUrl, getPrimarySourceUrl } from "./source-link-utils";
 
 export function SourceMetadataBar({
   paperQuality,
@@ -16,12 +17,9 @@ export function SourceMetadataBar({
   const citations = paperQuality?.metrics?.citationCount;
   const influential = paperQuality?.metrics?.influentialCitationCount;
   const labels = paperQuality?.hints?.labels ?? [];
-  const doi = paperQuality?.ids?.doi;
-  const arxivId = paperQuality?.ids?.arxivId;
 
-  const doiUrl = doi ? `https://doi.org/${doi}` : undefined;
-  const arxivPdfUrl = arxivId ? `https://arxiv.org/pdf/${arxivId}` : undefined;
-  const linkUrl = sourceUrl || doiUrl;
+  const arxivPdfUrl = getArxivPdfUrl(paperQuality);
+  const linkUrl = getPrimarySourceUrl({ sourceUrl, paperQuality });
 
   const hasInfo = venue || year || typeof citations === "number" || labels.length > 0 || linkUrl;
   if (!hasInfo) return null;

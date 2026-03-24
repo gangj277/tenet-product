@@ -8,6 +8,7 @@ export function ChatMessageBubble({
   onAcceptUpdate,
   onRejectUpdate,
   onAnswerQuestion,
+  onOpenProposal,
   sourceFiles,
   onSourceClick,
   getContent,
@@ -16,6 +17,7 @@ export function ChatMessageBubble({
   onAcceptUpdate?: (updateId: string) => void;
   onRejectUpdate?: (updateId: string) => void;
   onAnswerQuestion?: (questionId: string, answer: string, isCustom: boolean) => void;
+  onOpenProposal?: (fileKey: string) => void;
   sourceFiles?: SourceRef[];
   onSourceClick?: (sourceKey: string, lineRange?: LineRange) => void;
   getContent?: (key: string) => string;
@@ -30,6 +32,7 @@ export function ChatMessageBubble({
       onAcceptUpdate={onAcceptUpdate}
       onRejectUpdate={onRejectUpdate}
       onAnswerQuestion={onAnswerQuestion}
+      onOpenProposal={onOpenProposal}
       sourceFiles={sourceFiles}
       onSourceClick={onSourceClick}
       getContent={getContent}

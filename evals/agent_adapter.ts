@@ -18,7 +18,7 @@ import { generateId } from "../lib/utils/id";
 import { memoryStore } from "../lib/storage/memory-store";
 import { Command } from "@langchain/langgraph";
 import type { UserInput, SourceEntry } from "../lib/engine/state";
-import { costTracker } from "../lib/llm/openrouter";
+import { costTracker } from "../lib/llm/runtime";
 import type { Tracer } from "./trajectory_analyzer";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

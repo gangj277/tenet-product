@@ -1,0 +1,291 @@
+{
+  "generatedAt": "2026-03-23T16:32:37.305Z",
+  "userId": "e768e2c9-331c-42ba-87ba-6d88536230e7",
+  "query": "retrieval augmented generation factual accuracy",
+  "discoveredCount": 10,
+  "parsedCount": 8,
+  "failedCount": 2,
+  "byPhase": {
+    "ingest": 1,
+    "fetch": 1
+  },
+  "byParseEngine": {
+    "google/gemini-2.5-flash": 6,
+    "google/gemini-2.5-flash-lite": 2
+  },
+  "byParseQuality": {
+    "fallback_validated": 6,
+    "validated": 2
+  },
+  "sources": [
+    {
+      "index": 0,
+      "title": "Integrating Retrieval-Augmented Generation with Large Language Models in Nephrology: Advancing Practical Applications",
+      "url": "https://www.mdpi.com/1648-9144/60/3/445/pdf?version=1709877206",
+      "pdfUrl": "https://www.mdpi.com/1648-9144/60/3/445/pdf?version=1709877206",
+      "providers": [
+        "openalex",
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.mdpi.com/1648-9144/60/3/445/pdf?version=1709877206",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 3752471,
+          "durationMs": 767
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash",
+      "parseQuality": "fallback_validated",
+      "resolvedUrl": "https://www.mdpi.com/1648-9144/60/3/445/pdf?version=1709877206",
+      "chunkCount": 14,
+      "charCount": 11514
+    },
+    {
+      "index": 1,
+      "title": "Retrieval-Augmented Generation for Large Language Models: A Survey",
+      "url": "http://arxiv.org/abs/2312.10997",
+      "pdfUrl": "https://arxiv.org/pdf/2312.10997",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2312.10997",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1662567,
+          "durationMs": 79
+        },
+        {
+          "url": "http://arxiv.org/abs/2312.10997",
+          "status": "ok",
+          "contentType": "text/html; charset=utf-8",
+          "bytes": 48080,
+          "durationMs": 30
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash",
+      "parseQuality": "fallback_validated",
+      "resolvedUrl": "https://arxiv.org/pdf/2312.10997",
+      "chunkCount": 13,
+      "charCount": 15591
+    },
+    {
+      "index": 2,
+      "title": "Generative AI",
+      "url": "https://link.springer.com/content/pdf/10.1007/s12599-023-00834-7.pdf",
+      "pdfUrl": "https://link.springer.com/content/pdf/10.1007/s12599-023-00834-7.pdf",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://link.springer.com/content/pdf/10.1007/s12599-023-00834-7.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1024077,
+          "durationMs": 1685
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash",
+      "parseQuality": "fallback_validated",
+      "resolvedUrl": "https://link.springer.com/content/pdf/10.1007/s12599-023-00834-7.pdf?error=cookies_not_supported&code=9f30c0f1-e536-48c5-8d05-362fd4abc757",
+      "chunkCount": 10,
+      "charCount": 17500
+    },
+    {
+      "index": 3,
+      "title": "Get To The Point: Summarization with Pointer-Generator Networks",
+      "url": "https://www.aclweb.org/anthology/P17-1099.pdf",
+      "pdfUrl": "https://www.aclweb.org/anthology/P17-1099.pdf",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.aclweb.org/anthology/P17-1099.pdf",
+          "status": "failed",
+          "durationMs": 10576,
+          "error": "fetch failed"
+        }
+      ],
+      "finalStatus": "failed",
+      "failurePhase": "ingest",
+      "failureReason": "fetch failed"
+    },
+    {
+      "index": 4,
+      "title": "A Survey on Hallucination in Large Language Models: Principles, Taxonomy, Challenges, and Open Questions",
+      "url": "http://arxiv.org/abs/2311.05232",
+      "pdfUrl": "https://arxiv.org/pdf/2311.05232",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2311.05232",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1601655,
+          "durationMs": 88
+        },
+        {
+          "url": "http://arxiv.org/abs/2311.05232",
+          "status": "ok",
+          "contentType": "text/html; charset=utf-8",
+          "bytes": 50132,
+          "durationMs": 27
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash",
+      "parseQuality": "fallback_validated",
+      "resolvedUrl": "https://arxiv.org/pdf/2311.05232",
+      "chunkCount": 13,
+      "charCount": 10223
+    },
+    {
+      "index": 5,
+      "title": "A Categorical Archive of ChatGPT Failures",
+      "url": "https://www.researchsquare.com/article/rs-2895792/latest.pdf",
+      "pdfUrl": "https://www.researchsquare.com/article/rs-2895792/latest.pdf",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.researchsquare.com/article/rs-2895792/latest.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 8222721,
+          "durationMs": 2383
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash",
+      "parseQuality": "fallback_validated",
+      "resolvedUrl": "https://assets-eu.researchsquare.com/files/rs-2895792/v1_covered_b3d294bd-d5ce-4177-9b72-07da00079883.pdf?c=1689840879",
+      "chunkCount": 8,
+      "charCount": 10644
+    },
+    {
+      "index": 6,
+      "title": "Pre-train, Prompt, and Predict: A Systematic Survey of Prompting Methods in Natural Language Processing",
+      "url": "https://dl.acm.org/doi/pdf/10.1145/3560815",
+      "pdfUrl": "https://dl.acm.org/doi/pdf/10.1145/3560815",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://dl.acm.org/doi/pdf/10.1145/3560815",
+          "status": "failed",
+          "durationMs": 33,
+          "error": "Source fetch failed: 403 https://dl.acm.org/doi/pdf/10.1145/3560815"
+        }
+      ],
+      "finalStatus": "failed",
+      "failurePhase": "fetch",
+      "failureReason": "Source fetch failed: 403 https://dl.acm.org/doi/pdf/10.1145/3560815"
+    },
+    {
+      "index": 7,
+      "title": "A Survey of Multimodal Retrieval-Augmented Generation",
+      "url": "https://doi.org/10.48550/arXiv.2504.08748",
+      "pdfUrl": "https://arxiv.org/pdf/2504.08748.pdf",
+      "providers": [
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2504.08748.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 2287639,
+          "durationMs": 102
+        },
+        {
+          "url": "https://doi.org/10.48550/arXiv.2504.08748",
+          "status": "ok",
+          "contentType": "text/html; charset=utf-8",
+          "bytes": 46033,
+          "durationMs": 114
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash-lite",
+      "parseQuality": "validated",
+      "resolvedUrl": "https://arxiv.org/pdf/2504.08748",
+      "chunkCount": 11,
+      "charCount": 11163
+    },
+    {
+      "index": 8,
+      "title": "Generative AI in Medicine and Healthcare: Promises, Opportunities and Challenges",
+      "url": "https://www.mdpi.com/1999-5903/15/9/286/pdf?version=1692864615",
+      "pdfUrl": "https://www.mdpi.com/1999-5903/15/9/286/pdf?version=1692864615",
+      "providers": [
+        "openalex"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://www.mdpi.com/1999-5903/15/9/286/pdf?version=1692864615",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 659035,
+          "durationMs": 658
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash-lite",
+      "parseQuality": "validated",
+      "resolvedUrl": "https://www.mdpi.com/1999-5903/15/9/286/pdf?version=1692864615",
+      "chunkCount": 8,
+      "charCount": 12252
+    },
+    {
+      "index": 9,
+      "title": "Self-RAG: Learning to Retrieve, Generate, and Critique through Self-Reflection",
+      "url": "https://arxiv.org/abs/2310.11511",
+      "pdfUrl": "https://arxiv.org/pdf/2310.11511.pdf",
+      "providers": [
+        "semantic-scholar"
+      ],
+      "fetchAttempts": [
+        {
+          "url": "https://arxiv.org/pdf/2310.11511.pdf",
+          "status": "ok",
+          "contentType": "application/pdf",
+          "bytes": 1405127,
+          "durationMs": 85
+        },
+        {
+          "url": "https://arxiv.org/abs/2310.11511",
+          "status": "ok",
+          "contentType": "text/html; charset=utf-8",
+          "bytes": 47225,
+          "durationMs": 12
+        }
+      ],
+      "finalStatus": "parsed",
+      "parseStatus": "parsed",
+      "parseEngine": "google/gemini-2.5-flash",
+      "parseQuality": "fallback_validated",
+      "resolvedUrl": "https://arxiv.org/pdf/2310.11511",
+      "chunkCount": 20,
+      "charCount": 14624
+    }
+  ]
+}

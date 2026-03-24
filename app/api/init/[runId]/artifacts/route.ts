@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { memoryStore } from "@/lib/storage/memory-store";
+import {
+  mergeWorkspaceArtifacts,
+  mergeWorkspaceSourceMeta,
+} from "@/lib/workspace/source-cache";
 import { getSession } from "@/lib/auth/session";
 import {
   getOwnedResearchRun,
@@ -27,9 +31,14 @@ export async function GET(
     }
 
     const run = memoryStore.getRun(runId);
-    const artifacts =
-      (run ? memoryStore.getArtifacts(run.projectId) : undefined) ??
-      (await getPersistedArtifacts(runId));
+    const [persistedArtifacts, persistedSourcesMeta] = await Promise.all([
+      getPersistedArtifacts(runId),
+      getSourceMetadataForRun(runId),
+    ]);
+    const artifacts = mergeWorkspaceArtifacts(
+      memoryStore.getArtifacts(ownedRun.projectId),
+      persistedArtifacts
+    );
 
     if (!artifacts) {
       return NextResponse.json(
@@ -38,10 +47,10 @@ export async function GET(
       );
     }
 
-    // Resolve source metadata: memory store first, then DB fallback
-    const sourcesMeta =
-      (run ? memoryStore.getSourcesMeta(run.projectId) : undefined) ??
-      (await getSourceMetadataForRun(runId));
+    const sourcesMeta = mergeWorkspaceSourceMeta(
+      memoryStore.getSourcesMeta(ownedRun.projectId),
+      persistedSourcesMeta
+    );
 
     const notesMeta = await getNoteMetadataForRun(runId);
     const experimentsMeta = await getExperimentMetadataForRun(runId);

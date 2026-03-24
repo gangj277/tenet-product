@@ -9,8 +9,9 @@ import {
   updateResearchRunStatus,
   updateProjectTitle,
 } from "@/lib/db/research-projects";
-import { setRequestProvider, clearRequestProvider } from "@/lib/llm/openrouter";
-import { createProviderForUser } from "@/lib/llm/provider-factory";
+import { runWithRequestProvider } from "@/lib/llm/runtime";
+import { ensureOpenAIProviderAccess } from "@/lib/llm/openai-access";
+import { acquireExclusiveLock } from "@/lib/utils/exclusive-lock";
 
 interface ConfirmBody {
   action: "accept" | "edit";
@@ -92,21 +93,22 @@ export async function POST(
     // Initialize progress tracking
     memoryStore.initProgress(runId);
 
-    // Set request-scoped provider so pipeline nodes use the user's provider.
-    // NOTE: Do NOT clear this until the fire-and-forget pipeline completes,
-    // since the pipeline runs async in the background after this request returns.
-    try {
-      const userProvider = await createProviderForUser(session.userId);
-      setRequestProvider(userProvider);
-    } catch {
-      // Fall back to server default
+    const releaseLock = acquireExclusiveLock(`init:${session.userId}`);
+    if (!releaseLock) {
+      return NextResponse.json(
+        { error: "An init pipeline is already running for this account." },
+        { status: 409 }
+      );
     }
 
-    // Fire-and-forget: run pipeline in background, return immediately
-    initGraph
+    const userProvider = await ensureOpenAIProviderAccess(session.userId, {
+      forceRevalidate: true,
+    });
+
+    const runPipeline = () =>
+      initGraph
       .invoke(new Command({ resume: resumeValue }), config)
       .then((result) => {
-        clearRequestProvider(); // Pipeline done — safe to clear now
         const currentStep =
           typeof result.currentStep === "string" ? result.currentStep : run.currentStep;
 
@@ -130,7 +132,6 @@ export async function POST(
         });
       })
       .catch((err) => {
-        clearRequestProvider();
         const message = (err as Error).message;
         const timestamp = new Date().toISOString();
         const failedStep = getRunningStepId(runId) ?? run.currentStep ?? ownedRun.currentStep;
@@ -163,7 +164,12 @@ export async function POST(
           currentStep: failedStep ?? undefined,
         });
         console.error(`[run ${runId}] Pipeline failed:`, message);
+      })
+      .finally(() => {
+        releaseLock();
       });
+
+    void runWithRequestProvider(userProvider, runPipeline);
 
     return NextResponse.json({
       runId,

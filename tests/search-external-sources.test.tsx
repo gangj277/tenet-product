@@ -63,7 +63,12 @@ test("executeSearchExternalSources uses unified scholarly discovery instead of E
     >("../lib/agent/tools/search-external-sources.ts");
 
     const result = await loadedModule.executeSearchExternalSources({
-      query: "retrieval augmented generation",
+      searches: [
+        {
+          query: "retrieval augmented generation",
+          intent: "find relevant academic sources",
+        },
+      ],
       num_results: 5,
     });
 

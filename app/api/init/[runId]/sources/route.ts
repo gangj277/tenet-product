@@ -9,7 +9,7 @@ import {
 } from "@/lib/ingest/source-ingestion";
 import { classifySourceIntoFolder } from "@/lib/ingest/classify-source-folder";
 import { blobStore } from "@/lib/storage/blob-store";
-import { memoryStore } from "@/lib/storage/memory-store";
+import { syncAddedSourcesToWorkspaceCache } from "@/lib/workspace/source-cache";
 import type { SourceEntry } from "@/lib/engine/state";
 
 export async function POST(
@@ -143,18 +143,20 @@ export async function POST(
       mimeType: "application/pdf",
       storagePath: result.source.storageUrl,
       metadata,
+      sourceChunks: result.sourceChunks,
       summaryContent,
     });
 
-    // Update memory store caches
-    const cachedArtifacts = memoryStore.getArtifacts(ownedRun.projectId);
-    if (cachedArtifacts) {
-      cachedArtifacts.sources[sourceId] = summaryContent;
-    }
-    const cachedMeta = memoryStore.getSourcesMeta(ownedRun.projectId);
-    if (cachedMeta) {
-      cachedMeta[sourceId] = { name: label, origin: "uploaded", ...(folder ? { folder } : {}) };
-    }
+    await syncAddedSourcesToWorkspaceCache(runId, [
+      {
+        sourceId,
+        key: `source:${sourceId}`,
+        label,
+        content: summaryContent,
+        ...(resolvedUrl ? { sourceUrl: resolvedUrl } : {}),
+        ...(folder ? { folder } : {}),
+      },
+    ]);
 
     return NextResponse.json({
       sourceId,

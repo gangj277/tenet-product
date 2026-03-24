@@ -1,5 +1,5 @@
 import type { InitRunState, InitRunUpdate } from "../state";
-import { callLLMJson } from "@/lib/llm/openrouter";
+import { callLLMJson } from "@/lib/llm/runtime";
 import { MODEL_LITE } from "@/lib/llm/models";
 import { memoryStore } from "@/lib/storage/memory-store";
 

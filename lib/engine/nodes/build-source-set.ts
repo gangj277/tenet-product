@@ -1,7 +1,9 @@
 import type {
   InitRunState,
   InitRunUpdate,
+  ParsedSource,
   RunError,
+  SourceChunk,
   SourceEntry,
   SourceMetadata,
 } from "../state";
@@ -16,7 +18,7 @@ import {
 import { memoryStore } from "@/lib/storage/memory-store";
 
 const MAX_CONCURRENT_SOURCE_INGESTS = 20;
-/** The discovery layer caps results before ingestion. */
+/** High parallel ingest keeps project initialization responsive on large source batches. */
 
 type IngestJob =
   | {
@@ -42,6 +44,10 @@ export async function buildSourceSet(
 ): Promise<InitRunUpdate> {
   const { runId, perspective, sources: existingSources } = state;
   const errors: RunError[] = [];
+  const reusedParsed = existingSources
+    .map(rehydrateParsedWorkspaceSource)
+    .filter((value): value is NonNullable<typeof value> => value !== null);
+  const reusedSourceIds = new Set(reusedParsed.map((entry) => entry.source.sourceId));
 
   memoryStore.updateProgress(runId, "build_source_set", {
     status: "running",
@@ -99,11 +105,85 @@ export async function buildSourceSet(
   }
 
   const jobs: IngestJob[] = [
-    ...uploadedPending.map((source) => ({ kind: "uploaded" as const, source })),
+    ...uploadedPending
+      .filter((source) => !reusedSourceIds.has(source.sourceId))
+      .map((source) => ({ kind: "uploaded" as const, source })),
     ...discoveredJobs,
   ];
+  const totalCandidateSources = jobs.length + reusedParsed.length;
 
-  if (jobs.length === 0) {
+  let completed = 0;
+  let parsed = reusedParsed.length;
+  let failed = 0;
+  const sourceUpdates: SourceEntry[] = reusedParsed.map((entry) => entry.source);
+  const parsedSources = reusedParsed.map((entry) => entry.parsedSource);
+  const sourceChunks = reusedParsed.flatMap((entry) => entry.sourceChunks);
+
+  if (jobs.length > 0) {
+    const settled = await allSettledWithConcurrency(
+      jobs,
+      MAX_CONCURRENT_SOURCE_INGESTS,
+      async (job): Promise<IngestJobResult> => {
+        try {
+          const ingested =
+            job.kind === "uploaded"
+              ? await ingestUploadedSource({ source: job.source })
+              : await ingestDiscoveredSource({
+                  sourceId: job.sourceId,
+                  title: job.title,
+                  sourceUrl: job.sourceUrl,
+                  pdfUrl: job.pdfUrl,
+                  paperQuality: job.paperQuality,
+                });
+
+          if (ingested.source.parseStatus === "parsed") {
+            parsed += 1;
+          } else if (ingested.source.parseStatus === "failed") {
+            failed += 1;
+          }
+
+          return { job, ingested };
+        } catch (error) {
+          failed += 1;
+          return { job, ingested: buildFailedIngest(job, error) };
+        } finally {
+          completed += 1;
+          memoryStore.updateProgress(runId, "build_source_set", {
+            detail: `Processing sources: ${completed}/${jobs.length} done (${parsed} parsed, ${failed} failed)`,
+          });
+        }
+      }
+    );
+
+    for (const result of settled) {
+      if (result.status !== "fulfilled") {
+        errors.push(toRunError("build_source_set", result.reason, true));
+        continue;
+      }
+
+      const { ingested } = result.value;
+      sourceUpdates.push(ingested.source);
+
+      if (ingested.parsedSource) {
+        parsedSources.push(ingested.parsedSource);
+      }
+
+      if (ingested.sourceChunks.length > 0) {
+        sourceChunks.push(...ingested.sourceChunks);
+      }
+
+      for (const warning of ingested.warnings) {
+        errors.push({
+          step: "build_source_set",
+          message: `${ingested.source.name}: ${warning}`,
+          retryable: false,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  }
+
+  if (jobs.length === 0 && parsedSources.length === 0) {
     memoryStore.updateProgress(runId, "build_source_set", {
       status: "failed",
       detail: "No uploaded or discovered sources were available to analyze",
@@ -122,76 +202,6 @@ export async function buildSourceSet(
         },
       ],
     };
-  }
-
-  let completed = 0;
-  let parsed = 0;
-  let failed = 0;
-
-  const settled = await allSettledWithConcurrency(
-    jobs,
-    MAX_CONCURRENT_SOURCE_INGESTS,
-    async (job): Promise<IngestJobResult> => {
-      try {
-        const ingested =
-          job.kind === "uploaded"
-            ? await ingestUploadedSource({ source: job.source })
-            : await ingestDiscoveredSource({
-                sourceId: job.sourceId,
-                title: job.title,
-                sourceUrl: job.sourceUrl,
-                pdfUrl: job.pdfUrl,
-                paperQuality: job.paperQuality,
-              });
-
-        if (ingested.source.parseStatus === "parsed") {
-          parsed += 1;
-        } else if (ingested.source.parseStatus === "failed") {
-          failed += 1;
-        }
-
-        return { job, ingested };
-      } catch (error) {
-        failed += 1;
-        return { job, ingested: buildFailedIngest(job, error) };
-      } finally {
-        completed += 1;
-        memoryStore.updateProgress(runId, "build_source_set", {
-          detail: `Processing sources: ${completed}/${jobs.length} done (${parsed} parsed, ${failed} failed)`,
-        });
-      }
-    }
-  );
-
-  const sourceUpdates: SourceEntry[] = [];
-  const parsedSources = [];
-  const sourceChunks = [];
-
-  for (const result of settled) {
-    if (result.status !== "fulfilled") {
-      errors.push(toRunError("build_source_set", result.reason, true));
-      continue;
-    }
-
-    const { ingested } = result.value;
-    sourceUpdates.push(ingested.source);
-
-    if (ingested.parsedSource) {
-      parsedSources.push(ingested.parsedSource);
-    }
-
-    if (ingested.sourceChunks.length > 0) {
-      sourceChunks.push(...ingested.sourceChunks);
-    }
-
-    for (const warning of ingested.warnings) {
-      errors.push({
-        step: "build_source_set",
-        message: `${ingested.source.name}: ${warning}`,
-        retryable: false,
-        timestamp: new Date().toISOString(),
-      });
-    }
   }
 
   if (parsedSources.length === 0) {
@@ -218,7 +228,7 @@ export async function buildSourceSet(
 
   memoryStore.updateProgress(runId, "build_source_set", {
     status: "completed",
-    detail: `Parsed ${parsedSources.length}/${jobs.length} sources into ${sourceChunks.length} bounded chunks`,
+    detail: `Parsed ${parsedSources.length}/${totalCandidateSources} sources into ${sourceChunks.length} bounded chunks`,
   });
 
   return {
@@ -227,6 +237,58 @@ export async function buildSourceSet(
     parsedSources,
     sourceChunks,
     errors,
+  };
+}
+
+function rehydrateParsedWorkspaceSource(source: SourceEntry): {
+  source: SourceEntry;
+  parsedSource: ParsedSource;
+  sourceChunks: SourceChunk[];
+} | null {
+  if (source.parseStatus !== "parsed") {
+    return null;
+  }
+
+  const metadata = source.metadata;
+  if (
+    !metadata?.normalizedBlobKey ||
+    typeof metadata.charCount !== "number" ||
+    typeof metadata.estimatedTokens !== "number" ||
+    (metadata.parseQuality !== "validated" &&
+      metadata.parseQuality !== "fallback_validated")
+  ) {
+    return null;
+  }
+
+  const rawChunks = Array.isArray(metadata.sourceChunks) ? metadata.sourceChunks : [];
+  const sourceChunks: SourceChunk[] = rawChunks.map((chunk) => ({
+    sourceId: source.sourceId,
+    sourceName: source.name,
+    chunkIndex: chunk.chunkIndex,
+    headingPath: chunk.headingPath,
+    tokenEstimate: chunk.tokenEstimate,
+    charCount: chunk.charCount,
+    blobKey: chunk.blobKey,
+  }));
+
+  return {
+    source,
+    parsedSource: {
+      sourceId: source.sourceId,
+      name: source.name,
+      normalizedBlobKey: metadata.normalizedBlobKey,
+      charCount: metadata.charCount,
+      estimatedTokens: metadata.estimatedTokens,
+      parseQuality: metadata.parseQuality,
+      metadata: {
+        sourceKind: metadata.sourceKind,
+        sourceUrl: metadata.sourceUrl,
+        resolvedUrl: metadata.resolvedUrl,
+        chunkCount: sourceChunks.length,
+        parseEngine: metadata.parseEngine,
+      },
+    },
+    sourceChunks,
   };
 }
 

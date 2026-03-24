@@ -28,7 +28,12 @@ export async function GET() {
 
   // Check if user has Codex OAuth connected
   const [creds] = await db
-    .select({ provider: userLlmCredentials.provider })
+    .select({
+      provider: userLlmCredentials.provider,
+      validationStatus: userLlmCredentials.validationStatus,
+      lastErrorMessage: userLlmCredentials.lastErrorMessage,
+      capabilities: userLlmCredentials.capabilities,
+    })
     .from(userLlmCredentials)
     .where(eq(userLlmCredentials.userId, user.id))
     .limit(1);
@@ -36,7 +41,14 @@ export async function GET() {
   return NextResponse.json({
     user: {
       ...user,
-      openaiConnected: creds?.provider === "codex",
+      openaiConnected: creds?.provider === "openai_auth",
+      openaiConnection: creds
+        ? {
+            status: creds.validationStatus,
+            lastErrorMessage: creds.lastErrorMessage,
+            capabilities: creds.capabilities,
+          }
+        : null,
     },
   });
 }

@@ -1,0 +1,73 @@
+{
+  "generatedAt": "2026-03-24T07:51:15.709Z",
+  "user": {
+    "userId": "e768e2c9-331c-42ba-87ba-6d88536230e7",
+    "email": "gangj277@gmail.com",
+    "validationStatus": "valid",
+    "validatedAt": "2026-03-24T07:40:30.636Z",
+    "capabilities": {
+      "json": true,
+      "basic": true,
+      "liteModel": true,
+      "streaming": true,
+      "toolCalling": true
+    }
+  },
+  "model": "gpt-5.4",
+  "message": "Read the overview and synthesis files, then answer in exactly two bullet points.",
+  "estimatedInitialPromptTokens": 7091,
+  "rawResponses": {
+    "requestBodyPath": "artifacts/diagnostics/agent-token-usage/2026-03-24T07-51-04-237Z-read-the-overview-and-synthesis-files-then-answe/raw-request.json",
+    "eventLogPath": "artifacts/diagnostics/agent-token-usage/2026-03-24T07-51-04-237Z-read-the-overview-and-synthesis-files-then-answe/raw-events.jsonl",
+    "eventTypes": {
+      "response.created": 1,
+      "response.in_progress": 1,
+      "response.output_item.added": 1,
+      "response.function_call_arguments.delta": 9,
+      "response.function_call_arguments.done": 1,
+      "response.output_item.done": 1,
+      "response.completed": 1
+    },
+    "outputTextChars": 0,
+    "toolCallCount": 1,
+    "completedUsage": {
+      "input_tokens": 5008,
+      "input_tokens_details": {
+        "cached_tokens": 0
+      },
+      "output_tokens": 23,
+      "output_tokens_details": {
+        "reasoning_tokens": 0
+      },
+      "total_tokens": 5031
+    },
+    "normalizedUsage": {
+      "promptTokens": 5008,
+      "completionTokens": 23,
+      "totalTokens": 5031
+    },
+    "model": "gpt-5.4"
+  },
+  "agentRun": {
+    "eventTypes": {
+      "activity": 3,
+      "tool_call": 1,
+      "tool_result": 1,
+      "text_delta": 77,
+      "done": 1
+    },
+    "toolCallCount": 1,
+    "outputTextChars": 408,
+    "compactionEvents": [],
+    "doneUsage": {
+      "promptTokens": 5127,
+      "completionTokens": 81,
+      "totalTokens": 5208
+    },
+    "nextTurnEstimate": 7217,
+    "nextTurnThreshold": 250000,
+    "nextTurnStatus": "idle",
+    "nextTurnMinusLastInferencePromptTokens": 2090
+  },
+  "recommendation": "Do not use provider promptTokens as the chat ring's live-context count. Tool-call turns make the last provider usage reflect an internal inference step, not the next-turn prompt. Keep provider usage as diagnostics only."
+}

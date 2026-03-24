@@ -65,6 +65,25 @@ test("POST /api/init persists project, run, and input rows for the logged-in use
       }),
     },
   });
+  const restoreOpenAIAccess = patchModule("../lib/llm/openai-access.ts", {
+    ensureOpenAIProviderAccess: async () => ({
+      kind: "openai_auth",
+      async callLLM() {
+        throw new Error("not used");
+      },
+      async *callLLMStreaming() {
+        yield {
+          type: "done" as const,
+          content: "",
+          toolCalls: [],
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        };
+      },
+    }),
+  });
+  const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
+    runWithRequestProvider: async (_provider: unknown, fn: () => unknown) => fn(),
+  });
   const restoreDb = patchModule("../lib/db/client.ts", {
     db: {
       transaction: async (
@@ -175,6 +194,8 @@ test("POST /api/init persists project, run, and input rows for the logged-in use
     assert.ok(updates.length > 0);
   } finally {
     restoreDb();
+    restoreRuntime();
+    restoreOpenAIAccess();
     restoreGraph();
     restoreIds();
     restoreSession();
@@ -270,6 +291,160 @@ test("GET /api/projects selects runId so dashboard cards can link to the run rou
   } finally {
     restoreBackfill();
     restoreDb();
+    restoreSession();
+  }
+});
+
+test("POST /api/projects creates a draft workspace with a scratchpad note and no user input row", async () => {
+  const inserts: unknown[] = [];
+  const setRunCalls: Array<{ runId: string; value: Record<string, unknown> }> = [];
+  const saveArtifactsCalls: Array<{ projectId: string; artifacts: Record<string, unknown> }> = [];
+
+  const restoreSession = patchModule("../lib/auth/session.ts", {
+    getSession: async () => ({
+      userId: "user-1",
+      email: "user@example.com",
+    }),
+  });
+  const restoreIds = patchModule("../lib/utils/id.ts", {
+    generateId: (() => {
+      const values = ["project-1", "run-1"];
+      return () => values.shift() ?? "unexpected-id";
+    })(),
+  });
+  const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
+    memoryStore: {
+      setRun: (runId: string, value: Record<string, unknown>) => {
+        setRunCalls.push({ runId, value });
+      },
+      saveArtifacts: async (projectId: string, artifacts: Record<string, unknown>) => {
+        saveArtifactsCalls.push({ projectId, artifacts });
+      },
+      saveSourcesMeta: () => {},
+    },
+  });
+  const restoreDb = patchModule("../lib/db/client.ts", {
+    db: {
+      transaction: async (
+        callback: (tx: {
+          insert: (table: unknown) => {
+            values: (value: unknown) => Promise<void>;
+          };
+        }) => Promise<void>
+      ) =>
+        callback({
+          insert(table) {
+            return {
+              async values(value) {
+                inserts.push({ table, value });
+              },
+            };
+          },
+        }),
+    },
+  });
+  const restoreBackfill = patchModule("../lib/db/backfill-warm-runs.ts", {
+    backfillWarmRunsForUser: async () => {},
+  });
+
+  try {
+    clearModule("../lib/db/research-projects.ts");
+    const route = reloadModule<typeof import("../app/api/projects/route")>(
+      "../app/api/projects/route.ts"
+    );
+
+    const response = await route.POST(
+      new Request("http://localhost/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }) as never
+    );
+
+    assert.equal(response.status, 200);
+
+    const body = await response.json();
+    assert.deepEqual(body, {
+      projectId: "project-1",
+      runId: "run-1",
+      status: "draft",
+    });
+
+    const projectInsert = inserts.find(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        "value" in entry &&
+        typeof entry.value === "object" &&
+        entry.value !== null &&
+        "userId" in entry.value
+    ) as { value: Record<string, unknown> } | undefined;
+    assert.ok(projectInsert);
+    assert.equal(projectInsert.value.id, "project-1");
+    assert.equal(projectInsert.value.title, "Untitled workspace");
+    assert.equal(projectInsert.value.status, "draft");
+
+    const runInsert = inserts.find(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        "value" in entry &&
+        typeof entry.value === "object" &&
+        entry.value !== null &&
+        entry.value.id === "run-1"
+    ) as { value: Record<string, unknown> } | undefined;
+    assert.ok(runInsert);
+    assert.equal(runInsert.value.projectId, "project-1");
+    assert.equal(runInsert.value.status, "draft");
+
+    const noteInsert = inserts.find(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        "value" in entry &&
+        typeof entry.value === "object" &&
+        entry.value !== null &&
+        entry.value.runId === "run-1" &&
+        entry.value.label === "Scratchpad"
+    ) as { value: Record<string, unknown> } | undefined;
+    assert.ok(noteInsert);
+
+    const inputInsert = inserts.find(
+      (entry) =>
+        typeof entry === "object" &&
+        entry !== null &&
+        "value" in entry &&
+        typeof entry.value === "object" &&
+        entry.value !== null &&
+        "researchQuestion" in entry.value
+    );
+    assert.equal(inputInsert, undefined);
+
+    assert.equal(setRunCalls.length, 1);
+    assert.equal(setRunCalls[0]?.runId, "run-1");
+    assert.equal(setRunCalls[0]?.value.status, "draft");
+    assert.equal(saveArtifactsCalls.length, 1);
+    assert.deepEqual(saveArtifactsCalls[0], {
+      projectId: "project-1",
+      artifacts: {
+        overview: "",
+        synthesis: "",
+        claims: "",
+        gaps: "",
+        nextSteps: "",
+        sources: {},
+        papers: {},
+        notes: {
+          [String(noteInsert?.value.id ?? "")]: "",
+        },
+        experiments: {},
+      },
+    });
+  } finally {
+    restoreBackfill();
+    restoreDb();
+    restoreMemoryStore();
+    restoreIds();
     restoreSession();
   }
 });

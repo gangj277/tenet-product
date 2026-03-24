@@ -5,7 +5,7 @@
  * LLM judge graders evaluate quality axes: alignment, evidence, research-leverage, non-slop, signals.
  */
 
-import { callLLM } from "../lib/llm/openrouter";
+import { callLLM } from "../lib/llm/runtime";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 

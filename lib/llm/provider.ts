@@ -2,10 +2,10 @@ import type { CallLLMOptions, LLMResponse, StreamingLLMOptions, StreamChunk } fr
 
 /**
  * An LLM provider encapsulates how to make completion calls.
- * Two implementations: OpenRouter (BYOK) and Codex (ChatGPT OAuth).
+ * The app now supports a single provider implementation: OpenAI auth.
  */
 export interface LLMProvider {
-  readonly kind: "openrouter" | "codex";
+  readonly kind: "openai_auth";
   callLLM(options: CallLLMOptions): Promise<LLMResponse>;
   callLLMStreaming(options: StreamingLLMOptions): AsyncGenerator<StreamChunk>;
 }

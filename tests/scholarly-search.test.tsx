@@ -168,7 +168,10 @@ test("discoverScholarlySources merges provider results into deduped extractor-re
     "retrieval augmented generation",
     "knowledge intensive generation",
   ]);
-  assert.deepEqual(arxivCalls, ["retrieval augmented generation"]);
+  assert.deepEqual(arxivCalls, [
+    "retrieval augmented generation",
+    "knowledge intensive generation",
+  ]);
 
   assert.equal(results.length, 3);
 
@@ -213,6 +216,43 @@ test("discoverScholarlySources merges provider results into deduped extractor-re
   });
 
   assert.deepEqual(results[1], {
+    title: "Grounding Language Models with Better Retrieval",
+    url: "https://publisher.example/grounding",
+    pdfUrl: "https://publisher.example/grounding.pdf",
+    publishedDate: "2023-06-01",
+    author: undefined,
+    provider: "openalex",
+    providers: ["openalex"],
+    doi: "10.1000/grounding",
+    arxivId: undefined,
+    citationCount: 50,
+    venue: "ICLR",
+    paperQuality: {
+      ids: {
+        doi: "10.1000/grounding",
+        openAlexId: "https://openalex.org/W2",
+      },
+      publication: {
+        year: 2023,
+        date: "2023-06-01",
+        venue: "ICLR",
+      },
+      metrics: {
+        citationCount: 50,
+        providerCount: 1,
+      },
+      flags: {
+        openAccess: true,
+        preprint: false,
+      },
+      hints: {
+        signalScore: 35,
+        labels: ["Open access"],
+      },
+    },
+  });
+
+  assert.deepEqual(results[2], {
     title: "Graph Retrieval-Augmented Generation",
     url: "https://arxiv.org/abs/2405.16506v3",
     pdfUrl: "https://arxiv.org/pdf/2405.16506v3",
@@ -256,41 +296,73 @@ test("discoverScholarlySources merges provider results into deduped extractor-re
       },
     },
   });
+});
 
-  assert.deepEqual(results[2], {
-    title: "Grounding Language Models with Better Retrieval",
-    url: "https://publisher.example/grounding",
-    pdfUrl: "https://publisher.example/grounding.pdf",
-    publishedDate: "2023-06-01",
-    author: undefined,
-    provider: "openalex",
-    providers: ["openalex"],
-    doi: "10.1000/grounding",
-    arxivId: undefined,
-    citationCount: 50,
-    venue: "ICLR",
-    paperQuality: {
-      ids: {
-        doi: "10.1000/grounding",
-        openAlexId: "https://openalex.org/W2",
-      },
-      publication: {
-        year: 2023,
-        date: "2023-06-01",
-        venue: "ICLR",
-      },
-      metrics: {
-        citationCount: 50,
-        providerCount: 1,
-      },
-      flags: {
-        openAccess: true,
-        preprint: false,
-      },
-      hints: {
-        signalScore: 35,
-        labels: ["Open access"],
-      },
+test("discoverScholarlySources avoids DOI-only dead links when a provider page is available", async () => {
+  const { discoverScholarlySources } = await import(
+    "../lib/discovery/scholarly-search.ts"
+  );
+
+  const results = await discoverScholarlySources({
+    query: "factual qa retrieval",
+    numResults: 2,
+    openAlexApiKey: "openalex-key",
+    semanticScholarApiKey: "semantic-key",
+    clients: {
+      searchOpenAlexWorks: async () => [
+        {
+          id: "https://openalex.org/W-dead-doi",
+          title: "DOI-only OpenAlex result",
+          publicationYear: 2024,
+          publicationDate: "2024-02-01",
+          citedByCount: 40,
+          doi: "https://doi.org/10.1000/dead-link",
+          source: "Publisher",
+          landingPageUrl: undefined,
+          pdfUrl: undefined,
+        },
+      ],
+      searchSemanticScholarPapers: async () => ({
+        total: 1,
+        token: undefined,
+        usedPublicFallback: false,
+        papers: [
+          {
+            paperId: "paper-doi-only",
+            title: "Semantic Scholar DOI fallback",
+            venue: "ACL",
+            year: 2024,
+            publicationDate: "2024-03-01",
+            citationCount: 12,
+            influentialCitationCount: 2,
+            referenceCount: 20,
+            semanticScholarUrl:
+              "https://www.semanticscholar.org/paper/paper-doi-only",
+            sourceUrl: "https://doi.org/10.1000/semantic-only",
+            sourceUrlKind: "doi" as const,
+            landingPageUrl: "https://doi.org/10.1000/semantic-only",
+            pdfUrl: undefined,
+            extractorUrl: "https://doi.org/10.1000/semantic-only",
+            externalIds: {
+              DOI: "10.1000/semantic-only",
+            },
+          },
+        ],
+      }),
+      searchArxivPapers: async () => ({
+        totalResults: 0,
+        startIndex: 0,
+        itemsPerPage: 0,
+        papers: [],
+      }),
     },
   });
+
+  assert.equal(results.length, 1);
+  assert.equal(
+    results[0]?.url,
+    "https://www.semanticscholar.org/paper/paper-doi-only"
+  );
+  assert.equal(results[0]?.pdfUrl, undefined);
+  assert.equal(results[0]?.doi, "10.1000/semantic-only");
 });

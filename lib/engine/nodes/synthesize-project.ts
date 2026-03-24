@@ -1,5 +1,5 @@
 import type { InitRunState, InitRunUpdate, Artifacts } from "../state";
-import { callLLM } from "@/lib/llm/openrouter";
+import { callLLM } from "@/lib/llm/runtime";
 import { MODEL, MODEL_LIGHT, MODEL_LITE } from "@/lib/llm/models";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { blobStore } from "@/lib/storage/blob-store";
@@ -14,6 +14,18 @@ import {
 } from "../prompts/synthesis-writing";
 
 const MAX_CONCURRENT_SOURCE_SUMMARIES = 20;
+
+function buildSourceBase(
+  sources: InitRunState["sources"],
+  parsedSourceCount: number
+) {
+  return {
+    totalSources: sources.length,
+    parsedSources: parsedSourceCount,
+    uploadedSources: sources.filter((source) => source.origin === "uploaded").length,
+    discoveredSources: sources.filter((source) => source.origin === "discovered").length,
+  };
+}
 
 export async function synthesizeProject(
   state: InitRunState
@@ -44,13 +56,17 @@ export async function synthesizeProject(
     };
   }
 
+  const parsed = parsedSources ?? [];
   const context = JSON.stringify(
-    { input, perspective, consolidatedFindings },
+    {
+      input,
+      perspective,
+      consolidatedFindings,
+      sourceBase: buildSourceBase(sources, parsed.length),
+    },
     null,
     2
   );
-
-  const parsed = parsedSources ?? [];
 
   // Pre-fetch all normalized texts before concurrent LLM calls (avoids I/O inside workers)
   const sourceTexts = await Promise.all(
@@ -71,7 +87,7 @@ export async function synthesizeProject(
           { role: "system", content: buildOverviewPrompt() },
           { role: "user", content: context },
         ],
-        maxTokens: 4096,
+        maxTokens: 1200,
       }),
       callLLM({
         model: MODEL,
@@ -79,8 +95,8 @@ export async function synthesizeProject(
           { role: "system", content: buildSynthesisPrompt() },
           { role: "user", content: context },
         ],
-        maxTokens: 16384,
-        temperature: 0.3,
+        maxTokens: 5120,
+        temperature: 0.2,
       }),
       callLLM({
         model: MODEL_LIGHT,
@@ -88,7 +104,7 @@ export async function synthesizeProject(
           { role: "system", content: buildClaimsPrompt() },
           { role: "user", content: context },
         ],
-        maxTokens: 8192,
+        maxTokens: 3072,
       }),
       callLLM({
         model: MODEL_LIGHT,
@@ -96,7 +112,7 @@ export async function synthesizeProject(
           { role: "system", content: buildGapsPrompt() },
           { role: "user", content: context },
         ],
-        maxTokens: 4096,
+        maxTokens: 2048,
       }),
       callLLM({
         model: MODEL_LIGHT,
@@ -104,7 +120,7 @@ export async function synthesizeProject(
           { role: "system", content: buildNextStepsPrompt() },
           { role: "user", content: context },
         ],
-        maxTokens: 4096,
+        maxTokens: 1536,
       }),
     ]),
     // Per-source summaries (using pre-fetched texts)

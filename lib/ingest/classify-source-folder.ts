@@ -1,4 +1,4 @@
-import { callLLMJson } from "@/lib/llm/openrouter";
+import { callLLMJson } from "@/lib/llm/runtime";
 import { MODEL_LITE } from "@/lib/llm/models";
 
 const FOLDER_SCHEMA = {

@@ -1,32 +1,98 @@
-export function buildConsolidationPrompt(): string {
-  return `You are a research evidence consolidator. Your job is to take extracted evidence items from multiple sources and produce a comprehensive, well-organized evidence package.
+export function buildClusterConsolidationPrompt(): string {
+  return `You are consolidating a single claim cluster from a research pipeline.
 
-You will receive a JSON object with:
-- "perspective": the inferred research frame (question, intent, subquestions)
-- "evidenceMap": categorized evidence items extracted from source chunks, with the following arrays:
-  - "supportingEvidence": items that support claims relevant to the research question
-  - "contradictoryEvidence": items that challenge, qualify, or oppose claims
-  - "strongClaims": high-confidence items with robust evidence
-  - "uncertainties": low-confidence or neutral items
-  - "methodologicalCautions": observations about research methods, study design, data quality
+You will receive one deterministic claim cluster with:
+- a representative claim
+- evidence counts
+- a small set of supporting evidence items
+- a small set of contradictory evidence items
+- methodological cautions
+- uncertainties
 
-Your task:
+Your job:
+1. Write one precise canonical claim for this cluster.
+2. Keep only the strongest, most relevant support and contradiction items.
+3. Preserve disagreements instead of smoothing them away.
+4. Surface methodological cautions and remaining open questions.
+5. Do not invent facts that are not grounded in the provided evidence.
 
-1. IDENTIFY DISTINCT CLAIMS: Read through ALL evidence items. Identify every distinct claim, finding, or theme that appears. Two items refer to the "same claim" only if they make the same specific assertion — similar topics are NOT the same claim. For example, "Remote work increases productivity by 13%" and "Remote work reduces collaboration" are separate claims, even though both are about remote work.
+Guidelines:
+- Treat this as a LOCAL consolidation pass for one claim family.
+- If contradictory evidence meaningfully limits the claim, reflect that in the confidence and open questions.
+- Prefer specific, falsifiable claim wording over vague themes.
+- Return concise arrays. Do not repeat near-duplicate evidence items.
 
-2. GROUP EVIDENCE: For each canonical claim, gather all evidence items that directly support or contradict it. A single evidence item may be relevant to multiple claims.
+Output valid JSON matching the schema provided.`;
+}
 
-3. RANK: Order claims by relevance to the research question and strength of evidence. Lead with the most important findings.
+export function buildFinalFindingsMergePrompt(): string {
+  return `You are the final merger for a research synthesis pipeline.
 
-4. PRESERVE NUANCE: Do NOT over-consolidate. If sources present related but distinct findings, keep them as separate claims. It is far better to have 12 specific claims than 3 vague ones.
+You will receive:
+- "perspective": the inferred research frame
+- "clusterSummaries": locally consolidated claim-cluster summaries
+- "reductionSummary": high-level stats from deterministic evidence reduction
 
-5. SURFACE DISAGREEMENTS: Where sources conflict, present both sides. Do not resolve tensions by dropping one side.
+Your job:
+1. Merge only truly overlapping cluster summaries into final canonical claims.
+2. Rank canonical claims by relevance to the research question and strength of evidence.
+3. Preserve contradictions, uncertainties, and unresolved tensions.
+4. Promote the strongest evidence into prioritized support and contradiction lists.
+5. Convert methodological cautions into confidence notes or unresolved disagreements when relevant.
 
-IMPORTANT GUIDELINES:
-- Aim for 8-15 canonical claims for a typical research corpus (10-20 sources). Fewer than 6 claims almost always means you are over-merging.
-- Every evidence item in the input should appear in at least one canonical claim's support or contradictions array, or in prioritizedSupport/prioritizedContradictions. Do not silently drop evidence.
-- Each canonical claim should be a specific, falsifiable statement — not a vague theme like "There are challenges."
-- Include ALL relevant open questions, not just 1-2.
+Important guidelines:
+- Do NOT over-merge. Similar topics are not the same claim unless they make the same specific assertion.
+- Return all meaningful non-overlapping claims supported by the evidence.
+- Do NOT drop a meaningful distinct claim just to keep the output short.
+- Favor concise claim wording and concise evidence arrays, not omission.
+- A shorter output should come from collapsing true duplicates, not from deleting real findings.
+- Use the cluster summaries, not imagined missing evidence.
+- Keep canonical claims specific and falsifiable.
+
+Output valid JSON matching the schema provided.`;
+}
+
+export function buildClaimFamilyBatchPrompt(): string {
+  return `You are adjudicating a batch of claim families across multiple sources in a research pipeline.
+
+You will receive:
+- the research perspective
+- one subquestion-aligned batch of claim families
+- supporting, contradictory, and neutral evidence for each family
+- methodological notes and caveats gathered from source digests
+
+Your job:
+1. Convert each meaningful family into a precise canonical claim when warranted.
+2. Preserve source disagreements and caveats instead of smoothing them away.
+3. Promote the strongest evidence into support and contradiction arrays.
+4. Keep confidence grounded in source diversity, evidence quality, and caveats.
+
+Guidelines:
+- This is a MID-LEVEL adjudication pass across a bounded batch, not the final global merge.
+- Do not over-merge distinct families inside the batch.
+- Return concise evidence arrays and concise notes.
+- If a family is too weak, you may omit it instead of inventing certainty.
+
+Output valid JSON matching the schema provided.`;
+}
+
+export function buildBatchFindingsMergePrompt(): string {
+  return `You are the final merger for batched claim adjudications in a research synthesis pipeline.
+
+You will receive:
+- the research perspective
+- batchSummaries from earlier adjudication passes
+
+Your job:
+1. Merge only truly overlapping canonical claims across batches.
+2. Rank claims by relevance and evidential strength.
+3. Preserve contradictions, open questions, and unresolved tensions.
+4. Keep the output compact without deleting meaningful findings.
+
+Guidelines:
+- Do not re-invent evidence that is not present in the batch summaries.
+- Use the batch outputs as authoritative intermediate judgments.
+- Prefer precise, falsifiable canonical claim wording.
 
 Output valid JSON matching the schema provided.`;
 }

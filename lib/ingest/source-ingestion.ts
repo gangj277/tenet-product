@@ -3,19 +3,19 @@ import { readFile } from "fs/promises";
 import { blobStore } from "@/lib/storage/blob-store";
 import type {
   ParsedSource,
+  PdfParseAttempt,
   SourceEntry,
   SourceMetadata,
   SourceChunk,
 } from "@/lib/engine/state";
 import { memoryStore } from "@/lib/storage/memory-store";
-import { parsePDF } from "@/lib/pdf/gemini-extract";
+import { parsePdfWithFallbacks } from "@/lib/pdf/pdf-parse-orchestrator";
 import { chunkDocument } from "./chunk-document";
 import {
   estimateTokens,
   validateNormalizedDocument,
 } from "./document-quality";
 import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
-import { sleep } from "@/lib/utils/async";
 
 const PDF_PARSE_PRIMARY_MODEL = "google/gemini-2.5-flash-lite";
 const PDF_PARSE_FALLBACK_MODEL = "google/gemini-2.5-flash";
@@ -221,37 +221,22 @@ async function ingestPdfSource(params: {
 }): Promise<IngestedSource> {
   const { source, rawBuffer, metadata } = params;
   const filename = ensurePdfFilename(source.name);
+  const parsed = await parsePdfWithFallbacks(rawBuffer, filename, {
+    resolvedUrl: metadata.resolvedUrl,
+    primaryModel: PDF_PARSE_PRIMARY_MODEL,
+    fallbackModel: PDF_PARSE_FALLBACK_MODEL,
+  });
 
-  // Race primary parse with a 15s timeout — if slow or invalid, start fallback immediately
-  const primaryResult = await Promise.race([
-    parsePDF(rawBuffer, filename, { model: PDF_PARSE_PRIMARY_MODEL })
-      .then((r) => ({ ok: true as const, result: r }))
-      .catch(() => ({ ok: false as const, result: null })),
-    sleep(15_000).then(() => ({ ok: false as const, result: null })),
-  ]);
+  const parseMetadata: SourceMetadata = {
+    ...metadata,
+    parseEngine: parsed.parseEngine,
+    parseAttempts: parsed.parseAttempts,
+    parseQuality: parsed.parseQuality,
+    parseDiagnostics: parsed.attempts as PdfParseAttempt[],
+    parseStrategyVersion: "v2",
+  };
 
-  const primaryValidation = primaryResult.ok
-    ? validateNormalizedDocument(primaryResult.result!.text)
-    : { ok: false as const, reason: "Primary parse timed out or failed" };
-
-  let finalText = primaryResult.ok ? primaryResult.result!.text : "";
-  let parseEngine = PDF_PARSE_PRIMARY_MODEL;
-  let parseAttempts = 1;
-  let parseQuality: SourceMetadata["parseQuality"] = "validated";
-  let validation: { ok: boolean; reason?: string } = primaryValidation;
-
-  if (!primaryValidation.ok) {
-    const fallback = await parsePDF(rawBuffer, filename, {
-      model: PDF_PARSE_FALLBACK_MODEL,
-    });
-    parseAttempts = 2;
-    parseEngine = PDF_PARSE_FALLBACK_MODEL;
-    finalText = fallback.text;
-    validation = validateNormalizedDocument(fallback.text);
-    parseQuality = validation.ok ? "fallback_validated" : "rejected";
-  }
-
-  if (!validation.ok) {
+  if (!parsed.ok) {
     return {
       source: {
         ...source,
@@ -259,28 +244,20 @@ async function ingestPdfSource(params: {
         mimeType: "application/pdf",
         parseStatus: "failed",
         metadata: {
-          ...metadata,
-          parseEngine,
-          parseAttempts,
-          parseQuality: "rejected",
-          parseError: validation.reason,
+          ...parseMetadata,
+          parseError: parsed.parseError,
         },
       },
       sourceChunks: [],
-      warnings: validation.reason ? [validation.reason] : [],
+      warnings: parsed.parseError ? [parsed.parseError] : [],
     };
   }
 
   return buildNormalizedSource({
     source,
-    normalizedText: finalText,
+    normalizedText: parsed.text,
     mimeType: "application/pdf",
-    metadata: {
-      ...metadata,
-      parseEngine,
-      parseAttempts,
-      parseQuality,
-    },
+    metadata: parseMetadata,
   });
 }
 

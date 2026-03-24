@@ -61,9 +61,13 @@ export function buildSourceLookup(files: SourceRef[]): Map<string, string> {
     lookup.set(file.label.toLowerCase(), file.key);
   });
 
-  // Also register prefixed keys for papers and experiments so agent citations resolve
+  // Also register prefixed keys for notes, papers, and experiments so agent citations resolve
   for (const file of files) {
-    if (file.group === "paper" || file.group === "experiment") {
+    if (
+      file.group === "note" ||
+      file.group === "paper" ||
+      file.group === "experiment"
+    ) {
       lookup.set(file.key.toLowerCase(), file.key);
       lookup.set(file.label.toLowerCase(), file.key);
     }

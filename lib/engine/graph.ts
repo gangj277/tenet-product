@@ -11,13 +11,13 @@ import { consolidateFindings } from "./nodes/consolidate-findings";
 import { synthesizeProject } from "./nodes/synthesize-project";
 import { persistProject } from "./nodes/persist-project";
 
-// ── Route after intake: fail fast or continue ──
+// ── Route after each node: fail fast or continue ──
 
-function afterIntake(
-  state: typeof InitRunAnnotation.State
-): typeof END | "infer_user_perspective" {
-  if (state.status === "failed") return END;
-  return "infer_user_perspective";
+function continueOrEnd<T extends string>(nextNode: T) {
+  return (state: typeof InitRunAnnotation.State): typeof END | T => {
+    if (state.status === "failed") return END;
+    return nextNode;
+  };
 }
 
 // ── Build the graph ──
@@ -48,14 +48,38 @@ function buildInitGraph() {
 
     // Edges
     .addEdge(START, "intake_user_context")
-    .addConditionalEdges("intake_user_context", afterIntake)
-    .addEdge("infer_user_perspective", "confirm_inferred_brief")
-    .addEdge("confirm_inferred_brief", "plan_search_queries")
-    .addEdge("plan_search_queries", "build_source_set")
-    .addEdge("build_source_set", "classify_and_analyze")
-    .addEdge("classify_and_analyze", "consolidate_findings")
-    .addEdge("consolidate_findings", "synthesize_project")
-    .addEdge("synthesize_project", "persist_project")
+    .addConditionalEdges(
+      "intake_user_context",
+      continueOrEnd("infer_user_perspective")
+    )
+    .addConditionalEdges(
+      "infer_user_perspective",
+      continueOrEnd("confirm_inferred_brief")
+    )
+    .addConditionalEdges(
+      "confirm_inferred_brief",
+      continueOrEnd("plan_search_queries")
+    )
+    .addConditionalEdges(
+      "plan_search_queries",
+      continueOrEnd("build_source_set")
+    )
+    .addConditionalEdges(
+      "build_source_set",
+      continueOrEnd("classify_and_analyze")
+    )
+    .addConditionalEdges(
+      "classify_and_analyze",
+      continueOrEnd("consolidate_findings")
+    )
+    .addConditionalEdges(
+      "consolidate_findings",
+      continueOrEnd("synthesize_project")
+    )
+    .addConditionalEdges(
+      "synthesize_project",
+      continueOrEnd("persist_project")
+    )
     .addEdge("persist_project", END);
 
   const checkpointer = getInitGraphCheckpointer();

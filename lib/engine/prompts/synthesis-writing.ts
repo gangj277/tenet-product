@@ -1,85 +1,144 @@
 export function buildOverviewPrompt(): string {
-  return `You are writing the overview.md for a research project. This file orients the reader to what this project is about.
+  return `You are writing the overview.md artifact for a research project.
 
-You will receive JSON with: input (user's original question and intent), perspective (inferred research frame), and consolidatedFindings.
+Goal: orient the researcher in under 250 words.
 
-Write a markdown document that includes:
-1. The original research question
-2. The interpreted research objective
-3. The inferred research frame or working hypothesis under examination
-4. Scope boundaries
-5. Source inventory — list all sources with provenance (uploaded vs discovered)
+You will receive shared project JSON with:
+- input
+- perspective
+- consolidatedFindings
+- sourceBase
 
-Write in clear, professional research language. Do not use filler. Do not use emoji.
+Write concise markdown using EXACTLY these headings:
+# Overview
+## In Brief
+## Frame
+## Scope
+## Source Base
+
+Rules:
+- Be compact, direct, and readable on first pass.
+- Prefer 1 short paragraph per section.
+- In "Source Base", summarize the corpus by counts and provenance. Do NOT list every source.
+- Mention only the most decision-relevant claim headlines.
+- Do not use filler, throat-clearing, or emoji.
+
 Output ONLY the markdown content. No JSON wrapper.`;
 }
 
 export function buildSynthesisPrompt(): string {
-  return `You are writing the synthesis.md for a research project. This is THE most important artifact — it is a deliberate research memo, not a summary.
+  return `You are writing the synthesis.md artifact for a research project.
 
-You will receive JSON with: input (user's original question), perspective (inferred research frame), and consolidatedFindings (ranked evidence, contradictions, open questions).
+Goal: deliver reasoned judgment quickly without overwhelming the researcher.
 
-Write a markdown research memo that:
-1. Opens by stating the research question and the frame being tested
-2. Presents the STRONGEST evidence FOR the frame — with specific citations [Source: filename, section/page]
-3. Presents the STRONGEST evidence AGAINST the frame — with specific citations
-4. Addresses unresolved tensions and disagreements between sources
-5. Notes methodological cautions that materially affect confidence
-6. Ends with a calibrated bottom-line takeaway that does NOT overclaim
+You will receive shared project JSON with:
+- input
+- perspective
+- consolidatedFindings
+- sourceBase
 
-CRITICAL RULES:
-- Every substantive claim must cite a specific source using [Source: filename, section/page]
-- Do NOT hide contradictions behind smooth prose
-- Do NOT produce a balanced-sounding summary that avoids stating what the evidence actually suggests
-- Thin or conflicting evidence must produce explicit uncertainty, not fake confidence
-- This should read like reasoned judgment over evidence, not stitched source summaries
-- Write for a researcher who needs to understand the state of evidence quickly
+Write concise markdown using EXACTLY these headings:
+# Synthesis
+## Bottom Line
+## What Supports It
+## What Weakens It
+## What Remains Unresolved
+## Confidence
+
+Rules:
+- Keep the full document under about 1,200 words.
+- Write for a researcher who needs the answer quickly.
+- The Bottom Line should be 2 short paragraphs max.
+- Use bullets in the evidence sections. Max 4 bullets per section.
+- Each bullet should be 2-4 sentences and should synthesize evidence, not dump notes.
+- Every substantive claim must cite a specific source using [Source: filename, section/page].
+- Do NOT hide contradictions behind smooth prose.
+- Do NOT overclaim when evidence is thin, indirect, or conflicting.
+- Do NOT repeat the same point across sections.
 
 Output ONLY the markdown content. No JSON wrapper.`;
 }
 
 export function buildClaimsPrompt(): string {
-  return `You are writing the claims.md for a research project. This file catalogs the major claims found across sources.
+  return `You are writing the claims.md artifact for a research project.
 
-You will receive JSON with consolidated findings including canonical claims.
+This file is a complete distinct claims inventory, not a top-N highlight list.
 
-Write a markdown document that presents each major claim with:
-- The claim statement
-- Supporting sources (with [Source: filename] citations)
-- Contradicting sources if any
-- Confidence assessment (high/medium/low with brief justification)
+You will receive shared project JSON with:
+- input
+- perspective
+- consolidatedFindings
+- sourceBase
 
-Organize claims from strongest to weakest evidence. Use a consistent structure for each claim.
+Write concise markdown using this structure:
+# Key Claims
+
+Then repeat this compact pattern for each claim:
+## Claim N
+**Claim:** one-sentence claim statement
+**Evidence:** one short line summarizing strongest support with citations
+**Limitation:** one short line summarizing contradiction or caveat with citations, if present
+**Confidence:** high/medium/low with one brief reason
+
+Rules:
+- Include all meaningful non-overlapping canonical claims.
+- Do not drop a meaningful claim just to stay concise.
+- Keep entries terse by collapsing true duplicates and compressing phrasing.
+- Order claims by decision relevance and evidence strength.
+- Do not repeat near-identical evidence across claims.
+- Every evidence or limitation line must cite sources using [Source: filename, section/page] or [Source: filename].
+
 Output ONLY the markdown content. No JSON wrapper.`;
 }
 
 export function buildGapsPrompt(): string {
-  return `You are writing the gaps.md for a research project. This file makes uncertainty actionable.
+  return `You are writing the gaps.md artifact for a research project.
 
-You will receive JSON with consolidated findings including open questions, contradictions, and confidence notes.
+Goal: turn uncertainty into a short action map.
 
-Write a markdown document that includes:
-1. Unresolved questions — what the evidence does not settle
-2. Contradictions — where sources directly disagree
-3. Weak evidence areas — claims that rely on thin or low-quality evidence
-4. What would change confidence — specific evidence or studies that would materially affect the synthesis
+You will receive shared project JSON with:
+- input
+- perspective
+- consolidatedFindings
+- sourceBase
 
-Make uncertainty actionable, not just disclaimed. The researcher should know exactly where the gaps are and what would fill them.
+Write concise markdown using EXACTLY these headings:
+# Gaps
+## What The Evidence Does Not Settle
+## Where Evidence Is Thin
+## What Would Change The Answer
+
+Rules:
+- Use bullets, not long paragraphs.
+- Max 5 bullets per section.
+- Each bullet should be concrete and actionable.
+- Do not repeat the same uncertainty in multiple sections.
+
 Output ONLY the markdown content. No JSON wrapper.`;
 }
 
 export function buildNextStepsPrompt(): string {
-  return `You are writing the next-steps.md for a research project. This file tells the researcher what to do next.
+  return `You are writing the next-steps.md artifact for a research project.
 
-You will receive JSON with the full project context (input, perspective, findings, gaps).
+Goal: leave the researcher with a short, prioritized action list.
 
-Write a markdown document that includes:
-1. Concrete follow-up research directions (specific, not vague)
-2. Promising hypothesis refinements based on what the evidence suggests
-3. Questions worth exploring in the project's agent chat
-4. Specific papers, datasets, or methods worth investigating next
+You will receive shared project JSON with:
+- input
+- perspective
+- consolidatedFindings
+- sourceBase
 
-The researcher should feel directed, not finished. Each suggestion should be specific enough to act on.
+Write concise markdown using EXACTLY these headings:
+# Next Steps
+
+Then produce 4-6 concrete next actions.
+
+Rules:
+- Each action should have a short title plus 1-2 sentences of rationale.
+- Prefer high-leverage follow-ups over generic advice.
+- Turn uncertainty into specific research actions, hypothesis refinements, source searches, or evaluation tasks.
+- Keep the document direct and skimmable.
+
 Output ONLY the markdown content. No JSON wrapper.`;
 }
 

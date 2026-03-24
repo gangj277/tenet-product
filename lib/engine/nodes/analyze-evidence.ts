@@ -6,52 +6,115 @@ import type {
   ParsedSource,
   RunError,
   SourceChunk,
+  SourceDigest,
 } from "../state";
-import { callLLMJson } from "@/lib/llm/openrouter";
+import { callLLMJson } from "@/lib/llm/runtime";
 import { MODEL_LITE } from "@/lib/llm/models";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { blobStore } from "@/lib/storage/blob-store";
 import { allSettledWithConcurrency } from "@/lib/utils/async";
+import {
+  buildEvidenceMapFromSourceDigests,
+  buildSourceWindows,
+  normalizeSourceDigest,
+  shouldDigestWholeSource,
+} from "../digestion/source-digests";
+import {
+  buildSourceDigestMergePrompt,
+  buildSourceDigestPrompt,
+  buildSourceWindowNotesPrompt,
+} from "../prompts/source-digestion";
 
-const MAX_CONCURRENT_CHUNK_EXTRACTIONS = 30;
+const MAX_CONCURRENT_SOURCE_DIGESTS = 12;
+const MAX_CONCURRENT_SOURCE_WINDOWS = 8;
 
-const CHUNK_EVIDENCE_SCHEMA = {
-  name: "chunk_evidence_items",
+const CITATION_SCHEMA = {
+  type: "object",
+  properties: {
+    location: { type: "string" },
+    quote: { type: "string" },
+  },
+  required: ["location"],
+  additionalProperties: false,
+} as const;
+
+const DIGEST_CLAIM_SCHEMA = {
+  type: "object",
+  properties: {
+    claimSignature: { type: "string" },
+    claim: { type: "string" },
+    subquestion: { type: "string" },
+    stance: {
+      type: "string",
+      enum: ["supporting", "contradictory", "neutral"],
+    },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    citations: {
+      type: "array",
+      items: CITATION_SCHEMA,
+    },
+    caveats: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+  required: [
+    "claimSignature",
+    "claim",
+    "confidence",
+    "stance",
+    "citations",
+    "caveats",
+  ],
+  additionalProperties: false,
+} as const;
+
+const DIGEST_METHOD_NOTE_SCHEMA = {
+  type: "object",
+  properties: {
+    note: { type: "string" },
+    confidence: { type: "string", enum: ["high", "medium", "low"] },
+    citations: {
+      type: "array",
+      items: CITATION_SCHEMA,
+    },
+  },
+  required: ["note", "confidence", "citations"],
+  additionalProperties: false,
+} as const;
+
+const SOURCE_DIGEST_SCHEMA = {
+  name: "source_digest",
   schema: {
     type: "object",
     properties: {
-      items: {
+      sourceSummary: { type: "string" },
+      claims: {
         type: "array",
-        items: {
-          type: "object",
-          properties: {
-            claim: { type: "string" },
-            sourceId: { type: "string" },
-            sourceName: { type: "string" },
-            location: { type: "string" },
-            confidence: { type: "string", enum: ["high", "medium", "low"] },
-            quote: { type: "string" },
-            evidenceType: {
-              type: "string",
-              enum: ["supporting", "contradictory", "methodological", "neutral"],
-            },
-          },
-          required: [
-            "claim",
-            "sourceId",
-            "sourceName",
-            "location",
-            "confidence",
-            "quote",
-            "evidenceType",
-          ],
-          additionalProperties: false,
-        },
+        items: DIGEST_CLAIM_SCHEMA,
+      },
+      methodologicalNotes: {
+        type: "array",
+        items: DIGEST_METHOD_NOTE_SCHEMA,
+      },
+      openQuestions: {
+        type: "array",
+        items: { type: "string" },
       },
     },
-    required: ["items"],
+    required: ["sourceSummary", "claims", "methodologicalNotes", "openQuestions"],
     additionalProperties: false,
   },
+} as const;
+
+const SOURCE_WINDOW_NOTES_SCHEMA = {
+  ...SOURCE_DIGEST_SCHEMA,
+  name: "source_window_notes",
+} as const;
+
+const SOURCE_DIGEST_MERGE_SCHEMA = {
+  ...SOURCE_DIGEST_SCHEMA,
+  name: "source_digest_merge",
 } as const;
 
 export async function analyzeEvidence(
@@ -59,12 +122,12 @@ export async function analyzeEvidence(
 ): Promise<InitRunUpdate> {
   const { runId, perspective, parsedSources, sourceChunks } = state;
 
-  if (!perspective || !parsedSources?.length || !sourceChunks?.length) {
+  if (!perspective || !parsedSources?.length) {
     return {
       errors: [
         {
           step: "analyze_evidence",
-          message: "Missing perspective, parsed sources, or source chunks",
+          message: "Missing perspective or parsed sources",
           retryable: false,
           timestamp: new Date().toISOString(),
         },
@@ -73,56 +136,55 @@ export async function analyzeEvidence(
   }
 
   const parsedSourceMap = new Map(parsedSources.map((source) => [source.sourceId, source]));
-  const chunksToAnalyze = sourceChunks.filter((chunk) =>
+  const chunksToAnalyze = (sourceChunks ?? []).filter((chunk) =>
     parsedSourceMap.has(chunk.sourceId)
   );
 
-  if (chunksToAnalyze.length === 0) {
-    return {
-      errors: [
-        {
-          step: "analyze_evidence",
-          message: "No analyzed chunks were available after source ingestion",
-          retryable: false,
-          timestamp: new Date().toISOString(),
-        },
-      ],
-    };
-  }
-
   memoryStore.updateProgress(runId, "analyze_evidence", {
     status: "running",
-    detail: `Extracting evidence from ${chunksToAnalyze.length} bounded chunks across ${parsedSources.length} sources...`,
+    detail: `Digesting ${parsedSources.length} sources into source-level claims...`,
   });
 
   const perspectiveJson = JSON.stringify(perspective, null, 2);
 
   const errors: RunError[] = [];
+  const chunksBySource = new Map<string, SourceChunk[]>();
+  for (const chunk of chunksToAnalyze) {
+    const bucket = chunksBySource.get(chunk.sourceId) ?? [];
+    bucket.push(chunk);
+    chunksBySource.set(chunk.sourceId, bucket);
+  }
+
   const settled = await allSettledWithConcurrency(
-    chunksToAnalyze,
-    MAX_CONCURRENT_CHUNK_EXTRACTIONS,
-    async (chunk) => analyzeChunk(chunk, parsedSourceMap.get(chunk.sourceId)!, perspectiveJson)
+    parsedSources,
+    MAX_CONCURRENT_SOURCE_DIGESTS,
+    async (parsedSource) =>
+      digestSource(
+        parsedSource,
+        chunksBySource.get(parsedSource.sourceId) ?? [],
+        perspectiveJson
+      )
   );
 
-  const extractedItems: EvidenceItem[] = [];
+  const sourceDigests: SourceDigest[] = [];
   for (const result of settled) {
     if (result.status === "fulfilled") {
-      extractedItems.push(...result.value);
+      sourceDigests.push(result.value);
       continue;
     }
 
     errors.push({
       step: "analyze_evidence",
-      message: (result.reason as Error)?.message ?? "Chunk extraction failed",
+      message: (result.reason as Error)?.message ?? "Source digestion failed",
       retryable: true,
       timestamp: new Date().toISOString(),
     });
   }
 
-  if (extractedItems.length === 0) {
+  if (sourceDigests.length === 0) {
     memoryStore.updateProgress(runId, "analyze_evidence", {
       status: "failed",
-      detail: "Every chunk extraction failed",
+      detail: "Every source digestion failed",
     });
 
     return {
@@ -131,7 +193,7 @@ export async function analyzeEvidence(
       errors: [
         {
           step: "analyze_evidence",
-          message: "No evidence could be extracted from the parsed chunks",
+          message: "No source digests could be produced from the parsed sources",
           retryable: true,
           timestamp: new Date().toISOString(),
         },
@@ -140,92 +202,131 @@ export async function analyzeEvidence(
     };
   }
 
-  const reducedBySource = new Map<string, EvidenceItem[]>();
-  for (const chunk of chunksToAnalyze) {
-    const itemsForSource = extractedItems.filter((item) => item.sourceId === chunk.sourceId);
-    if (itemsForSource.length === 0) continue;
-    reducedBySource.set(chunk.sourceId, dedupeEvidence(itemsForSource));
-  }
-
-  const reducedItems = Array.from(reducedBySource.values()).flat();
-  const evidenceMap: EvidenceMap = {
-    supportingEvidence: reducedItems.filter((item) => item.evidenceType === "supporting"),
-    contradictoryEvidence: reducedItems.filter(
-      (item) => item.evidenceType === "contradictory"
-    ),
-    strongClaims: reducedItems.filter((item) => item.confidence === "high"),
-    uncertainties: reducedItems.filter(
-      (item) => item.confidence === "low" || item.evidenceType === "neutral"
-    ),
-    methodologicalCautions: reducedItems.filter(
-      (item) => item.evidenceType === "methodological"
-    ),
-    personaFindings: Object.fromEntries(reducedBySource),
-  };
+  const evidenceMap = buildEvidenceMapFromSourceDigests(sourceDigests);
+  const reducedItems = Object.values(evidenceMap.personaFindings).flat();
 
   memoryStore.updateProgress(runId, "analyze_evidence", {
     status: "completed",
-    detail: `${reducedItems.length} reduced evidence items extracted from ${chunksToAnalyze.length} chunks`,
+    detail: `${sourceDigests.length} source digests produced with ${reducedItems.length} reusable evidence items`,
   });
 
   return {
+    sourceDigests,
     evidenceMap,
     currentStep: "analyze_evidence",
     errors,
   };
 }
 
-async function analyzeChunk(
-  chunk: SourceChunk,
+async function digestSource(
   parsedSource: ParsedSource,
+  sourceChunks: SourceChunk[],
   perspectiveJson: string
-): Promise<EvidenceItem[]> {
-  const chunkText = await blobStore.getText(chunk.blobKey);
+): Promise<SourceDigest> {
+  if (shouldDigestWholeSource(parsedSource) || sourceChunks.length === 0) {
+    const sourceText = await blobStore.getText(parsedSource.normalizedBlobKey);
+    const { data } = await callLLMJson<Omit<SourceDigest, "sourceId" | "sourceName">>({
+      model: MODEL_LITE,
+      messages: [
+        { role: "system", content: buildSourceDigestPrompt() },
+        {
+          role: "user",
+          content: JSON.stringify(
+            {
+              sourceId: parsedSource.sourceId,
+              sourceName: parsedSource.name,
+              perspective: JSON.parse(perspectiveJson) as unknown,
+              sourceText,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+      temperature: 0.1,
+      maxTokens: 4096,
+      jsonSchema: SOURCE_DIGEST_SCHEMA,
+    });
 
-  const { data } = await callLLMJson<{ items: EvidenceItem[] }>({
+    return normalizeSourceDigest(data, parsedSource);
+  }
+
+  const chunkTexts = new Map(
+    await Promise.all(
+      sourceChunks.map(async (chunk) => [chunk.blobKey, await blobStore.getText(chunk.blobKey)] as const)
+    )
+  );
+  const windows = buildSourceWindows({ parsedSource, sourceChunks, chunkTexts });
+
+  const notesSettled = await allSettledWithConcurrency(
+    windows,
+    MAX_CONCURRENT_SOURCE_WINDOWS,
+    async (window) => {
+      const { data } = await callLLMJson<Omit<SourceDigest, "sourceId" | "sourceName">>({
+        model: MODEL_LITE,
+        messages: [
+          { role: "system", content: buildSourceWindowNotesPrompt() },
+          {
+            role: "user",
+            content: JSON.stringify(
+              {
+                sourceId: parsedSource.sourceId,
+                sourceName: parsedSource.name,
+                perspective: JSON.parse(perspectiveJson) as unknown,
+                windowIndex: window.windowIndex,
+                headingPath: window.headingPath,
+                chunkIndexes: window.chunkIndexes,
+                windowText: window.text,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+        temperature: 0.1,
+        maxTokens: 3072,
+        jsonSchema: SOURCE_WINDOW_NOTES_SCHEMA,
+      });
+
+      return data;
+    }
+  );
+
+  const windowNotes: Array<Omit<SourceDigest, "sourceId" | "sourceName">> = [];
+  for (const result of notesSettled) {
+    if (result.status === "fulfilled") {
+      windowNotes.push(result.value);
+    }
+  }
+
+  if (windowNotes.length === 0) {
+    throw new Error(`No source windows could be digested for ${parsedSource.name}`);
+  }
+
+  const { data } = await callLLMJson<Omit<SourceDigest, "sourceId" | "sourceName">>({
     model: MODEL_LITE,
     messages: [
-      {
-        role: "system",
-        content: buildChunkExtractionPrompt(parsedSource.name, chunk.headingPath, perspectiveJson),
-      },
+      { role: "system", content: buildSourceDigestMergePrompt() },
       {
         role: "user",
         content: JSON.stringify(
           {
-            sourceName: parsedSource.name,
             sourceId: parsedSource.sourceId,
-            headingPath: chunk.headingPath,
-            chunkIndex: chunk.chunkIndex,
-            chunkText,
+            sourceName: parsedSource.name,
+            perspective: JSON.parse(perspectiveJson) as unknown,
+            windowNotes,
           },
           null,
           2
         ),
       },
     ],
-    temperature: 0.2,
-    maxTokens: 2048,
-    jsonSchema: CHUNK_EVIDENCE_SCHEMA,
+    temperature: 0.1,
+    maxTokens: 4096,
+    jsonSchema: SOURCE_DIGEST_MERGE_SCHEMA,
   });
 
-  return normalizeEvidenceItems(data.items ?? [], chunk, parsedSource);
-}
-
-function normalizeEvidenceItems(
-  items: EvidenceItem[],
-  chunk: SourceChunk,
-  parsedSource: ParsedSource
-): EvidenceItem[] {
-  return items.map((item) => ({
-    claim: item.claim.trim(),
-    sourceId: parsedSource.sourceId,
-    sourceName: parsedSource.name,
-    location: item.location?.trim() || chunk.headingPath || `Chunk ${chunk.chunkIndex + 1}`,
-    confidence: item.confidence ?? "medium",
-    evidenceType: item.evidenceType ?? "neutral",
-    quote: item.quote?.trim() || undefined,
-  }));
+  return normalizeSourceDigest(data, parsedSource);
 }
 
 function dedupeEvidence(items: EvidenceItem[]): EvidenceItem[] {
@@ -246,34 +347,4 @@ function dedupeEvidence(items: EvidenceItem[]): EvidenceItem[] {
   }
 
   return reduced;
-}
-
-function buildChunkExtractionPrompt(
-  sourceName: string,
-  headingPath: string,
-  perspectiveSummary: string
-) {
-  return `You extract atomic evidence items from a single research-document chunk.
-
-Return only evidence grounded in the provided chunk. Do not invent or generalize beyond the text.
-
-Classify each item as one of:
-- supporting — evidence that supports a hypothesis, claim, or trend relevant to the research question
-- contradictory — evidence that undermines, qualifies, or opposes a claim
-- methodological — observations about research methods, sample sizes, study design, or data quality
-- neutral — factual context, definitions, or background that informs but doesn't directly argue for/against
-
-EXTRACTION GUIDELINES:
-- Extract 3-8 items per chunk. Err on the side of capturing MORE distinct claims rather than fewer.
-- Each item should represent a DISTINCT atomic claim — do not merge separate findings into one.
-- A single paragraph may contain multiple extractable claims (e.g., a result AND its effect size AND a caveat).
-- Quantitative data (numbers, percentages, p-values, effect sizes) should always be extracted as separate items.
-- Preserve the exact language from the chunk for quotes whenever possible.
-- Do not skip evidence just because it seems minor — downstream consolidation will handle ranking.
-
-Research perspective:
-${perspectiveSummary}
-
-Current source: ${sourceName}
-Current section: ${headingPath}`;
 }

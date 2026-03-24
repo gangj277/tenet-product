@@ -1,7 +1,12 @@
 "use client";
 
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from "react";
-import type { ChatMessage, FileEntry, SessionSummary } from "../../_lib/workspace-types";
+import type {
+  ChatMessage,
+  ChatUsageState,
+  FileEntry,
+  SessionSummary,
+} from "../../_lib/workspace-types";
 import type { LineRange, SourceRef } from "../../../_lib/citation-utils";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import { ChatMessageBubble } from "./message/chat-message";
@@ -15,6 +20,18 @@ const SUGGESTED_PROMPTS = [
   "Find contradictions across sources",
   "Suggest follow-up research",
 ];
+
+const CHAT_AUTO_SCROLL_THRESHOLD_PX = 48;
+
+export function isChatScrolledNearBottom(metrics: {
+  scrollTop: number;
+  clientHeight: number;
+  scrollHeight: number;
+}): boolean {
+  const distanceFromBottom =
+    metrics.scrollHeight - metrics.clientHeight - metrics.scrollTop;
+  return distanceFromBottom <= CHAT_AUTO_SCROLL_THRESHOLD_PX;
+}
 
 function CollapsedRail({ onToggle }: { onToggle: () => void }) {
   return (
@@ -36,10 +53,12 @@ function ChatHeader({
   onToggle,
   onToggleHistory,
   onNewSession,
+  usage,
 }: {
   onToggle: () => void;
   onToggleHistory: () => void;
   onNewSession: () => void;
+  usage: ChatUsageState;
 }) {
   return (
     <div className="flex items-center justify-between px-4 py-2.5 border-b border-edge/30 flex-shrink-0">
@@ -57,7 +76,8 @@ function ChatHeader({
           </span>
         </div>
       </div>
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1.5">
+        <ChatUsageIndicator usage={usage} />
         <button
           onClick={onToggleHistory}
           className="w-7 h-7 flex items-center justify-center rounded-md hover:bg-page text-dim hover:text-sub transition-colors cursor-pointer"
@@ -85,6 +105,97 @@ function ChatHeader({
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
           </svg>
         </button>
+      </div>
+    </div>
+  );
+}
+
+function formatCompactTimestamp(value?: number) {
+  if (!value || Number.isNaN(value)) return "Never";
+  return new Date(value).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+export function ChatUsageIndicator({
+  usage,
+}: {
+  usage: ChatUsageState;
+}) {
+  const percent = Math.max(
+    0,
+    Math.min(
+      100,
+      Math.round(
+        (usage.estimatedLiveContextTokens / usage.compactionThresholdTokens) * 100
+      )
+    )
+  );
+  const statusLabel =
+    usage.compactionStatus === "compacting"
+      ? "Compacting context"
+      : usage.compactionStatus === "recently_compacted"
+        ? "Recently compacted"
+        : usage.compactionStatus === "near_limit"
+          ? "Near limit"
+          : "Context healthy";
+  const ringColor =
+    usage.compactionStatus === "compacting"
+      ? "text-accent"
+      : usage.compactionStatus === "recently_compacted"
+        ? "text-emerald-400"
+        : usage.compactionStatus === "near_limit"
+          ? "text-amber-300"
+          : "text-dim";
+
+  return (
+    <div className="group relative">
+      <div
+        aria-label={`Context usage ${percent}%`}
+        className={`relative flex h-7 w-7 items-center justify-center rounded-full border border-edge/35 bg-page/50 ${ringColor}`}
+      >
+        <svg
+          className={`h-5 w-5 ${usage.compactionStatus === "compacting" ? "activity-spinner" : ""}`}
+          viewBox="0 0 24 24"
+          fill="none"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            className="opacity-15"
+          />
+          <circle
+            cx="12"
+            cy="12"
+            r="9"
+            stroke="currentColor"
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeDasharray={`${percent * 0.565} 999`}
+            transform="rotate(-90 12 12)"
+            className={
+              usage.compactionStatus === "recently_compacted"
+                ? "opacity-95"
+                : "opacity-80"
+            }
+          />
+        </svg>
+      </div>
+      <div className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-52 rounded-xl border border-edge/35 bg-panel/95 px-3 py-2.5 text-[11px] text-sub opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+        <div className="flex items-center justify-between gap-3">
+          <span className="font-medium text-heading">{statusLabel}</span>
+          <span className="font-mono tabular-nums text-dim">{percent}%</span>
+        </div>
+        <div className="mt-1.5 text-dim">
+          ~{usage.estimatedLiveContextTokens.toLocaleString()} / {usage.compactionThresholdTokens.toLocaleString()}
+        </div>
+        <div className="mt-1 text-mute">
+          Last compacted: {formatCompactTimestamp(usage.lastCompactedAt)}
+        </div>
       </div>
     </div>
   );
@@ -243,6 +354,7 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onDeleteSession: (id: string) => void;
   onRenameSession: (id: string, title: string) => void;
   files: FileEntry[];
+  folderPaths: string[];
   onNavigateSource?: (sourceKey: string, lineRange?: LineRange) => void;
   searchFilters?: SearchFilterConfig;
   onSearchFiltersChange?: (filters: SearchFilterConfig) => void;
@@ -251,6 +363,7 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onAutoAcceptEditsChange?: () => void;
   activeTaskPlan?: import("@/lib/agent/state").TaskState[] | null;
   onDismissTaskPlan?: () => void;
+  usage: ChatUsageState;
 }>(function AgentChat({
   messages,
   agentTyping,
@@ -272,6 +385,7 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onDeleteSession,
   onRenameSession,
   files,
+  folderPaths,
   onNavigateSource,
   searchFilters,
   onSearchFiltersChange,
@@ -280,9 +394,11 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
   onAutoAcceptEditsChange,
   activeTaskPlan,
   onDismissTaskPlan,
+  usage,
 }, ref) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<ChatComposerHandle>(null);
+  const stickToBottomRef = useRef(true);
 
   useImperativeHandle(ref, () => ({
     injectQuotedContext: (text: string, sourceLabel: string) => {
@@ -295,10 +411,20 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
     [files]
   );
 
+  const updateStickToBottom = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    stickToBottomRef.current = isChatScrolledNearBottom({
+      scrollTop: el.scrollTop,
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+    });
+  };
+
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
+    const el = scrollRef.current;
+    if (!el || !stickToBottomRef.current) return;
+    el.scrollTop = el.scrollHeight;
   }, [messages, agentTyping]);
 
   if (collapsed) {
@@ -328,13 +454,14 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
         onToggle={onToggle}
         onToggleHistory={onToggleHistory}
         onNewSession={onNewSession}
+        usage={usage}
       />
 
-      {activeTaskPlan && activeTaskPlan.length > 0 && onDismissTaskPlan && (
-        <TaskPlanPanel tasks={activeTaskPlan} onDismiss={onDismissTaskPlan} />
-      )}
-
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-4 space-y-4">
+      <div
+        ref={scrollRef}
+        onScroll={updateStickToBottom}
+        className="flex-1 overflow-y-auto px-3 py-4 space-y-4"
+      >
         {isEmpty && <EmptyState onSuggestion={(text) => onSend(text)} />}
 
         {messages.map((msg) => (
@@ -365,10 +492,15 @@ export const AgentChat = forwardRef<ChatComposerHandle, {
         )}
       </div>
 
+      {activeTaskPlan && activeTaskPlan.length > 0 && onDismissTaskPlan && (
+        <TaskPlanPanel tasks={activeTaskPlan} onDismiss={onDismissTaskPlan} />
+      )}
+
       <ChatComposer
         ref={composerRef}
         agentTyping={agentTyping}
         files={files}
+        folderPaths={folderPaths}
         onSend={onSend}
         searchFilters={searchFilters}
         onSearchFiltersChange={onSearchFiltersChange}

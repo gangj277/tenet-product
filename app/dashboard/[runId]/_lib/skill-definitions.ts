@@ -12,6 +12,12 @@ export interface SkillInfo {
 
 export const SKILL_LIST: SkillInfo[] = [
   {
+    id: "compact-context",
+    name: "Compact Context",
+    slash: "/compact",
+    description: "Shrink the saved chat context so the agent can keep working",
+  },
+  {
     id: "devils-advocate",
     name: "Devil's Advocate",
     slash: "/challenge",

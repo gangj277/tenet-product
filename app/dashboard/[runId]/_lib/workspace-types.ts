@@ -2,7 +2,13 @@ import type { Artifacts } from "@/lib/engine/state";
 import type { DiscoveredSource } from "@/lib/discovery/scholarly-search";
 import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
 import type { ExperimentMeta, NoteMeta, SourceMeta } from "@/lib/db/research-projects";
-import type { AskUserQuestion } from "@/lib/agent/state";
+import type {
+  AskUserQuestion,
+  CompactionSnapshot,
+  TaskState,
+  TokenUsage,
+} from "@/lib/agent/state";
+import type { AgentProcessStep } from "./agent-process-trace";
 
 export interface FileEntry {
   key: string;
@@ -33,6 +39,7 @@ export interface ProposedUpdate {
   type: "edit" | "new";
   key: string;
   label?: string;
+  folder?: string;
   content: string;
   summary: string;
   status: "pending" | "accepted" | "rejected";
@@ -61,6 +68,19 @@ export interface ChatMessage {
   searchResults?: DiscoveredSource[];
   attachments?: ChatAttachmentInfo[];
   askUserQuestion?: ChatAskUserQuestion;
+  taskPlan?: TaskState[];
+  processTrace?: AgentProcessStep[];
+  activatedSkills?: string[];
+  compactionSnapshot?: CompactionSnapshot;
+  providerUsage?: TokenUsage;
+}
+
+export interface ChatUsageState {
+  estimatedLiveContextTokens: number;
+  compactionThresholdTokens: number;
+  compactionStatus: "idle" | "near_limit" | "compacting" | "recently_compacted";
+  lastCompactedAt?: number;
+  lastInferenceUsage?: TokenUsage;
 }
 
 export interface SessionSummary {
@@ -201,6 +221,48 @@ export function buildFileList(
   return files;
 }
 
+export function expandFolderPath(folderPath: string): string[] {
+  const segments = folderPath
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  const expanded: string[] = [];
+  let current = "";
+  for (const segment of segments) {
+    current = current ? `${current}/${segment}` : segment;
+    expanded.push(current);
+  }
+
+  return expanded;
+}
+
+export function collectFolderPaths(
+  files: FileEntry[],
+  extraPaths?: Iterable<string>
+): string[] {
+  const seen = new Set<string>();
+
+  function addPath(path?: string | null) {
+    if (!path) return;
+    for (const expanded of expandFolderPath(path)) {
+      seen.add(expanded);
+    }
+  }
+
+  for (const file of files) {
+    addPath(file.folder);
+  }
+
+  if (extraPaths) {
+    for (const path of extraPaths) {
+      addPath(path);
+    }
+  }
+
+  return Array.from(seen).sort((a, b) => a.localeCompare(b));
+}
+
 export interface PendingUpdateContext {
   messageId: string;
   update: ProposedUpdate;
@@ -242,4 +304,15 @@ export function getArtifactContent(
     return artifacts.sources?.[sourceKey] ?? "";
   }
   return (artifacts[fileKey as keyof Artifacts] as string) ?? "";
+}
+
+export function resolveActiveFileKey(
+  files: FileEntry[],
+  currentKey: string
+): string {
+  if (currentKey && files.some((file) => file.key === currentKey)) {
+    return currentKey;
+  }
+
+  return files[0]?.key ?? "";
 }

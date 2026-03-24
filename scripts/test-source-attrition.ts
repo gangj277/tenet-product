@@ -1,286 +1,363 @@
 /**
- * Source attrition diagnostic — traces where sources are lost between discovery and parsing.
+ * Source attrition diagnostic — exercises the real source-ingestion path under
+ * the connected OpenAI-auth provider and reports where papers fail.
  *
  * Usage:
  *   npx tsx scripts/test-source-attrition.ts
- *   npx tsx scripts/test-source-attrition.ts "your custom research query"
+ *   npx tsx scripts/test-source-attrition.ts --query "retrieval augmented generation factual accuracy"
+ *   npx tsx scripts/test-source-attrition.ts --url https://arxiv.org/pdf/2312.10997.pdf
+ *   npx tsx scripts/test-source-attrition.ts --user-id <uuid> --limit 10 --concurrency 2
  */
 
+import fs from "node:fs";
+import path from "node:path";
+import { desc, eq } from "drizzle-orm";
 import {
-  discoverScholarlySources,
-  type ScholarlyDiscoveredSource,
-} from "../lib/discovery/scholarly-search";
-import {
-  fetchSourceBytes,
-  sniffMimeType,
-  extractHtmlText,
-  type SourceFetchResult,
-} from "../lib/ingest/source-ingestion";
-import { validateNormalizedDocument } from "../lib/ingest/document-quality";
-import { parsePDF } from "../lib/pdf/gemini-extract";
-
-// ── Config ──────────────────────────────────────────────────────────
+  buildSourceAttritionReport,
+  classifyFailurePhase,
+  type AttritionReport,
+  type FetchAttempt,
+  type SourceDiagnostic,
+} from "@/lib/diagnostics/source-attrition-report";
 
 const DEFAULT_QUERY =
   "retrieval augmented generation hallucination reduction enterprise";
-const NUM_RESULTS = 15;
-const QUERY_VARIATIONS = [
+const DEFAULT_LIMIT = 15;
+const DEFAULT_CONCURRENCY = 2;
+const DEFAULT_QUERY_VARIATIONS = [
   "RAG grounding factual accuracy LLM",
   "enterprise support copilot retrieval quality",
 ];
 
-// ── Types ───────────────────────────────────────────────────────────
+interface CliOptions {
+  query: string;
+  limit: number;
+  concurrency: number;
+  userId?: string;
+  urls: string[];
+  outputPath: string;
+}
 
-interface SourceDiagnostic {
-  index: number;
+interface InputSource {
   title: string;
   url: string;
   pdfUrl?: string;
   providers: string[];
-
-  // Phase 1: fetch
-  fetchAttempts: FetchAttempt[];
-  fetchStatus: "ok" | "failed";
-  fetchedUrl?: string;
-  fetchedContentType?: string;
-  fetchedBytes?: number;
-
-  // Phase 2: MIME detection
-  sniffedMime?: string;
-
-  // Phase 3: parse / extract
-  extractedTextLength?: number;
-  extractedTextPreview?: string;
-
-  // Phase 4: validation
-  validationResult?: { ok: boolean; reason?: string; estimatedTokens: number };
-
-  // Phase 5: PDF parse (if applicable)
-  pdfParseStatus?: "ok" | "failed" | "skipped";
-  pdfParseError?: string;
-  pdfParsedTextLength?: number;
-
-  // Final
-  finalStatus: "parsed" | "failed";
-  failureReason?: string;
-  failurePhase?: "fetch" | "mime" | "extract" | "validate" | "pdf-parse";
 }
 
-interface FetchAttempt {
-  url: string;
-  status: "ok" | "failed";
-  httpStatus?: number;
-  error?: string;
-  contentType?: string;
-  bytes?: number;
-  durationMs: number;
+interface RuntimeDeps {
+  db: typeof import("../lib/db/client").db;
+  userLlmCredentials: typeof import("../lib/db/schema").userLlmCredentials;
+  users: typeof import("../lib/db/schema").users;
+  discoverScholarlySources: typeof import("../lib/discovery/scholarly-search").discoverScholarlySources;
+  fetchSourceBytes: typeof import("../lib/ingest/source-ingestion").fetchSourceBytes;
+  ingestDiscoveredSource: typeof import("../lib/ingest/source-ingestion").ingestDiscoveredSource;
+  ensureOpenAIProviderAccess: typeof import("../lib/llm/openai-access").ensureOpenAIProviderAccess;
+  runWithRequestProvider: typeof import("../lib/llm/runtime").runWithRequestProvider;
+  allSettledWithConcurrency: typeof import("../lib/utils/async").allSettledWithConcurrency;
+  generateId: typeof import("../lib/utils/id").generateId;
 }
 
-interface AttritionReport {
-  query: string;
-  discoveredCount: number;
-  sources: SourceDiagnostic[];
-  summary: {
-    parsed: number;
-    failed: number;
-    failuresByPhase: Record<string, number>;
-    failureReasons: string[];
-  };
-}
+let runtimeDeps: RuntimeDeps | null = null;
 
-// ── Main ────────────────────────────────────────────────────────────
+void main().catch((error) => {
+  console.error(`Fatal: ${(error as Error).message}`);
+  process.exit(1);
+});
 
 async function main() {
-  const query = process.argv[2] || DEFAULT_QUERY;
-  console.log(`\n=== Source Attrition Diagnostic ===`);
-  console.log(`Query: "${query}"`);
-  console.log(`Requesting ${NUM_RESULTS} results...\n`);
+  loadLocalEnv();
+  runtimeDeps = await loadRuntimeDeps();
+  const {
+    ensureOpenAIProviderAccess,
+    runWithRequestProvider,
+    allSettledWithConcurrency,
+  } = getRuntimeDeps();
+  const options = parseArgs(process.argv.slice(2));
+  const userId = options.userId ?? (await pickDefaultUserId());
 
-  // Phase 0: Discovery
-  console.log(`[Discovery] Searching scholarly sources...`);
-  let discovered: ScholarlyDiscoveredSource[];
-  try {
-    discovered = await discoverScholarlySources({
-      query,
-      numResults: NUM_RESULTS,
-      queryVariations: QUERY_VARIATIONS,
-    });
-  } catch (err) {
-    console.error(`[Discovery] FAILED: ${(err as Error).message}`);
-    process.exit(1);
-  }
-
-  console.log(`[Discovery] Found ${discovered.length} sources after dedup\n`);
-
-  // Phase 1-4: Trace each source through the ingestion pipeline
-  const diagnostics: SourceDiagnostic[] = [];
-
-  for (let i = 0; i < discovered.length; i++) {
-    const src = discovered[i];
-    const diag = await traceSource(i, src);
-    diagnostics.push(diag);
-
-    const icon = diag.finalStatus === "parsed" ? "\u2705" : "\u274C";
-    const reason = diag.failureReason ? ` [${diag.failurePhase}] ${diag.failureReason}` : "";
-    console.log(
-      `  ${icon} ${String(i + 1).padStart(2)}. ${truncate(src.title, 60)}${reason}`
+  if (!userId) {
+    throw new Error(
+      "No connected OpenAI-auth user found. Connect once in the app or pass --user-id."
     );
   }
 
-  // Summary
-  const report = buildReport(query, discovered.length, diagnostics);
+  const provider = await ensureOpenAIProviderAccess(userId);
+  const inputSources =
+    options.urls.length > 0
+      ? buildDirectSources(options.urls)
+      : await discoverSources(options.query, options.limit);
 
-  console.log(`\n=== Summary ===`);
-  console.log(`Discovered: ${report.discoveredCount}`);
-  console.log(`Parsed:     ${report.summary.parsed}`);
-  console.log(`Failed:     ${report.summary.failed}`);
-  console.log(`\nFailures by phase:`);
-  for (const [phase, count] of Object.entries(report.summary.failuresByPhase)) {
-    console.log(`  ${phase}: ${count}`);
+  console.log("\n=== Source Attrition Diagnostic ===");
+  console.log(`User: ${userId}`);
+  if (options.urls.length > 0) {
+    console.log(`Mode: direct URLs (${inputSources.length})`);
+  } else {
+    console.log(`Query: "${options.query}"`);
+    console.log(`Discovered: ${inputSources.length}`);
   }
+  console.log(`Concurrency: ${options.concurrency}`);
 
-  if (report.summary.failureReasons.length > 0) {
-    console.log(`\nFailure details:`);
-    for (const reason of report.summary.failureReasons) {
-      console.log(`  - ${reason}`);
-    }
-  }
+  const results = await runWithRequestProvider(provider, () =>
+    allSettledWithConcurrency(
+      inputSources.map((source, index) => ({ source, index })),
+      options.concurrency,
+      async ({ source, index }) => diagnoseSource(index, source)
+    )
+  );
 
-  // Dump full report
-  const outputPath = "artifacts/diagnostics/source-attrition-report.json";
-  const { mkdir, writeFile } = await import("fs/promises");
-  const { dirname } = await import("path");
-  await mkdir(dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, JSON.stringify(report, null, 2), "utf8");
-  console.log(`\nFull report: ${outputPath}`);
+  const diagnostics = results.map((result, index) =>
+    result.status === "fulfilled"
+      ? result.value
+      : {
+          index,
+          title: inputSources[index]?.title ?? `Source ${index + 1}`,
+          url: inputSources[index]?.url ?? "",
+          pdfUrl: inputSources[index]?.pdfUrl,
+          providers: inputSources[index]?.providers ?? ["unknown"],
+          fetchAttempts: [],
+          finalStatus: "failed" as const,
+          failurePhase: "ingest" as const,
+          failureReason:
+            (result.reason as Error)?.message ?? "Unknown diagnostic failure",
+        }
+  );
+
+  const report = buildSourceAttritionReport({
+    userId,
+    query: options.urls.length > 0 ? undefined : options.query,
+    directUrls: options.urls.length > 0 ? options.urls : undefined,
+    diagnostics,
+  });
+
+  printReport(report);
+  writeReport(report, options.outputPath);
 }
 
-// ── Per-source tracing ──────────────────────────────────────────────
+function parseArgs(argv: string[]): CliOptions {
+  let query = DEFAULT_QUERY;
+  let limit = DEFAULT_LIMIT;
+  let concurrency = DEFAULT_CONCURRENCY;
+  let userId: string | undefined;
+  const urls: string[] = [];
+  let outputPath = "artifacts/diagnostics/source-attrition-report.json";
 
-async function traceSource(
-  index: number,
-  src: ScholarlyDiscoveredSource
-): Promise<SourceDiagnostic> {
-  const diag: SourceDiagnostic = {
-    index,
-    title: src.title,
-    url: src.url,
-    pdfUrl: src.pdfUrl,
-    providers: src.providers ?? [src.provider],
-    fetchAttempts: [],
-    fetchStatus: "failed",
-    finalStatus: "failed",
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    const next = argv[i + 1];
+
+    if (arg === "--query" && next) {
+      query = next;
+      i += 1;
+      continue;
+    }
+    if (arg === "--limit" && next) {
+      limit = Number(next);
+      i += 1;
+      continue;
+    }
+    if (arg === "--concurrency" && next) {
+      concurrency = Number(next);
+      i += 1;
+      continue;
+    }
+    if (arg === "--user-id" && next) {
+      userId = next;
+      i += 1;
+      continue;
+    }
+    if (arg === "--url" && next) {
+      urls.push(next);
+      i += 1;
+      continue;
+    }
+    if (arg === "--output" && next) {
+      outputPath = next;
+      i += 1;
+      continue;
+    }
+
+    if (!arg.startsWith("--")) {
+      query = arg;
+    }
+  }
+
+  return {
+    query,
+    limit: Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_LIMIT,
+    concurrency:
+      Number.isFinite(concurrency) && concurrency > 0
+        ? concurrency
+        : DEFAULT_CONCURRENCY,
+    userId,
+    urls,
+    outputPath,
   };
+}
 
-  // Build candidate URLs (pdfUrl first, then main url)
-  const candidates: string[] = [];
-  if (src.pdfUrl) candidates.push(src.pdfUrl);
-  if (src.url && src.url !== src.pdfUrl) candidates.push(src.url);
+function loadLocalEnv() {
+  for (const filename of [".env", ".env.local"]) {
+    const filePath = path.join(process.cwd(), filename);
+    if (!fs.existsSync(filePath)) continue;
 
-  // Phase 1: Fetch
-  let fetched: SourceFetchResult | null = null;
-  for (const candidateUrl of candidates) {
-    const attempt = await attemptFetch(candidateUrl);
-    diag.fetchAttempts.push(attempt);
+    const contents = fs.readFileSync(filePath, "utf8");
+    for (const rawLine of contents.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
 
-    if (attempt.status === "ok") {
-      fetched = {
-        buffer: attempt._buffer!,
-        contentType: attempt.contentType ?? "",
-        resolvedUrl: candidateUrl,
-      };
-      diag.fetchStatus = "ok";
-      diag.fetchedUrl = candidateUrl;
-      diag.fetchedContentType = attempt.contentType;
-      diag.fetchedBytes = attempt.bytes;
-      break;
-    }
-  }
+      const separatorIndex = line.indexOf("=");
+      if (separatorIndex <= 0) continue;
 
-  if (!fetched) {
-    diag.failureReason = diag.fetchAttempts.map((a) => `${a.url}: ${a.error}`).join("; ");
-    diag.failurePhase = "fetch";
-    return diag;
-  }
+      const key = line.slice(0, separatorIndex).trim();
+      if (process.env[key]) continue;
 
-  // Phase 2: MIME sniffing
-  const mime = sniffMimeType(fetched.buffer, fetched.resolvedUrl, fetched.contentType);
-  diag.sniffedMime = mime;
-
-  if (mime === "application/octet-stream") {
-    diag.failureReason = `Unsupported MIME (content-type: ${fetched.contentType}, ${fetched.buffer.length} bytes)`;
-    diag.failurePhase = "mime";
-    return diag;
-  }
-
-  // Phase 3: Extract text
-  if (mime === "text/html") {
-    const html = fetched.buffer.toString("utf8");
-    const text = extractHtmlText(html);
-    diag.extractedTextLength = text.length;
-    diag.extractedTextPreview = text.slice(0, 200);
-
-    // Phase 4: Validate
-    const validation = validateNormalizedDocument(text);
-    diag.validationResult = validation;
-    diag.pdfParseStatus = "skipped";
-
-    if (!validation.ok) {
-      diag.failureReason = validation.reason ?? "Validation failed";
-      diag.failurePhase = "validate";
-      return diag;
-    }
-
-    diag.finalStatus = "parsed";
-    return diag;
-  }
-
-  if (mime === "application/pdf") {
-    // Phase 5: PDF parse
-    diag.pdfParseStatus = "failed";
-
-    try {
-      const result = await parsePDF(fetched.buffer, `${src.title}.pdf`, {
-        timeoutMs: 45_000,
-      });
-      diag.pdfParsedTextLength = result.text.length;
-      diag.extractedTextLength = result.text.length;
-      diag.extractedTextPreview = result.text.slice(0, 200);
-
-      const validation = validateNormalizedDocument(result.text);
-      diag.validationResult = validation;
-
-      if (!validation.ok) {
-        diag.failureReason = validation.reason ?? "PDF text failed validation";
-        diag.failurePhase = "validate";
-        diag.pdfParseStatus = "failed";
-        return diag;
+      let value = line.slice(separatorIndex + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
       }
 
-      diag.pdfParseStatus = "ok";
-      diag.finalStatus = "parsed";
-      return diag;
-    } catch (err) {
-      diag.pdfParseError = (err as Error).message;
-      diag.failureReason = `PDF parse failed: ${(err as Error).message}`;
-      diag.failurePhase = "pdf-parse";
-      return diag;
+      process.env[key] = value;
     }
   }
-
-  diag.failureReason = `Unhandled MIME: ${mime}`;
-  diag.failurePhase = "mime";
-  return diag;
 }
 
-// ── Fetch helper ────────────────────────────────────────────────────
+async function pickDefaultUserId(): Promise<string | undefined> {
+  const { db, userLlmCredentials, users } = getRuntimeDeps();
+  const [row] = await db
+    .select({
+      userId: userLlmCredentials.userId,
+      email: users.email,
+      validationStatus: userLlmCredentials.validationStatus,
+      updatedAt: userLlmCredentials.updatedAt,
+    })
+    .from(userLlmCredentials)
+    .innerJoin(users, eq(users.id, userLlmCredentials.userId))
+    .orderBy(desc(userLlmCredentials.updatedAt))
+    .limit(1);
 
-interface FetchAttemptInternal extends FetchAttempt {
-  _buffer?: Buffer;
+  if (row) {
+    console.log(
+      `Using latest connected user: ${row.userId} (${row.email}, ${row.validationStatus})`
+    );
+  }
+
+  return row?.userId;
 }
 
-async function attemptFetch(url: string): Promise<FetchAttemptInternal> {
-  const start = Date.now();
+async function discoverSources(query: string, limit: number): Promise<InputSource[]> {
+  const { discoverScholarlySources } = getRuntimeDeps();
+  const discovered = await discoverScholarlySources({
+    query,
+    numResults: limit,
+    queryVariations: DEFAULT_QUERY_VARIATIONS,
+  });
+
+  return discovered.map((source) => ({
+    title: source.title,
+    url: source.url,
+    pdfUrl: source.pdfUrl,
+    providers: source.providers ?? [source.provider],
+  }));
+}
+
+function buildDirectSources(urls: string[]): InputSource[] {
+  return urls.map((url) => {
+    const pathname = safePathname(url);
+    const inferredPdf = pathname.toLowerCase().endsWith(".pdf");
+
+    return {
+      title: inferTitleFromUrl(url),
+      url,
+      pdfUrl: inferredPdf ? url : undefined,
+      providers: ["direct"],
+    };
+  });
+}
+
+async function diagnoseSource(
+  index: number,
+  source: InputSource
+): Promise<SourceDiagnostic> {
+  const { ingestDiscoveredSource, generateId } = getRuntimeDeps();
+  const candidateUrls = uniqueUrls([source.pdfUrl, source.url]);
+  const fetchAttempts: FetchAttempt[] = [];
+
+  for (const candidateUrl of candidateUrls) {
+    fetchAttempts.push(await attemptFetch(candidateUrl));
+  }
+
+  let diagnostic: SourceDiagnostic;
+
+  try {
+    const ingested = await ingestDiscoveredSource({
+      sourceId: generateId(),
+      title: source.title,
+      sourceUrl: source.url,
+      pdfUrl: source.pdfUrl,
+    });
+
+    const parseStatus = ingested.source.parseStatus;
+    const parseError = ingested.source.metadata?.parseError;
+    diagnostic = {
+      index,
+      title: source.title,
+      url: source.url,
+      pdfUrl: source.pdfUrl,
+      providers: source.providers,
+      fetchAttempts,
+      finalStatus: parseStatus === "parsed" ? "parsed" : "failed",
+      parseStatus,
+      parseEngine: ingested.source.metadata?.parseEngine,
+      parseQuality: ingested.source.metadata?.parseQuality,
+      resolvedUrl: ingested.source.metadata?.resolvedUrl,
+      chunkCount: ingested.sourceChunks.length,
+      charCount: ingested.parsedSource?.charCount,
+      parseDiagnostics: ingested.source.metadata?.parseDiagnostics,
+      winnerStage:
+        ingested.source.metadata?.parseDiagnostics
+          ?.filter((attempt) => attempt.ok)
+          .at(-1)?.stage,
+      failurePhase:
+        parseStatus === "failed" ? classifyFailurePhase(parseError) : undefined,
+      failureReason: parseStatus === "failed" ? parseError : undefined,
+    };
+  } catch (error) {
+    const message = (error as Error)?.message ?? "Unknown ingest failure";
+    diagnostic = {
+      index,
+      title: source.title,
+      url: source.url,
+      pdfUrl: source.pdfUrl,
+      providers: source.providers,
+      fetchAttempts,
+      finalStatus: "failed",
+      failurePhase: classifyFailurePhase(message),
+      failureReason: message,
+    };
+  }
+
+  const icon = diagnostic.finalStatus === "parsed" ? "OK" : "FAIL";
+  const detail =
+    diagnostic.finalStatus === "parsed"
+      ? `${diagnostic.parseEngine ?? "unknown"} / ${diagnostic.chunkCount ?? 0} chunks`
+      : `${diagnostic.failurePhase ?? "unknown"}: ${truncate(
+          diagnostic.failureReason ?? "Unknown failure",
+          120
+        )}`;
+  console.log(
+    `${icon} ${String(index + 1).padStart(2)}. ${truncate(source.title, 72)} - ${detail}`
+  );
+
+  return diagnostic;
+}
+
+async function attemptFetch(url: string): Promise<FetchAttempt> {
+  const { fetchSourceBytes } = getRuntimeDeps();
+  const startedAt = Date.now();
+
   try {
     const result = await fetchSourceBytes(url);
     return {
@@ -288,69 +365,121 @@ async function attemptFetch(url: string): Promise<FetchAttemptInternal> {
       status: "ok",
       contentType: result.contentType,
       bytes: result.buffer.length,
-      durationMs: Date.now() - start,
-      _buffer: result.buffer,
+      durationMs: Date.now() - startedAt,
     };
-  } catch (err) {
-    const message = (err as Error).message;
-    // Try to extract HTTP status from error message
-    const statusMatch = message.match(/failed: (\d+)/);
+  } catch (error) {
     return {
       url,
       status: "failed",
-      error: message,
-      httpStatus: statusMatch ? parseInt(statusMatch[1]) : undefined,
-      durationMs: Date.now() - start,
+      durationMs: Date.now() - startedAt,
+      error: (error as Error)?.message ?? "Unknown fetch failure",
     };
   }
 }
 
-// ── Report builder ──────────────────────────────────────────────────
+function printReport(report: AttritionReport) {
+  console.log("\n=== Summary ===");
+  console.log(`Parsed: ${report.parsedCount}/${report.discoveredCount}`);
+  console.log(`Failed: ${report.failedCount}/${report.discoveredCount}`);
 
-function buildReport(
-  query: string,
-  discoveredCount: number,
-  diagnostics: SourceDiagnostic[]
-): AttritionReport {
-  const parsed = diagnostics.filter((d) => d.finalStatus === "parsed");
-  const failed = diagnostics.filter((d) => d.finalStatus === "failed");
-
-  const failuresByPhase: Record<string, number> = {};
-  const failureReasons: string[] = [];
-
-  for (const d of failed) {
-    const phase = d.failurePhase ?? "unknown";
-    failuresByPhase[phase] = (failuresByPhase[phase] ?? 0) + 1;
-    failureReasons.push(`[${phase}] ${truncate(d.title, 40)}: ${d.failureReason}`);
+  if (Object.keys(report.byPhase).length > 0) {
+    console.log("\nFailures by phase:");
+    for (const [phase, count] of Object.entries(report.byPhase)) {
+      console.log(`  ${phase}: ${count}`);
+    }
   }
 
+  if (Object.keys(report.byParseEngine).length > 0) {
+    console.log("\nParse engines:");
+    for (const [engine, count] of Object.entries(report.byParseEngine)) {
+      console.log(`  ${engine}: ${count}`);
+    }
+  }
+
+  if (Object.keys(report.byParseQuality).length > 0) {
+    console.log("\nParse quality:");
+    for (const [quality, count] of Object.entries(report.byParseQuality)) {
+      console.log(`  ${quality}: ${count}`);
+    }
+  }
+
+  if (Object.keys(report.byWinnerStage).length > 0) {
+    console.log("\nWinning stages:");
+    for (const [stage, count] of Object.entries(report.byWinnerStage)) {
+      console.log(`  ${stage}: ${count}`);
+    }
+  }
+
+  if (Object.keys(report.byWinnerFamily).length > 0) {
+    console.log("\nWinning families:");
+    for (const [family, count] of Object.entries(report.byWinnerFamily)) {
+      console.log(`  ${family}: ${count}`);
+    }
+  }
+}
+
+function writeReport(report: AttritionReport, outputPath: string) {
+  const absolutePath = path.isAbsolute(outputPath)
+    ? outputPath
+    : path.join(process.cwd(), outputPath);
+  fs.mkdirSync(path.dirname(absolutePath), { recursive: true });
+  fs.writeFileSync(absolutePath, JSON.stringify(report, null, 2), "utf8");
+  console.log(`\nFull report: ${absolutePath}`);
+}
+
+function uniqueUrls(values: Array<string | undefined>): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function inferTitleFromUrl(url: string) {
+  const pathname = safePathname(url);
+  const slug = pathname.split("/").pop() || url;
+  return slug.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ").trim() || url;
+}
+
+function safePathname(url: string) {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+function truncate(text: string, maxLength: number) {
+  return text.length <= maxLength ? text : `${text.slice(0, maxLength - 3)}...`;
+}
+
+async function loadRuntimeDeps(): Promise<RuntimeDeps> {
+  const [{ discoverScholarlySources }, clientModule, schemaModule, ingestModule, accessModule, runtimeModule, asyncModule, idModule] =
+    await Promise.all([
+      import("../lib/discovery/scholarly-search"),
+      import("../lib/db/client"),
+      import("../lib/db/schema"),
+      import("../lib/ingest/source-ingestion"),
+      import("../lib/llm/openai-access"),
+      import("../lib/llm/runtime"),
+      import("../lib/utils/async"),
+      import("../lib/utils/id"),
+    ]);
+
   return {
-    query,
-    discoveredCount,
-    sources: diagnostics.map(({ ...d }) => {
-      // Strip internal buffer references for JSON serialization
-      for (const attempt of d.fetchAttempts) {
-        delete (attempt as FetchAttemptInternal)._buffer;
-      }
-      return d;
-    }),
-    summary: {
-      parsed: parsed.length,
-      failed: failed.length,
-      failuresByPhase,
-      failureReasons,
-    },
+    db: clientModule.db,
+    userLlmCredentials: schemaModule.userLlmCredentials,
+    users: schemaModule.users,
+    discoverScholarlySources,
+    fetchSourceBytes: ingestModule.fetchSourceBytes,
+    ingestDiscoveredSource: ingestModule.ingestDiscoveredSource,
+    ensureOpenAIProviderAccess: accessModule.ensureOpenAIProviderAccess,
+    runWithRequestProvider: runtimeModule.runWithRequestProvider,
+    allSettledWithConcurrency: asyncModule.allSettledWithConcurrency,
+    generateId: idModule.generateId,
   };
 }
 
-function truncate(text: string, maxLength: number): string {
-  if (text.length <= maxLength) return text;
-  return text.slice(0, maxLength - 3) + "...";
+function getRuntimeDeps() {
+  if (!runtimeDeps) {
+    throw new Error("Runtime dependencies not loaded");
+  }
+
+  return runtimeDeps;
 }
-
-// ── Run ─────────────────────────────────────────────────────────────
-
-void main().catch((err) => {
-  console.error(`Fatal: ${(err as Error).message}`);
-  process.exit(1);
-});

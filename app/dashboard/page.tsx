@@ -3,15 +3,13 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  groupProjectsByStatus,
+  STATUS_MAP,
+  type DashboardProjectListItem,
+} from "./_lib/project-groups";
 
-interface Project {
-  id: string;
-  runId: string | null;
-  title: string;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-}
+type Project = DashboardProjectListItem;
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -26,12 +24,8 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const activeProjects = projects.filter(
-    (p) => p.status === "running" || p.status === "awaiting_confirmation"
-  );
-  const completedProjects = projects.filter(
-    (p) => p.status !== "running" && p.status !== "awaiting_confirmation"
-  );
+  const { drafts: draftProjects, active: activeProjects, completed: completedProjects } =
+    groupProjectsByStatus(projects);
 
   return (
     <div className="max-w-[760px] mx-auto px-6 lg:px-8 pt-10 sm:pt-16 pb-16">
@@ -94,6 +88,29 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* ── Draft projects ── */}
+      {!loading && draftProjects.length > 0 && (
+        <div className="mb-8 reveal">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
+            <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-dim">
+              Drafts
+            </span>
+          </div>
+          <div className="space-y-2">
+            {draftProjects.map((project) => (
+              <ProjectCard
+                key={project.id}
+                project={project}
+                onDelete={(id) =>
+                  setProjects((prev) => prev.filter((p) => p.id !== id))
+                }
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Active / in-progress projects ── */}
       {!loading && activeProjects.length > 0 && (
         <div className="mb-8 reveal">
@@ -120,7 +137,7 @@ export default function DashboardPage() {
       {/* ── Completed projects ── */}
       {!loading && completedProjects.length > 0 && (
         <div className="reveal reveal-delay-1">
-          {activeProjects.length > 0 && (
+          {(draftProjects.length > 0 || activeProjects.length > 0) && (
             <div className="flex items-center gap-2 mb-3">
               <span className="font-sans text-[10px] font-semibold uppercase tracking-[0.14em] text-dim">
                 Completed
@@ -144,17 +161,6 @@ export default function DashboardPage() {
   );
 }
 
-/* ── Status config ── */
-
-const STATUS_MAP: Record<string, { label: string; color: string; dotColor: string }> = {
-  queued: { label: "Queued", color: "text-dim", dotColor: "bg-dim/50" },
-  running: { label: "Running", color: "text-amber-500", dotColor: "bg-amber-500" },
-  awaiting_confirmation: { label: "Review", color: "text-violet-400", dotColor: "bg-violet-400" },
-  completed: { label: "Complete", color: "text-emerald-400", dotColor: "bg-emerald-400" },
-  failed: { label: "Failed", color: "text-red-400", dotColor: "bg-red-400" },
-  partial: { label: "Partial", color: "text-amber-400", dotColor: "bg-amber-400" },
-};
-
 /* ── Project card ── */
 
 function ProjectCard({
@@ -170,7 +176,9 @@ function ProjectCard({
   const date = new Date(project.createdAt);
   const timeAgo = formatRelative(date);
   const href = project.runId ? `/dashboard/${project.runId}` : "/dashboard/new";
-  const isActive = project.status === "running" || project.status === "awaiting_confirmation";
+  const isActive =
+    project.status === "running" || project.status === "awaiting_confirmation";
+  const isDraft = project.status === "draft";
 
   async function handleDelete() {
     setDeleting(true);
@@ -188,7 +196,11 @@ function ProjectCard({
   }
 
   return (
-    <div className={`group relative glass-panel rounded-xl transition-all duration-300 ${isActive ? "border-accent/15" : "hover:border-accent/20"}`}>
+    <div
+      className={`group relative glass-panel rounded-xl transition-all duration-300 ${
+        isActive || isDraft ? "border-accent/15" : "hover:border-accent/20"
+      }`}
+    >
       <Link href={href} className="block px-5 py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">

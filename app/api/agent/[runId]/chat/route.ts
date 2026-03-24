@@ -2,16 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
 import { getOwnedResearchRun, getPersistedArtifacts, getExperimentMetadataForRun, getNoteMetadataForRun, getSourceMetadataForRun } from "@/lib/db/research-projects";
 import { memoryStore } from "@/lib/storage/memory-store";
-import { buildFileList, getArtifactContent } from "@/app/dashboard/[runId]/_lib/workspace-types";
+import {
+  buildFileList,
+  collectFolderPaths,
+  getArtifactContent,
+} from "@/app/dashboard/[runId]/_lib/workspace-types";
 import { runAgentLoop } from "@/lib/agent/graph";
-import type { LLMMessage, ContentPart } from "@/lib/llm/openrouter";
-import { costTracker } from "@/lib/llm/openrouter";
-import type { WorkspaceContext, SSEEvent } from "@/lib/agent/state";
+import type { LLMMessage, ContentPart } from "@/lib/llm/runtime";
+import type {
+  AgentContinuationState,
+  WorkspaceContext,
+  SSEEvent,
+} from "@/lib/agent/state";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import type { Artifacts } from "@/lib/engine/state";
 import { parsePDF } from "@/lib/pdf/gemini-extract";
-import { checkUserBudget, recordUserCost } from "@/lib/rate-limit";
-import { createProviderForUser } from "@/lib/llm/provider-factory";
+import { ensureOpenAIProviderAccess } from "@/lib/llm/openai-access";
+import { acquireExclusiveLock } from "@/lib/utils/exclusive-lock";
+import type { ReasoningEffort } from "@/lib/llm/types";
+import {
+  mergeWorkspaceArtifacts,
+  mergeWorkspaceSourceMeta,
+} from "@/lib/workspace/source-cache";
 
 export const maxDuration = 300;
 
@@ -25,22 +37,17 @@ interface ChatAttachment {
 interface ChatRequestBody {
   message: string;
   attachments?: ChatAttachment[];
+  reasoningEffort?: ReasoningEffort;
   conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
-  model?: string;
-  reasoningEffort?: "none" | "low" | "medium" | "high";
+  historyVisibleMessageCount?: number;
+  agentState?: AgentContinuationState;
   workspaceContext?: {
     editedContents?: Record<string, string>;
     activeFileKey?: string;
+    folderPaths?: string[];
     searchFilters?: SearchFilterConfig;
   };
 }
-
-const ALLOWED_MODELS = new Set([
-  "google/gemini-3-flash-preview",
-  "google/gemini-3.1-pro",
-  "openai/gpt-5.4",
-  "openai/gpt-5.4-mini",
-]);
 
 function formatSSE(event: SSEEvent): string {
   return `data: ${JSON.stringify(event)}\n\n`;
@@ -58,28 +65,23 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Resolve LLM provider for this user
-  let provider;
-  try {
-    provider = await createProviderForUser(session.userId);
-  } catch (err) {
+  const releaseLock = acquireExclusiveLock(`chat:${runId}`);
+  if (!releaseLock) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "No LLM provider configured" },
-      { status: 400 }
+      { error: "Another agent response is already streaming for this workspace." },
+      { status: 409 }
     );
   }
 
-  // Per-user daily cost budget check (skip for Codex OAuth users — OpenAI enforces its own limits)
-  if (provider.kind !== "codex") {
-    const budgetCheck = checkUserBudget(session.userId);
-    if (!budgetCheck.allowed) {
-      return NextResponse.json(
-        {
-          error: `Daily usage limit reached ($${budgetCheck.spentUsd.toFixed(2)}/$${budgetCheck.limitUsd}). Resets at midnight UTC.`,
-        },
-        { status: 429 }
-      );
-    }
+  let provider;
+  try {
+    provider = await ensureOpenAIProviderAccess(session.userId);
+  } catch (err) {
+    releaseLock();
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : "OpenAI connection unavailable" },
+      { status: 400 }
+    );
   }
 
   // Verify ownership
@@ -101,6 +103,15 @@ export async function POST(
     return NextResponse.json({ error: "Message required" }, { status: 400 });
   }
 
+  const reasoningEffort =
+    body.reasoningEffort === "none" ||
+    body.reasoningEffort === "low" ||
+    body.reasoningEffort === "medium" ||
+    body.reasoningEffort === "high" ||
+    body.reasoningEffort === "xhigh"
+      ? body.reasoningEffort
+      : undefined;
+
   // Validate attachments
   if (body.attachments) {
     const imageAttachments = body.attachments.filter((a) => a.type === "image");
@@ -119,21 +130,19 @@ export async function POST(
   }
 
   // Load artifacts (memory-store first, then DB)
-  let artifacts: Artifacts | undefined;
   const memRun = memoryStore.getRun(runId);
-  if (memRun?.artifacts) {
-    artifacts = memRun.artifacts;
-  } else {
-    const memArtifacts = memoryStore.getArtifacts(run.projectId);
-    if (memArtifacts) {
-      artifacts = memArtifacts;
-    } else {
-      const persisted = await getPersistedArtifacts(runId);
-      if (persisted) {
-        artifacts = persisted;
-      }
-    }
-  }
+  const [persistedArtifacts, persistedSourcesMeta, notesMeta, experimentsMeta] =
+    await Promise.all([
+      getPersistedArtifacts(runId),
+      getSourceMetadataForRun(runId),
+      getNoteMetadataForRun(runId),
+      getExperimentMetadataForRun(runId),
+    ]);
+
+  const artifacts: Artifacts | null = mergeWorkspaceArtifacts(
+    memRun?.artifacts ?? memoryStore.getArtifacts(run.projectId),
+    persistedArtifacts
+  );
 
   if (!artifacts) {
     return NextResponse.json(
@@ -143,12 +152,17 @@ export async function POST(
   }
 
   // Build workspace context with edited contents overlay
-  const [notesMeta, experimentsMeta, sourcesMeta] = await Promise.all([
-    getNoteMetadataForRun(runId),
-    getExperimentMetadataForRun(runId),
-    getSourceMetadataForRun(runId),
-  ]);
+  const sourcesMeta = mergeWorkspaceSourceMeta(
+    typeof memoryStore.getSourcesMeta === "function"
+      ? memoryStore.getSourcesMeta(run.projectId)
+      : undefined,
+    persistedSourcesMeta
+  );
   const fileList = buildFileList(artifacts, sourcesMeta, notesMeta, experimentsMeta);
+  const folderPaths = collectFolderPaths(
+    fileList,
+    body.workspaceContext?.folderPaths
+  );
   const editedContents = body.workspaceContext?.editedContents ?? {};
 
   const workspaceFiles: Record<string, string> = {};
@@ -165,6 +179,7 @@ export async function POST(
     workspaceFiles,
     activeFileKey: body.workspaceContext?.activeFileKey,
     availableKeys: fileList.map((f) => f.key),
+    folderPaths,
     fileLabels: Object.fromEntries(fileList.map((f) => [f.key, f.label])),
     fileMeta: Object.fromEntries(
       fileList.map((f) => [f.key, { group: f.group, origin: f.origin, folder: f.folder }])
@@ -192,7 +207,7 @@ export async function POST(
       } else if (att.type === "pdf") {
         try {
           const pdfBuffer = Buffer.from(att.base64, "base64");
-          const result = await parsePDF(pdfBuffer, att.name);
+          const result = await parsePDF(pdfBuffer, att.name, { provider });
           augmentedMessage += `\n\n[Attached PDF: ${att.name}]\n${result.text}`;
         } catch {
           augmentedMessage += `\n\n[Attached PDF: ${att.name} — failed to extract text]`;
@@ -203,22 +218,19 @@ export async function POST(
 
   // Create SSE stream
   const encoder = new TextEncoder();
-  const costBefore = costTracker.snapshot().totalCostUsd;
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // Resolve model: use client-selected model if allowed, otherwise default
-        const requestedModel = body.model && ALLOWED_MODELS.has(body.model) ? body.model : undefined;
-        const reasoningEffort = body.reasoningEffort || undefined;
-
         for await (const event of runAgentLoop(
           augmentedMessage,
           conversationHistory,
           workspaceCtx,
           imageContentParts.length > 0 ? imageContentParts : undefined,
-          requestedModel,
+          undefined,
           provider,
           reasoningEffort,
+          body.agentState,
+          body.historyVisibleMessageCount,
         )) {
           controller.enqueue(encoder.encode(formatSSE(event)));
         }
@@ -231,10 +243,7 @@ export async function POST(
       } finally {
         // Clean up any pending ask_user question (e.g. if stream was aborted)
         memoryStore.cancelPendingQuestion(runId);
-        const costAfter = costTracker.snapshot().totalCostUsd;
-        if (provider.kind !== "codex") {
-          recordUserCost(session.userId, costAfter - costBefore);
-        }
+        releaseLock();
         controller.close();
       }
     },

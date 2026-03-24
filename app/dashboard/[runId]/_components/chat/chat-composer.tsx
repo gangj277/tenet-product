@@ -3,253 +3,21 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import type { FileEntry } from "../../_lib/workspace-types";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
-import { SKILL_LIST, type SkillInfo } from "../../_lib/skill-definitions";
+import { SKILL_LIST } from "../../_lib/skill-definitions";
 import { SearchFilterPanel } from "../../../_components/search-filter-panel";
 import { SkillPicker } from "./skill-picker";
 import { FileMentionPicker } from "./file-mention-picker";
 import { ComposerAttachments } from "./composer-attachments";
+import { createQuoteChip, createSkillChip, createMentionChip, insertChipAtTrigger } from "./composer/composer-chips";
+import { serializeEditor as serializeEditorDOM, checkEditorEmpty as checkEditorEmptyDOM, findTriggerAtCursor } from "./composer/composer-serializer";
+import { hasActiveSearchFilters, countActiveSearchFilters } from "./composer/composer-filter-utils";
+import { ReasoningGlyph, REASONING_OPTIONS } from "./composer/reasoning-glyph";
+import type { MentionEntry } from "./composer/mention-utils";
 
 const ACCEPTED_FILE_TYPES = ".jpg,.jpeg,.png,.gif,.webp,.pdf";
 const MAX_IMAGE_SIZE = 10 * 1024 * 1024;
 const MAX_PDF_SIZE = 20 * 1024 * 1024;
 const MAX_ATTACHMENTS = 5;
-
-const SKILL_ICONS: Record<string, string> = {
-  "devils-advocate": "\u2694",
-  "source-scout": "\u2609",
-  "paper-explainer": "\u273F",
-  "evidence-adjudicator": "\u2696",
-  "synthesis-updater": "\u2B21",
-  "methodology-critic": "\u2662",
-};
-
-function getSkillIcon(id: string): string {
-  return SKILL_ICONS[id] ?? "\u2726";
-}
-
-function hasActiveSearchFilters(filters?: SearchFilterConfig): boolean {
-  if (!filters) return false;
-  return Boolean(
-    filters.venues?.length ||
-      (filters.publicationType && filters.publicationType !== "all") ||
-      filters.minCitationCount ||
-      filters.dateFrom ||
-      filters.dateTo ||
-      filters.openAccessOnly
-  );
-}
-
-function countActiveSearchFilters(filters?: SearchFilterConfig): number {
-  if (!filters) return 0;
-  let count = 0;
-  if (filters.venues?.length) count++;
-  if (filters.publicationType && filters.publicationType !== "all") count++;
-  if (filters.minCitationCount) count++;
-  if (filters.dateFrom || filters.dateTo) count++;
-  if (filters.openAccessOnly) count++;
-  return count;
-}
-
-// ─── Model Picker ─────────────────────────────────────────────────────────
-
-interface ModelOption {
-  id: string;
-  label: string;
-  tier: string;
-  cost: string;
-  icon: string;
-}
-
-const OPENROUTER_MODELS: ModelOption[] = [
-  { id: "google/gemini-3-flash-preview", label: "Gemini Flash", tier: "Fast", cost: "$", icon: "⚡" },
-  { id: "google/gemini-3.1-pro", label: "Gemini Pro", tier: "Pro", cost: "$$", icon: "◆" },
-  { id: "openai/gpt-5.4", label: "GPT-5.4", tier: "Premium", cost: "$$$", icon: "◉" },
-];
-
-export const CODEX_MODELS: ModelOption[] = [
-  { id: "openai/gpt-5.4", label: "GPT-5.4", tier: "Default", cost: "Sub", icon: "◉" },
-  { id: "openai/gpt-5.4-mini", label: "GPT-5.4 Mini", tier: "Fast", cost: "Sub", icon: "⚡" },
-];
-
-const MODEL_OPTIONS = OPENROUTER_MODELS;
-
-function ModelPicker({
-  selectedModel,
-  onModelChange,
-}: {
-  selectedModel: string;
-  onModelChange: (model: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const isCodex = selectedModel.startsWith("openai/");
-  const models = isCodex ? CODEX_MODELS : OPENROUTER_MODELS;
-  const current = models.find((m) => m.id === selectedModel) ?? models[0];
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  return (
-    <div ref={pickerRef} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 h-[26px] px-2 rounded-md bg-page/60 hover:bg-page border border-edge/30 hover:border-edge/50 transition-all cursor-pointer group"
-      >
-        <span className="text-[11px] text-dim group-hover:text-sub transition-colors">{current.icon}</span>
-        <span className="text-[11px] font-medium text-sub group-hover:text-heading transition-colors">
-          {current.label}
-        </span>
-        <svg className="w-2.5 h-2.5 text-mute" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M4.427 6.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 6H4.604a.25.25 0 00-.177.427z" />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className="absolute bottom-full left-0 mb-1.5 w-[220px] glass-panel rounded-lg border border-edge/40 py-1 z-30 shadow-xl"
-          style={{ backdropFilter: "blur(24px)" }}
-        >
-          <div className="px-2.5 py-1.5 mb-0.5">
-            <span className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">
-              Agent Model
-            </span>
-          </div>
-          {models.map((model) => {
-            const isActive = model.id === selectedModel;
-            return (
-              <button
-                key={model.id}
-                onClick={() => {
-                  onModelChange(model.id);
-                  setOpen(false);
-                }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
-                  isActive
-                    ? "bg-accent-fill/8 text-heading"
-                    : "text-sub hover:bg-page/80 hover:text-heading"
-                }`}
-              >
-                <span className="w-4 text-center text-[12px] flex-shrink-0">{model.icon}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11.5px] font-medium truncate">{model.label}</span>
-                    <span className={`text-[9px] font-semibold uppercase tracking-wider px-1 py-[1px] rounded ${
-                      model.tier === "Fast"
-                        ? "text-emerald-400/90 bg-emerald-500/10"
-                        : model.tier === "Pro"
-                          ? "text-sky-400/90 bg-sky-500/10"
-                          : "text-amber-400/90 bg-amber-500/10"
-                    }`}>
-                      {model.tier}
-                    </span>
-                  </div>
-                </div>
-                <span className="text-[10px] text-mute font-mono flex-shrink-0">{model.cost}</span>
-                {isActive && (
-                  <svg className="w-3 h-3 text-accent flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Reasoning Effort Picker ──────────────────────────────────────────────
-
-const REASONING_LEVELS = [
-  { id: "none", label: "Off", icon: "—", color: "text-dim" },
-  { id: "low", label: "Low", icon: "◔", color: "text-emerald-400/90" },
-  { id: "medium", label: "Med", icon: "◑", color: "text-sky-400/90" },
-  { id: "high", label: "High", icon: "◕", color: "text-amber-400/90" },
-] as const;
-
-function ReasoningPicker({
-  effort,
-  onChange,
-}: {
-  effort: string;
-  onChange: (effort: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const pickerRef = useRef<HTMLDivElement>(null);
-  const current = REASONING_LEVELS.find((l) => l.id === effort) ?? REASONING_LEVELS[0];
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
-
-  return (
-    <div ref={pickerRef} className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1 h-[26px] px-2 rounded-md bg-page/60 hover:bg-page border border-edge/30 hover:border-edge/50 transition-all cursor-pointer group"
-      >
-        <span className={`text-[11px] ${current.color}`}>{current.icon}</span>
-        <span className="text-[10px] font-medium text-sub group-hover:text-heading transition-colors">
-          Think
-        </span>
-      </button>
-
-      {open && (
-        <div
-          className="absolute bottom-full left-0 mb-1.5 w-[160px] glass-panel rounded-lg border border-edge/40 py-1 z-30 shadow-xl"
-          style={{ backdropFilter: "blur(24px)" }}
-        >
-          <div className="px-2.5 py-1.5 mb-0.5">
-            <span className="text-[9.5px] font-semibold uppercase tracking-[0.1em] text-mute">
-              Reasoning Depth
-            </span>
-          </div>
-          {REASONING_LEVELS.map((level) => {
-            const isActive = level.id === effort;
-            return (
-              <button
-                key={level.id}
-                onClick={() => {
-                  onChange(level.id);
-                  setOpen(false);
-                }}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 text-left transition-colors cursor-pointer ${
-                  isActive
-                    ? "bg-accent-fill/8 text-heading"
-                    : "text-sub hover:bg-page/80 hover:text-heading"
-                }`}
-              >
-                <span className={`w-4 text-center text-[12px] ${level.color}`}>{level.icon}</span>
-                <span className="text-[11.5px] font-medium">{level.label}</span>
-                {isActive && (
-                  <svg className="w-3 h-3 text-accent flex-shrink-0 ml-auto" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── ChatComposer ─────────────────────────────────────────────────────────
 
@@ -260,26 +28,24 @@ export interface ChatComposerHandle {
 export const ChatComposer = forwardRef<ChatComposerHandle, {
   agentTyping: boolean;
   files: FileEntry[];
+  folderPaths?: string[];
   onSend: (text: string, attachments?: File[]) => void;
   searchFilters?: SearchFilterConfig;
   onSearchFiltersChange?: (filters: SearchFilterConfig) => void;
   autoAcceptEdits?: boolean;
   onAutoAcceptEditsChange?: () => void;
-  selectedModel?: string;
-  onModelChange?: (model: string) => void;
-  reasoningEffort?: string;
-  onReasoningEffortChange?: (effort: string) => void;
+  reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+  onReasoningEffortChange?: (value: "low" | "medium" | "high" | "xhigh") => void;
 }>(function ChatComposer({
   agentTyping,
   files,
+  folderPaths = [],
   onSend,
   searchFilters,
   onSearchFiltersChange,
   autoAcceptEdits,
   onAutoAcceptEditsChange,
-  selectedModel,
-  onModelChange,
-  reasoningEffort,
+  reasoningEffort = "medium",
   onReasoningEffortChange,
 }, ref) {
   const [showSkillPicker, setShowSkillPicker] = useState(false);
@@ -287,58 +53,23 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [fileQuery, setFileQuery] = useState("");
   const [showFilterPanel, setShowFilterPanel] = useState(false);
+  const [showReasoningPanel, setShowReasoningPanel] = useState(false);
   const [editorEmpty, setEditorEmpty] = useState(true);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const filterPanelRef = useRef<HTMLDivElement>(null);
+  const reasoningPanelRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const editorRef = useRef<HTMLDivElement>(null);
   const inputWrapperRef = useRef<HTMLDivElement>(null);
   const slashTriggerRef = useRef<{ node: Text; startOffset: number; query: string } | null>(null);
   const atTriggerRef = useRef<{ node: Text; startOffset: number; query: string } | null>(null);
-
-  const filteredFiles = useMemo(() => files, [files]);
-
-  function createQuoteChip(text: string, sourceLabel: string): HTMLSpanElement {
-    const chip = document.createElement("span");
-    chip.setAttribute("contenteditable", "false");
-    chip.dataset.quotedContext = "true";
-    chip.dataset.fullText = text;
-    chip.dataset.sourceLabel = sourceLabel;
-
-    const preview = text.length > 40 ? text.slice(0, 38) + "\u2026" : text;
-
-    chip.style.cssText = [
-      "display:inline-flex",
-      "align-items:center",
-      "gap:3px",
-      "padding:1px 7px",
-      "margin:0 1px",
-      "border-radius:5px",
-      "background:color-mix(in srgb,var(--t-accent) 12%,transparent)",
-      "border:1px solid color-mix(in srgb,var(--t-accent) 20%,transparent)",
-      "color:var(--t-accent)",
-      "font-size:11px",
-      "font-weight:500",
-      "vertical-align:baseline",
-      "user-select:none",
-      "line-height:1.5",
-      "cursor:default",
-      "max-width:260px",
-    ].join(";");
-
-    const iconEl = document.createElement("span");
-    iconEl.textContent = "\u201C";
-    iconEl.style.cssText = "font-size:13px;flex-shrink:0;opacity:0.7";
-
-    const labelEl = document.createElement("span");
-    labelEl.textContent = `${preview}\u201D \u2014 ${sourceLabel}`;
-    labelEl.style.cssText = "overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-
-    chip.appendChild(iconEl);
-    chip.appendChild(labelEl);
-    return chip;
-  }
+  const selectedReasoningOption = useMemo(
+    () =>
+      REASONING_OPTIONS.find((option) => option.value === reasoningEffort) ??
+      REASONING_OPTIONS[1],
+    [reasoningEffort]
+  );
 
   function injectQuotedContext(text: string, sourceLabel: string) {
     const editor = editorRef.current;
@@ -368,170 +99,20 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   function serializeEditor(): string {
     const editor = editorRef.current;
     if (!editor) return "";
-    let result = "";
-
-    function walk(node: Node) {
-      if (node.nodeType === Node.TEXT_NODE) {
-        result += node.textContent || "";
-      } else if (node instanceof HTMLElement) {
-        if (node.dataset.quotedContext) {
-          const fullText = node.dataset.fullText || "";
-          const sourceLabel = node.dataset.sourceLabel || "";
-          result += `> "${fullText}"\n> \u2014 ${sourceLabel}\n\n`;
-          return;
-        } else if (node.dataset.skillSlash) {
-          result += node.dataset.skillSlash;
-        } else if (node.dataset.fileLabel) {
-          result += `@${node.dataset.fileLabel}`;
-        } else if (node.tagName === "BR") {
-          result += "\n";
-        } else {
-          node.childNodes.forEach(walk);
-        }
-      }
-    }
-
-    walk(editor);
-    return result.replace(/\u200B/g, "").replace(/\u00A0/g, " ").trim();
+    return serializeEditorDOM(editor);
   }
 
   function checkEditorEmpty(): boolean {
     const editor = editorRef.current;
     if (!editor) return true;
-    const hasChips =
-      editor.querySelectorAll("[data-skill-slash],[data-file-key],[data-quoted-context]").length > 0;
-    const text = (editor.textContent || "")
-      .replace(/\u200B/g, "")
-      .replace(/\u00A0/g, "")
-      .trim();
-    return !hasChips && text === "";
-  }
-
-  function findTriggerAtCursor(
-    char: string
-  ): { node: Text; startOffset: number; query: string } | null {
-    const editor = editorRef.current;
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || !sel.isCollapsed || !editor) return null;
-    const { startContainer: node, startOffset: offset } = sel.getRangeAt(0);
-    if (node.nodeType !== Node.TEXT_NODE || !editor.contains(node)) return null;
-    const text = node.textContent || "";
-    const beforeCursor = text.slice(0, offset);
-    const idx = beforeCursor.lastIndexOf(char);
-    if (idx === -1) return null;
-    if (idx > 0 && !/\s/.test(beforeCursor[idx - 1])) return null;
-    const query = beforeCursor.slice(idx + 1);
-    if (query.includes(" ")) return null;
-    return { node: node as Text, startOffset: idx, query };
-  }
-
-  function createSkillChip(skill: SkillInfo): HTMLSpanElement {
-    const chip = document.createElement("span");
-    chip.setAttribute("contenteditable", "false");
-    chip.dataset.skillId = skill.id;
-    chip.dataset.skillSlash = skill.slash;
-    chip.style.cssText = [
-      "display:inline-flex",
-      "align-items:center",
-      "gap:3px",
-      "padding:1px 7px",
-      "margin:0 1px",
-      "border-radius:5px",
-      "background:color-mix(in srgb,var(--t-dot) 12%,transparent)",
-      "border:1px solid color-mix(in srgb,var(--t-dot) 20%,transparent)",
-      "color:var(--t-dot)",
-      "font-size:11px",
-      "font-weight:500",
-      "vertical-align:baseline",
-      "user-select:none",
-      "line-height:1.5",
-      "cursor:default",
-    ].join(";");
-    const iconEl = document.createElement("span");
-    iconEl.textContent = getSkillIcon(skill.id);
-    iconEl.style.fontSize = "10px";
-    const labelEl = document.createElement("span");
-    labelEl.textContent = skill.slash;
-    labelEl.style.cssText =
-      "font-family:var(--font-mono,monospace);letter-spacing:-0.02em";
-    chip.appendChild(iconEl);
-    chip.appendChild(labelEl);
-    return chip;
-  }
-
-  function createFileChip(file: FileEntry): HTMLSpanElement {
-    const chip = document.createElement("span");
-    chip.setAttribute("contenteditable", "false");
-    chip.dataset.fileKey = file.key;
-    chip.dataset.fileLabel = file.shortLabel;
-    chip.style.cssText = [
-      "display:inline-flex",
-      "align-items:center",
-      "gap:3px",
-      "padding:1px 7px",
-      "margin:0 1px",
-      "border-radius:5px",
-      "background:color-mix(in srgb,var(--t-accent) 12%,transparent)",
-      "border:1px solid color-mix(in srgb,var(--t-accent) 20%,transparent)",
-      "color:var(--t-accent)",
-      "font-size:11px",
-      "font-weight:500",
-      "vertical-align:baseline",
-      "user-select:none",
-      "line-height:1.5",
-      "cursor:default",
-    ].join(";");
-    const atEl = document.createElement("span");
-    atEl.textContent = "@";
-    atEl.style.opacity = "0.6";
-    const labelEl = document.createElement("span");
-    labelEl.textContent = file.shortLabel;
-    chip.appendChild(atEl);
-    chip.appendChild(labelEl);
-    return chip;
-  }
-
-  function insertChipAtTrigger(
-    trigger: { node: Text; startOffset: number; query: string },
-    chip: HTMLSpanElement
-  ) {
-    const editor = editorRef.current;
-    if (!editor || !editor.contains(trigger.node)) return;
-
-    const { node, startOffset, query } = trigger;
-    const triggerEnd = Math.min(
-      startOffset + 1 + query.length,
-      (node.textContent || "").length
-    );
-
-    const range = document.createRange();
-    range.setStart(node, startOffset);
-    range.setEnd(node, triggerEnd);
-    range.deleteContents();
-    range.insertNode(chip);
-
-    const space = document.createTextNode("\u00A0");
-    if (chip.nextSibling) {
-      chip.parentNode!.insertBefore(space, chip.nextSibling);
-    } else {
-      chip.parentNode!.appendChild(space);
-    }
-
-    const newRange = document.createRange();
-    newRange.setStart(space, 1);
-    newRange.collapse(true);
-    const sel = window.getSelection();
-    if (sel) {
-      sel.removeAllRanges();
-      sel.addRange(newRange);
-    }
-
-    setEditorEmpty(false);
-    editor.focus();
+    return checkEditorEmptyDOM(editor);
   }
 
   function detectTriggers() {
-    const slash = findTriggerAtCursor("/");
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const slash = findTriggerAtCursor(editor, "/");
     if (slash) {
       slashTriggerRef.current = slash;
       setSkillQuery(slash.query);
@@ -545,7 +126,7 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     setShowSkillPicker(false);
     setSkillQuery("");
 
-    const at = findTriggerAtCursor("@");
+    const at = findTriggerAtCursor(editor, "@");
     if (at) {
       atTriggerRef.current = at;
       setFileQuery(at.query);
@@ -587,24 +168,28 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
   }
 
   const handleSkillSelect = useCallback((slash: string) => {
+    const editor = editorRef.current;
     const skill = SKILL_LIST.find((entry) => entry.slash === slash);
     const trigger = slashTriggerRef.current;
-    if (!skill || !trigger) return;
+    if (!skill || !trigger || !editor) return;
 
     const chip = createSkillChip(skill);
-    insertChipAtTrigger(trigger, chip);
+    insertChipAtTrigger(editor, trigger, chip);
+    setEditorEmpty(false);
 
     slashTriggerRef.current = null;
     setShowSkillPicker(false);
     setSkillQuery("");
   }, []);
 
-  const handleFileSelect = useCallback((file: FileEntry) => {
+  const handleFileSelect = useCallback((entry: MentionEntry) => {
+    const editor = editorRef.current;
     const trigger = atTriggerRef.current;
-    if (!trigger) return;
+    if (!trigger || !editor) return;
 
-    const chip = createFileChip(file);
-    insertChipAtTrigger(trigger, chip);
+    const chip = createMentionChip(entry);
+    insertChipAtTrigger(editor, trigger, chip);
+    setEditorEmpty(false);
 
     atTriggerRef.current = null;
     setShowFilePicker(false);
@@ -639,6 +224,22 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [showFilterPanel]);
+
+  useEffect(() => {
+    if (!showReasoningPanel) return;
+
+    function handleClick(e: MouseEvent) {
+      if (
+        reasoningPanelRef.current &&
+        !reasoningPanelRef.current.contains(e.target as Node)
+      ) {
+        setShowReasoningPanel(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [showReasoningPanel]);
 
   function handleEditorKeyDown(e: KeyboardEvent<HTMLDivElement>) {
     if (showSkillPicker || showFilePicker) {
@@ -711,7 +312,8 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
           <div onMouseDown={(e) => e.preventDefault()} className="contents">
             <FileMentionPicker
               query={fileQuery}
-              files={filteredFiles}
+              files={files}
+              folderPaths={folderPaths}
               onSelect={handleFileSelect}
               onClose={() => {
                 setShowFilePicker(false);
@@ -811,22 +413,178 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
           </div>
 
           {/* Bottom row — Toolbar */}
-          <div className="flex items-center justify-between px-2 pb-2 pt-0.5">
-            {/* Left — Model picker + Reasoning */}
-            <div className="flex items-center gap-1.5">
-              {selectedModel && onModelChange && (
-                <ModelPicker
-                  selectedModel={selectedModel}
-                  onModelChange={onModelChange}
-                />
-              )}
-              {reasoningEffort !== undefined && onReasoningEffortChange && (
-                <ReasoningPicker
-                  effort={reasoningEffort}
-                  onChange={onReasoningEffortChange}
-                />
-              )}
-            </div>
+          <div className="flex items-center justify-between gap-3 px-2 pb-2 pt-0.5">
+            {onReasoningEffortChange ? (
+              <div ref={reasoningPanelRef} className="relative flex-shrink-0">
+                {showReasoningPanel && (
+                  <div
+                    role="menu"
+                    aria-label="Select reasoning"
+                    className="absolute bottom-full left-0 mb-2 w-[252px] overflow-hidden rounded-[24px] border border-edge/35 z-20"
+                    style={{
+                      background:
+                        "linear-gradient(180deg, color-mix(in srgb, white 10%, var(--t-panel) 62%), color-mix(in srgb, var(--t-panel) 74%, transparent))",
+                      boxShadow:
+                        "0 20px 48px color-mix(in srgb, var(--t-shadow) 18%, transparent), inset 0 1px 0 rgba(255,255,255,0.16), inset 0 -1px 0 rgba(255,255,255,0.04)",
+                      backdropFilter: "blur(28px) saturate(145%)",
+                    }}
+                  >
+                    <span
+                      className="pointer-events-none absolute inset-x-4 top-[1px] h-[1px] rounded-full"
+                      style={{
+                        background:
+                          "linear-gradient(90deg, transparent, rgba(255,255,255,0.36), transparent)",
+                      }}
+                    />
+                    <span
+                      className="pointer-events-none absolute -left-6 top-5 h-24 w-24 rounded-full opacity-55 blur-2xl"
+                      style={{
+                        background:
+                          "radial-gradient(circle, color-mix(in srgb, white 16%, var(--t-accent)) 0%, transparent 72%)",
+                      }}
+                    />
+                    <span
+                      className="pointer-events-none absolute bottom-0 right-0 h-28 w-32 rounded-full opacity-38 blur-3xl"
+                      style={{
+                        background:
+                          "radial-gradient(circle, color-mix(in srgb, white 8%, var(--t-dot)) 0%, transparent 74%)",
+                      }}
+                    />
+                    <div className="relative z-10 px-4 pt-3 pb-2">
+                      <div className="text-[11px] font-medium tracking-[0.01em] text-dim">
+                        Select reasoning
+                      </div>
+                      <div className="mt-1 text-[10px] text-mute">
+                        Faster at the top, deeper at the bottom.
+                      </div>
+                    </div>
+                    <div className="relative z-10 px-2 pb-2">
+                      {REASONING_OPTIONS.map((option) => {
+                        const selected = option.value === reasoningEffort;
+                        return (
+                          <button
+                            key={option.value}
+                            role="menuitemradio"
+                            aria-checked={selected}
+                            onClick={() => {
+                              onReasoningEffortChange(option.value);
+                              setShowReasoningPanel(false);
+                            }}
+                            className={`group relative flex w-full items-center gap-2.5 overflow-hidden rounded-[17px] border px-2.5 py-2 text-left transition-all duration-200 cursor-pointer ${
+                              selected
+                                ? "border-edge/35 text-heading"
+                                : "border-transparent text-sub hover:border-edge/25 hover:text-heading"
+                            }`}
+                            style={{
+                              background: selected
+                                ? "linear-gradient(180deg, color-mix(in srgb, white 10%, transparent), color-mix(in srgb, var(--t-panel) 54%, transparent))"
+                                : "linear-gradient(180deg, transparent, color-mix(in srgb, white 1%, transparent))",
+                              boxShadow: selected
+                                ? "inset 0 1px 0 rgba(255,255,255,0.12)"
+                                : "none",
+                            }}
+                          >
+                            <span
+                              className={`pointer-events-none absolute inset-x-3 top-[1px] h-[1px] rounded-full transition-opacity ${
+                                selected ? "opacity-100" : "opacity-0 group-hover:opacity-70"
+                              }`}
+                              style={{
+                                background:
+                                  "linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent)",
+                              }}
+                            />
+                            <ReasoningGlyph active={selected} />
+                            <span className="min-w-0 flex-1 font-sans text-[12px] font-medium">
+                              {option.label}
+                            </span>
+                            <span
+                              className={`flex h-5 w-5 items-center justify-center rounded-full transition-all ${
+                                selected
+                                  ? "bg-page/55 text-heading shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+                                  : "bg-transparent text-transparent"
+                              }`}
+                              style={
+                                selected
+                                  ? {
+                                      border:
+                                        "1px solid color-mix(in srgb, white 18%, var(--t-edge))",
+                                    }
+                                  : undefined
+                              }
+                            >
+                              {selected ? (
+                                <svg
+                                  className="h-3.5 w-3.5"
+                                  viewBox="0 0 16 16"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth={2}
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.5 8.5l2.5 2.5 6-6" />
+                                </svg>
+                              ) : null}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  onClick={() => {
+                    setShowFilterPanel(false);
+                    setShowReasoningPanel((value) => !value);
+                  }}
+                  className={`group relative inline-flex h-8 items-center gap-2 overflow-hidden rounded-full border px-3 text-[12px] font-medium transition-all duration-200 cursor-pointer ${
+                    showReasoningPanel
+                      ? "border-edge/45 text-heading"
+                      : "border-edge/25 text-sub hover:border-edge/45 hover:text-heading"
+                  }`}
+                  style={{
+                    background: showReasoningPanel
+                      ? "linear-gradient(180deg, color-mix(in srgb, white 11%, var(--t-panel)), color-mix(in srgb, var(--t-panel) 70%, transparent))"
+                      : "linear-gradient(180deg, color-mix(in srgb, white 5%, var(--t-panel)), color-mix(in srgb, var(--t-panel) 58%, transparent))",
+                    boxShadow: showReasoningPanel
+                      ? "0 10px 24px color-mix(in srgb, var(--t-shadow) 12%, transparent), inset 0 1px 0 rgba(255,255,255,0.16)"
+                      : "inset 0 1px 0 rgba(255,255,255,0.1)",
+                    backdropFilter: "blur(16px) saturate(135%)",
+                  }}
+                  aria-haspopup="menu"
+                  aria-expanded={showReasoningPanel}
+                  aria-label={`Reasoning level: ${selectedReasoningOption.label}`}
+                >
+                  <span
+                    className="pointer-events-none absolute inset-x-4 top-[1px] h-[1px] rounded-full opacity-80"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, rgba(255,255,255,0.26), transparent)",
+                    }}
+                  />
+                  <span
+                    className={`pointer-events-none absolute -left-2 top-0 h-8 w-16 rounded-full blur-xl transition-opacity ${
+                      showReasoningPanel ? "opacity-58" : "opacity-38 group-hover:opacity-52"
+                    }`}
+                    style={{
+                      background:
+                        "radial-gradient(circle, color-mix(in srgb, white 14%, var(--t-accent)) 0%, transparent 72%)",
+                    }}
+                  />
+                  <span className="text-inherit">{selectedReasoningOption.label}</span>
+                  <svg
+                    className={`relative h-3.5 w-3.5 transition-transform ${showReasoningPanel ? "rotate-180" : ""}`}
+                    viewBox="0 0 20 20"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={1.8}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.5 7.75L10 12.25l4.5-4.5" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <div />
+            )}
 
             {/* Right — Action buttons */}
             <div className="flex items-center gap-0.5">
@@ -853,7 +611,10 @@ export const ChatComposer = forwardRef<ChatComposerHandle, {
               {onSearchFiltersChange && (
                 <div className="group/tip relative">
                   <button
-                    onClick={() => setShowFilterPanel((v) => !v)}
+                    onClick={() => {
+                      setShowReasoningPanel(false);
+                      setShowFilterPanel((v) => !v);
+                    }}
                     className={`relative w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer ${
                       showFilterPanel || hasActiveSearchFilters(searchFilters)
                         ? "text-accent bg-accent-fill/12 hover:bg-accent-fill/20"

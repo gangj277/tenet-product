@@ -1,30 +1,36 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import {
-  generateCodeVerifier,
-  generateCodeChallenge,
-  generateState,
-  buildAuthorizationUrl,
-} from "@/lib/auth/openai-oauth";
+import { createSession, setSessionCookie } from "@/lib/auth/session";
+import { readLocalCodexAuthTokens } from "@/lib/auth/codex-local-auth";
+import { connectOpenAIAccount } from "@/lib/auth/openai-account";
 
-const PKCE_COOKIE = "lumen_openai_pkce";
-const PKCE_MAX_AGE = 300; // 5 minutes
+function redirectTo(path: string) {
+  return new NextResponse(null, {
+    status: 307,
+    headers: { Location: path },
+  });
+}
 
 export async function GET() {
-  const verifier = generateCodeVerifier();
-  const challenge = generateCodeChallenge(verifier);
-  const state = generateState();
+  try {
+    const localTokens = await readLocalCodexAuthTokens();
+    const account = await connectOpenAIAccount({
+      accessToken: localTokens.accessToken,
+      refreshToken: localTokens.refreshToken,
+      expiresAt: localTokens.expiresAt,
+      idToken: localTokens.idToken,
+      accountId: localTokens.accountId,
+    });
 
-  // Store verifier + state in a short-lived httpOnly cookie
-  const cookieStore = await cookies();
-  cookieStore.set(PKCE_COOKIE, JSON.stringify({ verifier, state }), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: PKCE_MAX_AGE,
-    path: "/",
-  });
+    const sessionToken = await createSession({
+      userId: account.userId,
+      email: account.email,
+    });
+    await setSessionCookie(sessionToken);
 
-  const authUrl = buildAuthorizationUrl(state, challenge);
-  return NextResponse.redirect(authUrl);
+    return redirectTo("/dashboard");
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "OpenAI sign-in failed.";
+    return redirectTo(`/auth/login?error=${encodeURIComponent(message)}`);
+  }
 }

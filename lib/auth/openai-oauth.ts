@@ -2,8 +2,8 @@ import { createHash, randomBytes } from "crypto";
 
 // ─── OpenAI Codex OAuth Configuration ────────────────────────────────────────
 
-export const OPENAI_AUTH_URL = "https://auth.openai.com/oauth/authorize";
-export const OPENAI_TOKEN_URL = "https://auth.openai.com/oauth/token";
+export const OPENAI_AUTH_URL = "https://auth.openai.com/authorize";
+export const OPENAI_TOKEN_URL = "https://auth0.openai.com/oauth/token";
 export const OPENAI_CLIENT_ID = "app_EMoamEEZ73f0CkXaXp7hrann";
 export const OPENAI_SCOPES = "openid profile email offline_access";
 
@@ -40,7 +40,6 @@ export function buildAuthorizationUrl(
     state,
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
-    // OpenAI-specific params required for Codex OAuth
     id_token_add_organizations: "true",
     codex_cli_simplified_flow: "true",
     originator: "lumen",

@@ -107,3 +107,24 @@ export async function allSettledWithConcurrency<T, R>(
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export function createConcurrencyLimiter(limit: number) {
+  const normalizedLimit = Math.max(1, Math.floor(limit));
+  let active = 0;
+  const queue: Array<() => void> = [];
+
+  return async function withConcurrencyLimit<T>(operation: () => Promise<T>): Promise<T> {
+    if (active >= normalizedLimit) {
+      await new Promise<void>((resolve) => queue.push(resolve));
+    }
+
+    active += 1;
+
+    try {
+      return await operation();
+    } finally {
+      active -= 1;
+      queue.shift()?.();
+    }
+  };
+}

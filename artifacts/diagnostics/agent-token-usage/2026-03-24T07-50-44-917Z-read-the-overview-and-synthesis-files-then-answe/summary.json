@@ -1,0 +1,22 @@
+{
+  "generatedAt": "2026-03-24T07:50:44.927Z",
+  "user": {
+    "userId": "e768e2c9-331c-42ba-87ba-6d88536230e7",
+    "email": "gangj277@gmail.com",
+    "validationStatus": "valid",
+    "validatedAt": "2026-03-24T07:40:30.636Z",
+    "capabilities": {
+      "json": true,
+      "basic": true,
+      "liteModel": true,
+      "streaming": true,
+      "toolCalling": true
+    }
+  },
+  "model": "gpt-5.4",
+  "message": "Read the overview and synthesis files, then answer in exactly two bullet points.",
+  "estimatedInitialPromptTokens": 7091,
+  "rawResponses": null,
+  "agentRun": null,
+  "recommendation": "Use the raw Responses usage only as per-call accounting. Keep live-context estimation local and next-turn based."
+}

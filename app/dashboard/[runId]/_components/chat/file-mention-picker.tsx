@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FileEntry } from "../../_lib/workspace-types";
+import { FOLDER_ICON_PATH } from "../sidebar/sidebar-icons";
+import { buildMentionEntries, type MentionEntry } from "./composer/mention-utils";
 
 /* ── Icon paths — reused from file-sidebar ── */
 
@@ -32,6 +34,7 @@ const GROUP_STYLES: Record<string, { bg: string; text: string; label: string }> 
   source: { bg: "bg-violet-500/10", text: "text-violet-400", label: "Source" },
   note: { bg: "bg-amber-500/10", text: "text-amber-400", label: "Note" },
   experiment: { bg: "bg-cyan-500/10", text: "text-cyan-400", label: "Experiment" },
+  folder: { bg: "bg-slate-400/10", text: "text-slate-300", label: "Folder" },
 };
 
 /* ── Props ── */
@@ -39,7 +42,8 @@ const GROUP_STYLES: Record<string, { bg: string; text: string; label: string }> 
 export interface FileMentionPickerProps {
   query: string;
   files: FileEntry[];
-  onSelect: (file: FileEntry) => void;
+  folderPaths: string[];
+  onSelect: (entry: MentionEntry) => void;
   onClose: () => void;
 }
 
@@ -48,6 +52,7 @@ export interface FileMentionPickerProps {
 export function FileMentionPicker({
   query,
   files,
+  folderPaths,
   onSelect,
   onClose,
 }: FileMentionPickerProps) {
@@ -55,30 +60,33 @@ export function FileMentionPicker({
   const listRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
-  /* Filter files against query */
-  const filtered = useMemo(() => {
-    if (!query) return files;
-    const q = query.toLowerCase();
-    return files.filter(
-      (f) =>
-        f.label.toLowerCase().includes(q) ||
-        f.shortLabel.toLowerCase().includes(q) ||
-        f.key.toLowerCase().includes(q)
-    );
-  }, [query, files]);
+  const entries = useMemo(
+    () => buildMentionEntries(files, folderPaths),
+    [files, folderPaths]
+  );
 
-  /* Reset highlight when filter changes */
-  useEffect(() => {
-    setHighlightIdx(0);
-  }, [filtered]);
+  /* Filter entries against query */
+  const filtered = useMemo(() => {
+    if (!query) return entries;
+    const q = query.toLowerCase();
+    return entries.filter(
+      (entry) =>
+        entry.label.toLowerCase().includes(q) ||
+        entry.shortLabel.toLowerCase().includes(q) ||
+        (entry.type === "file" && entry.key.toLowerCase().includes(q)) ||
+        (entry.type === "folder" && entry.path.toLowerCase().includes(q))
+    );
+  }, [entries, query]);
+  const activeHighlightIdx =
+    filtered.length === 0 ? 0 : Math.min(highlightIdx, filtered.length - 1);
 
   /* Scroll highlighted item into view */
   useEffect(() => {
-    const el = itemRefs.current.get(highlightIdx);
+    const el = itemRefs.current.get(activeHighlightIdx);
     if (el) {
       el.scrollIntoView({ block: "nearest" });
     }
-  }, [highlightIdx]);
+  }, [activeHighlightIdx]);
 
   /* Keyboard handler */
   useEffect(() => {
@@ -100,8 +108,8 @@ export function FileMentionPicker({
       } else if (e.key === "Enter") {
         e.preventDefault();
         e.stopPropagation();
-        if (filtered[highlightIdx]) {
-          onSelect(filtered[highlightIdx]);
+        if (filtered[activeHighlightIdx]) {
+          onSelect(filtered[activeHighlightIdx]);
         }
       } else if (e.key === "Escape") {
         e.preventDefault();
@@ -112,7 +120,7 @@ export function FileMentionPicker({
 
     window.addEventListener("keydown", handleKey, true);
     return () => window.removeEventListener("keydown", handleKey, true);
-  }, [filtered, highlightIdx, onSelect, onClose]);
+  }, [activeHighlightIdx, filtered, onClose, onSelect]);
 
   if (filtered.length === 0) {
     return (
@@ -166,20 +174,30 @@ export function FileMentionPicker({
           className="max-h-[220px] overflow-y-auto py-1 px-1.5"
           role="listbox"
         >
-          {filtered.map((file, i) => {
-            const isActive = i === highlightIdx;
-            const group = GROUP_STYLES[file.group];
+          {filtered.map((entry, i) => {
+            const isActive = i === activeHighlightIdx;
+            const group = GROUP_STYLES[entry.type === "folder" ? "folder" : entry.group];
+            const iconPath =
+              entry.type === "folder" ? FOLDER_ICON_PATH : ICON_PATHS[entry.icon];
+            const secondaryLabel =
+              entry.type === "folder"
+                ? entry.shortLabel === entry.label
+                  ? null
+                  : entry.label
+                : entry.shortLabel === entry.label
+                  ? null
+                  : entry.label;
 
             return (
               <button
-                key={file.key}
+                key={entry.type === "folder" ? `folder:${entry.path}` : entry.key}
                 ref={(el) => {
                   if (el) itemRefs.current.set(i, el);
                   else itemRefs.current.delete(i);
                 }}
                 role="option"
                 aria-selected={isActive}
-                onClick={() => onSelect(file)}
+                onClick={() => onSelect(entry)}
                 onMouseEnter={() => setHighlightIdx(i)}
                 className={`
                   w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left
@@ -212,7 +230,7 @@ export function FileMentionPicker({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d={ICON_PATHS[file.icon]} />
+                    <path d={iconPath} />
                   </svg>
                 </span>
 
@@ -225,7 +243,7 @@ export function FileMentionPicker({
                         ${isActive ? "text-heading" : "text-sub"}
                       `}
                     >
-                      {file.shortLabel}
+                      {entry.type === "folder" ? entry.label : entry.shortLabel}
                     </span>
                     <span
                       className={`
@@ -236,9 +254,9 @@ export function FileMentionPicker({
                       {group.label}
                     </span>
                   </div>
-                  {file.shortLabel !== file.label && (
+                  {secondaryLabel && (
                     <p className="text-[10px] text-dim mt-0.5 truncate leading-snug">
-                      {file.label}
+                      {secondaryLabel}
                     </p>
                   )}
                 </div>

@@ -23,7 +23,12 @@ function patchModule(modulePath: string, exports: unknown): () => void {
     requireFrom(modulePath);
   }
 
-  requireFrom.cache[resolved].exports = exports;
+  const cachedModule = requireFrom.cache[resolved];
+  if (!cachedModule) {
+    throw new Error(`Module cache missing for ${modulePath}`);
+  }
+
+  cachedModule.exports = exports;
 
   return () => {
     if (original) {
@@ -35,79 +40,87 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
-test("analyzeEvidence reads chunk blobs instead of requiring inline full-document source content", async () => {
+test("analyzeEvidence digests short sources from the normalized document in a single source-level call", async () => {
   const blobReads: string[] = [];
-  const llmInputs: string[] = [];
+  const llmCalls: Array<{ schemaName: string; userContent: string }> = [];
 
   const restoreBlobStore = patchModule("../lib/storage/blob-store.ts", {
     blobStore: {
       async getText(key: string) {
         blobReads.push(key);
-        if (key === "sources/source-1/chunks/0000.md") {
-          return "## Chunk A\n\nEvidence about the intervention improving outcomes.";
-        }
-        if (key === "sources/source-1/chunks/0001.md") {
-          return "## Chunk B\n\nMethodological caveat about sample selection.";
+        if (key === "sources/source-1/normalized.md") {
+          return [
+            "# Intervention Study",
+            "",
+            "## Results",
+            "",
+            "The intervention improved outcomes relative to the control condition.",
+            "",
+            "## Limitations",
+            "",
+            "Sample selection and site bias limit the external validity of the result.",
+          ].join("\n");
         }
         throw new Error(`Unexpected blob read: ${key}`);
       },
     },
   });
-  const restoreOpenrouter = patchModule("../lib/llm/openrouter.ts", {
-    callLLMJson: async (options: { messages: Array<{ role: string; content: string }> }) => {
+  const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
+    callLLMJson: async (options: {
+      jsonSchema?: { name: string };
+      messages: Array<{ role: string; content: string }>;
+    }) => {
       const userMessage = options.messages.find((message) => message.role === "user")?.content;
       assert.equal(typeof userMessage, "string");
-      llmInputs.push(userMessage);
+      const schemaName = options.jsonSchema?.name ?? "unknown";
+      llmCalls.push({ schemaName, userContent: userMessage as string });
 
-      if (userMessage.includes("Chunk A")) {
-        return {
-          data: {
-            items: [
-              {
-                claim: "The intervention improved outcomes.",
-                sourceId: "",
-                sourceName: "",
-                location: "Chunk A",
-                confidence: "high",
-                quote: "improving outcomes",
-                evidenceType: "supporting",
-              },
-            ],
-          },
-          raw: {
-            content: "",
-            model: "test-model",
-            usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-            latencyMs: 0,
-          },
-        };
-      }
+      assert.equal(schemaName, "source_digest");
 
-      if (userMessage.includes("Chunk B")) {
-        return {
-          data: {
-            items: [
-              {
-                claim: "Sample selection limits the conclusion.",
-                sourceId: "",
-                sourceName: "",
-                location: "Chunk B",
-                confidence: "medium",
-                quote: "sample selection",
-                evidenceType: "methodological",
-              },
-            ],
-          },
-          raw: {
-            content: "",
-            model: "test-model",
-            usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-            latencyMs: 0,
-          },
-        };
-      }
-
-      throw new Error(`Unexpected user prompt: ${userMessage}`);
+      return {
+        data: {
+          sourceSummary:
+            "The source reports improved outcomes, but the result is limited by sample-selection bias.",
+          claims: [
+            {
+              claimSignature: "intervention-improves-outcomes",
+              claim:
+                "The intervention improved outcomes relative to the control condition.",
+              subquestion: "What outcomes were observed?",
+              stance: "supporting",
+              confidence: "high",
+              citations: [
+                {
+                  location: "Results",
+                  quote:
+                    "The intervention improved outcomes relative to the control condition.",
+                },
+              ],
+              caveats: [],
+            },
+          ],
+          methodologicalNotes: [
+            {
+              note: "Sample selection and site bias limit external validity.",
+              confidence: "medium",
+              citations: [
+                {
+                  location: "Limitations",
+                  quote:
+                    "Sample selection and site bias limit the external validity of the result.",
+                },
+              ],
+            },
+          ],
+          openQuestions: [],
+        },
+        raw: {
+          content: "",
+          model: "test-model",
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          latencyMs: 0,
+        },
+      };
     },
   });
   const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
@@ -132,6 +145,7 @@ test("analyzeEvidence reads chunk blobs instead of requiring inline full-documen
         researchQuestion: "Does the intervention work?",
       },
       perspective: {
+        projectTitle: "Intervention evidence",
         briefSummary: "Review intervention evidence",
         interpretedIntent: "Review intervention evidence",
         inferredResearchFrame: "Intervention effectiveness",
@@ -174,19 +188,128 @@ test("analyzeEvidence reads chunk blobs instead of requiring inline full-documen
       errors: [],
       startedAt: "",
       completedAt: "",
-    });
+    } as unknown as Parameters<typeof loadedModule.analyzeEvidence>[0]);
 
-    assert.deepEqual(blobReads, [
-      "sources/source-1/chunks/0000.md",
-      "sources/source-1/chunks/0001.md",
-    ]);
-    assert.equal(llmInputs.length, 2);
+    assert.deepEqual(blobReads, ["sources/source-1/normalized.md"]);
+    assert.equal(llmCalls.length, 1);
+    assert.equal(llmCalls[0]?.schemaName, "source_digest");
+    assert.ok(result.sourceDigests);
+    const sourceDigests = result.sourceDigests as unknown[];
+    assert.equal(sourceDigests.length, 1);
     assert.ok(result.evidenceMap);
-    assert.equal(result.evidenceMap?.supportingEvidence.length, 1);
-    assert.equal(result.evidenceMap?.methodologicalCautions.length, 1);
+    const evidenceMap = result.evidenceMap as {
+      supportingEvidence: unknown[];
+      methodologicalCautions: unknown[];
+    };
+    assert.equal(evidenceMap.supportingEvidence.length, 1);
+    assert.equal(evidenceMap.methodologicalCautions.length, 1);
   } finally {
     restoreMemoryStore();
-    restoreOpenrouter();
+    restoreRuntime();
+    restoreBlobStore();
+  }
+});
+
+test("analyzeEvidence still digests directly from the normalized document when chunk metadata is absent", async () => {
+  const blobReads: string[] = [];
+  const llmCalls: string[] = [];
+
+  const restoreBlobStore = patchModule("../lib/storage/blob-store.ts", {
+    blobStore: {
+      async getText(key: string) {
+        blobReads.push(key);
+        assert.equal(key, "sources/source-2/normalized.md");
+        return "The source says churn fell after onboarding changes.";
+      },
+    },
+  });
+  const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
+    callLLMJson: async (options: {
+      jsonSchema?: { name: string };
+    }) => {
+      llmCalls.push(options.jsonSchema?.name ?? "unknown");
+      return {
+        data: {
+          sourceSummary: "Onboarding changes were associated with lower churn.",
+          claims: [
+            {
+              claimSignature: "onboarding-lowers-churn",
+              claim: "Onboarding changes were associated with lower churn.",
+              subquestion: "What improved?",
+              stance: "supporting",
+              confidence: "medium",
+              citations: [{ location: "Source" }],
+              caveats: [],
+            },
+          ],
+          methodologicalNotes: [],
+          openQuestions: [],
+        },
+        raw: {
+          content: "",
+          model: "test-model",
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          latencyMs: 0,
+        },
+      };
+    },
+  });
+  const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
+    memoryStore: {
+      updateProgress: () => {},
+    },
+  });
+
+  try {
+    clearModule("../lib/engine/nodes/analyze-evidence.ts");
+    const loadedModule = reloadModule<typeof import("../lib/engine/nodes/analyze-evidence")>(
+      "../lib/engine/nodes/analyze-evidence.ts"
+    );
+
+    const result = await loadedModule.analyzeEvidence({
+      runId: "run-2",
+      projectId: "project-2",
+      userId: "user-2",
+      status: "running",
+      currentStep: "build_source_set",
+      input: {
+        researchQuestion: "Did onboarding help retention?",
+      },
+      perspective: {
+        projectTitle: "Retention review",
+        briefSummary: "Review retention evidence",
+        interpretedIntent: "Review retention evidence",
+        inferredResearchFrame: "Retention improvement",
+        evidenceForCriteria: [],
+        evidenceAgainstCriteria: [],
+        subquestions: ["What improved?"],
+      },
+      sources: [],
+      parsedSources: [
+        {
+          sourceId: "source-2",
+          name: "Memo 2",
+          normalizedBlobKey: "sources/source-2/normalized.md",
+          charCount: 256,
+          estimatedTokens: 64,
+          parseQuality: "validated",
+          metadata: {},
+        },
+      ],
+      sourceChunks: [],
+      errors: [],
+      startedAt: "",
+      completedAt: "",
+    } as unknown as Parameters<typeof loadedModule.analyzeEvidence>[0]);
+
+    assert.deepEqual(blobReads, ["sources/source-2/normalized.md"]);
+    assert.deepEqual(llmCalls, ["source_digest"]);
+    assert.ok(result.sourceDigests);
+    const sourceDigests = result.sourceDigests as unknown[];
+    assert.equal(sourceDigests.length, 1);
+  } finally {
+    restoreMemoryStore();
+    restoreRuntime();
     restoreBlobStore();
   }
 });

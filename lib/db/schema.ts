@@ -13,6 +13,7 @@ import {
 // ── Enums ──
 
 export const runStatusEnum = pgEnum("run_status", [
+  "draft",
   "queued",
   "running",
   "awaiting_confirmation",
@@ -47,8 +48,7 @@ export const chatMessageRoleEnum = pgEnum("chat_message_role", [
 ]);
 
 export const llmProviderEnum = pgEnum("llm_provider", [
-  "openrouter",
-  "codex",
+  "openai_auth",
 ]);
 
 // ── Users ──
@@ -59,7 +59,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   name: varchar("name", { length: 255 }).notNull(),
   organization: varchar("organization", { length: 255 }),
-  authProvider: varchar("auth_provider", { length: 50 }).default("email").notNull(),
+  authProvider: varchar("auth_provider", { length: 50 })
+    .default("openai_auth")
+    .notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
@@ -73,6 +75,21 @@ export const userLlmCredentials = pgTable("user_llm_credentials", {
     .unique(),
   provider: llmProviderEnum("provider").notNull(),
   encryptedTokens: text("encrypted_tokens").notNull(),
+  validationStatus: varchar("validation_status", { length: 20 })
+    .default("invalid")
+    .notNull(),
+  validatedAt: timestamp("validated_at", { withTimezone: true }),
+  capabilities: jsonb("capabilities")
+    .$type<{
+      basic: boolean;
+      json: boolean;
+      streaming: boolean;
+      toolCalling: boolean;
+      liteModel: boolean;
+    }>()
+    .notNull(),
+  lastErrorCode: integer("last_error_code"),
+  lastErrorMessage: text("last_error_message"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 

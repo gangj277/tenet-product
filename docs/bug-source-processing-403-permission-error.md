@@ -1,6 +1,6 @@
 # Bug: Source Processing Fails — 403 Permission Error During Pipeline
 
-**Status**: Open
+**Status**: Resolved
 **Priority**: High
 **Reported**: 2026-03-23
 **Affects**: Project init pipeline → "Parsing sources" step
@@ -55,9 +55,32 @@ Uncaught (in promise) Object {
    - Intercepting requests to the Codex API endpoint (`chatgpt.com/backend-api/codex/responses`)
    - Simply logging unrelated errors that coincide with the pipeline running
 
+## Root Cause Confirmed
+
+The browser-extension console error was a red herring. The backend failure path was caused by two server-side issues in the ChatGPT OAuth provider flow:
+
+1. `lib/llm/openrouter.ts` stored the active user provider in a **process-global variable**.
+   - `POST /api/init/[runId]/confirm` launched the graph in the background and left that global provider set while the pipeline kept running.
+   - Any overlapping request could overwrite or clear the provider before `build_source_set -> parsePDF -> callLLM` executed for later sources.
+   - That made source parsing use the wrong OAuth credentials or lose credentials entirely, which can surface as Codex permission failures.
+
+2. `lib/engine/nodes/build-source-set.ts` fanned out **too many concurrent PDF normalizations**.
+   - The previous limit of `20` concurrent ingests was unnecessarily aggressive for ChatGPT OAuth-backed Codex usage.
+   - High fan-out increased the chance of provider throttling and made failures cascade across the entire source set.
+
+## Fix Applied
+
+- Replaced the process-global request provider with **`AsyncLocalStorage` request context isolation** in `lib/llm/openrouter.ts`
+- Updated `app/api/init/route.ts` and `app/api/init/[runId]/confirm/route.ts` to run graph execution inside that isolated provider context
+- Updated `app/api/agent/[runId]/chat/route.ts` and `lib/pdf/gemini-extract.ts` so ad hoc PDF parsing also uses the connected OAuth provider explicitly
+- Added timeout handling around PDF normalization and lowered source-ingest concurrency from `20` to `4`
+- Added regression tests for provider isolation, OAuth-backed PDF parsing, parser timeout behavior, and bounded source-parse concurrency
+
 ---
 
-## Likely Root Causes (Investigate in Order)
+## Initial Investigation Hypotheses (Historical)
+
+The sections below are preserved from the original investigation notes. They were useful triage leads at the time, but the confirmed backend root cause is documented above.
 
 ### Cause A: Chrome Extension Interference (Most Likely)
 

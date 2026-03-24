@@ -1,6 +1,7 @@
 import type { InitRunState, InitRunUpdate } from "../state";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { persistResearchArtifacts } from "@/lib/db/research-projects";
+import { mergeWorkspaceArtifacts } from "@/lib/workspace/source-cache";
 
 export async function persistProject(
   state: InitRunState
@@ -27,7 +28,11 @@ export async function persistProject(
     };
   }
 
-  await memoryStore.saveArtifacts(projectId, artifacts);
+  const mergedArtifacts = mergeWorkspaceArtifacts(
+    memoryStore.getArtifacts(projectId),
+    artifacts
+  );
+  await memoryStore.saveArtifacts(projectId, mergedArtifacts ?? artifacts);
 
   // Build inverted folder lookup: sourceId → folderName
   const sourceToFolder: Record<string, string> = {};

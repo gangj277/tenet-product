@@ -10,7 +10,15 @@ export interface LLMToolCall {
 
 export type ContentPart =
   | { type: "text"; text: string }
-  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } };
+  | { type: "input_text"; text: string }
+  | { type: "image_url"; image_url: { url: string; detail?: "low" | "high" | "auto" } }
+  | {
+      type: "input_file";
+      file_data?: string;
+      file_id?: string;
+      file_url?: string;
+      filename?: string;
+    };
 
 export interface LLMMessage {
   role: "system" | "user" | "assistant" | "tool";
@@ -24,7 +32,7 @@ export interface LLMMessage {
 
 // ─── Call Options ────────────────────────────────────────────────────────────
 
-export type ReasoningEffort = "none" | "low" | "medium" | "high";
+export type ReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh";
 
 export interface CallLLMOptions {
   messages: LLMMessage[];

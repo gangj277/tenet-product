@@ -50,3 +50,4 @@ next-env.d.ts
 .lumen-blob-store/
 .tenet-blob-store/
 .playwright-cli/
+/public/pdfjs/

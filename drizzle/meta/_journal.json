@@ -50,6 +50,13 @@
       "when": 1774248554716,
       "tag": "0006_youthful_excalibur",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1774340000000,
+      "tag": "0008_workspace_first_draft",
+      "breakpoints": true
     }
   ]
 }

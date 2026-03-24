@@ -1,0 +1,44 @@
+{
+  "generatedAt": "2026-03-23T18:36:12.063Z",
+  "user": {
+    "userId": "e768e2c9-331c-42ba-87ba-6d88536230e7",
+    "email": "gangj277@gmail.com",
+    "validationStatus": "valid",
+    "validatedAt": "2026-03-23T18:21:49.428Z",
+    "capabilities": {
+      "json": true,
+      "basic": true,
+      "liteModel": true,
+      "streaming": true,
+      "toolCalling": true
+    }
+  },
+  "input": {
+    "sourceType": "url",
+    "label": "2312.10997",
+    "resolvedUrl": "https://arxiv.org/pdf/2312.10997",
+    "contentType": "application/pdf",
+    "bytes": 1662567
+  },
+  "rawLocalExtraction": {
+    "pageCount": 21,
+    "charCount": 113450,
+    "durationMs": 891,
+    "outputPath": "/Users/gangjimin/Documents/main_dev/startup-ideas/research-cursor/research-cursor-product/artifacts/diagnostics/pdf-extraction/2026-03-23T18-35-19-866Z-2312/01-raw-local.txt"
+  },
+  "llmNormalization": {
+    "model": "gpt-5.4-mini",
+    "charCount": 13026,
+    "durationMs": 34204,
+    "validationOk": true,
+    "validationReason": null,
+    "chunkCount": 11,
+    "outputPath": "/Users/gangjimin/Documents/main_dev/startup-ideas/research-cursor/research-cursor-product/artifacts/diagnostics/pdf-extraction/2026-03-23T18-35-19-866Z-2312/02-normalized-gpt-5.4-mini.md"
+  },
+  "fullParsePath": {
+    "pageCount": 21,
+    "charCount": 13451,
+    "durationMs": 17096,
+    "outputPath": "/Users/gangjimin/Documents/main_dev/startup-ideas/research-cursor/research-cursor-product/artifacts/diagnostics/pdf-extraction/2026-03-23T18-35-19-866Z-2312/03-full-parse-path.md"
+  }
+}

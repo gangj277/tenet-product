@@ -1,5 +1,5 @@
 import type { InitRunState, InitRunUpdate, SearchQueryPlan } from "../state";
-import { callLLMJson } from "@/lib/llm/openrouter";
+import { callLLMJson } from "@/lib/llm/runtime";
 import { MODEL } from "@/lib/llm/models";
 import { buildQueryPlanningPrompt } from "../prompts/query-planning";
 

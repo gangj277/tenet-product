@@ -3,7 +3,7 @@ import { memoryStore } from "@/lib/storage/memory-store";
 import { initGraph } from "@/lib/engine/graph";
 import { getSession } from "@/lib/auth/session";
 import { getOwnedResearchRun } from "@/lib/db/research-projects";
-import type { InitRunState, RunError } from "@/lib/engine/state";
+import type { InitRunState, Perspective, RunError } from "@/lib/engine/state";
 import type { StepProgress } from "@/lib/storage/memory-store";
 
 const TERMINAL_STATUSES = new Set([
@@ -117,6 +117,9 @@ export async function GET(
       runId,
       projectId: ownedRun.projectId,
       status,
+      ...(status === "awaiting_confirmation" && state.perspective
+        ? { perspective: state.perspective as Perspective }
+        : {}),
       currentStep: resolveCurrentStep({
         status,
         graphCurrentStep: state.currentStep,

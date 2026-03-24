@@ -6,6 +6,7 @@ import { SKILL_LIST, type SkillInfo } from "../../_lib/skill-definitions";
 /* ── Skill icon map ── */
 
 const SKILL_ICONS: Record<string, string> = {
+  "compact-context": "\u25CC",
   "devils-advocate": "\u2694",   // crossed swords
   "source-scout": "\u2609",      // compass / sun symbol
   "paper-explainer": "\u273F",   // flower / asterisk
@@ -97,7 +98,7 @@ export function SkillPicker({ query, onSelect, onClose }: SkillPickerProps) {
           }}
         >
           <div className="px-4 py-3.5 text-[11px] text-dim text-center tracking-wide">
-            No matching skills
+            No matching skills or commands
           </div>
         </div>
       </div>
@@ -118,7 +119,7 @@ export function SkillPicker({ query, onSelect, onClose }: SkillPickerProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-3.5 pt-2.5 pb-1.5">
           <span className="text-[9.5px] font-medium text-mute uppercase tracking-[0.08em]">
-            Skills
+            Skills & Commands
           </span>
           <span className="text-[9px] text-mute/60 tracking-wide">
             <kbd className="inline-block px-1 py-0.5 rounded bg-page/40 text-[8.5px] text-dim font-mono border border-edge/30">

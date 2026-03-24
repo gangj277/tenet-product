@@ -7,8 +7,19 @@ export interface User {
   email: string;
   name: string;
   organization: string | null;
-  authProvider: "email" | "openai_codex";
+  authProvider: "openai_auth";
   openaiConnected: boolean;
+  openaiConnection: {
+    status: "valid" | "invalid" | "degraded";
+    lastErrorMessage: string | null;
+    capabilities: {
+      basic: boolean;
+      json: boolean;
+      streaming: boolean;
+      toolCalling: boolean;
+      liteModel: boolean;
+    };
+  } | null;
 }
 
 interface UseUserReturn {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { FileEntry } from "../../_lib/workspace-types";
 import { SectionHeader } from "./section-header";
 import { FileRow } from "./file-row";
@@ -18,6 +18,9 @@ export function FileSidebar({
   onRenameNote,
   onAddSource,
   onCreateExperiment,
+  noteFolderPaths,
+  onCreateFolder,
+  onDeleteFolder,
 }: {
   files: FileEntry[];
   activeFileKey: string;
@@ -28,6 +31,9 @@ export function FileSidebar({
   onRenameNote?: (noteKey: string, newLabel: string) => void;
   onAddSource?: (input: { file?: File; url?: string }) => Promise<void>;
   onCreateExperiment?: (title: string) => string;
+  noteFolderPaths: string[];
+  onCreateFolder?: (path: string) => void;
+  onDeleteFolder?: (path: string) => void;
 }) {
   const [artifactsOpen, setArtifactsOpen] = useState(false);
   const [papersOpen, setPapersOpen] = useState(false);
@@ -42,7 +48,6 @@ export function FileSidebar({
   const [addSourceError, setAddSourceError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const urlInputRef = useRef<HTMLInputElement>(null);
-  const [pinnedFolders, setPinnedFolders] = useState<Set<string>>(new Set());
   const [dragKey, setDragKey] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
   const [dragOverRoot, setDragOverRoot] = useState(false);
@@ -53,36 +58,9 @@ export function FileSidebar({
   const experimentFiles = files.filter((f) => f.group === "experiment");
   const sourceFiles = files.filter((f) => f.group === "source");
 
-  useEffect(() => {
-    const noteFolderPaths = noteFiles
-      .map((f) => f.folder)
-      .filter((f): f is string => !!f);
-
-    if (noteFolderPaths.length === 0) return;
-
-    setPinnedFolders((prev) => {
-      const next = new Set(prev);
-      let changed = false;
-
-      for (const folderPath of noteFolderPaths) {
-        const segments = folderPath.split("/");
-        let path = "";
-        for (const seg of segments) {
-          path = path ? `${path}/${seg}` : seg;
-          if (!next.has(path)) {
-            next.add(path);
-            changed = true;
-          }
-        }
-      }
-
-      return changed ? next : prev;
-    });
-  }, [noteFiles]);
-
   const { roots: noteFolders, ungrouped: ungroupedNotes } = buildFolderTree(
     noteFiles,
-    pinnedFolders
+    new Set(noteFolderPaths)
   );
 
   const handleDeleteFolder = useCallback(
@@ -96,17 +74,9 @@ export function FileSidebar({
         }
       }
 
-      setPinnedFolders((prev) => {
-        const next = new Set(prev);
-        for (const path of prev) {
-          if (path === folderPath || path.startsWith(folderPath + "/")) {
-            next.delete(path);
-          }
-        }
-        return next;
-      });
+      onDeleteFolder?.(folderPath);
     },
-    [noteFiles, onMoveNote]
+    [noteFiles, onDeleteFolder, onMoveNote]
   );
 
   const handleDragStart = useCallback((e: React.DragEvent, key: string) => {
@@ -240,7 +210,7 @@ export function FileSidebar({
                   icon="folder"
                   placeholder="Folder name..."
                   onSubmit={(name) => {
-                    setPinnedFolders((prev) => new Set(prev).add(name));
+                    onCreateFolder?.(name);
                     setCreatingFolder(false);
                   }}
                   onCancel={() => setCreatingFolder(false)}
@@ -286,7 +256,7 @@ export function FileSidebar({
                   onDelete={onDelete}
                   onRename={onRenameNote}
                   onCreateNote={onCreateNote}
-                  onCreateFolder={(path) => setPinnedFolders((prev) => new Set(prev).add(path))}
+                  onCreateFolder={onCreateFolder}
                   onDeleteFolder={handleDeleteFolder}
                   onDragStart={handleDragStart}
                   onDrop={handleDrop}

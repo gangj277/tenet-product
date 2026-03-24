@@ -1,19 +1,33 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Artifacts } from "@/lib/engine/state";
 import type { DiscoveredSource } from "@/lib/discovery/scholarly-search";
 import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
-import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
 import type { ExperimentMeta, NoteMeta, SourceMeta } from "@/lib/db/research-projects";
 import type { LineRange } from "../../_lib/citation-utils";
-import type { AskUserQuestion, TaskState } from "@/lib/agent/state";
-import type { ReasoningEffort } from "@/lib/llm/types";
+import type {
+  AgentContinuationState,
+  AskUserQuestion,
+  TaskState,
+  TokenUsage,
+} from "@/lib/agent/state";
+import {
+  buildConversationHistoryFromMessages,
+  deriveChatContinuationState,
+  estimateLiveContextUsage,
+  isCompactCommand,
+  resolveDisplayedChatUsage,
+} from "@/lib/agent/chat-context";
+import { useWorkspaceUI } from "./use-workspace-ui";
 import {
   buildFileList,
+  collectFolderPaths,
   getArtifactContent,
+  resolveActiveFileKey,
   truncateSourceName,
   type ChatAskUserQuestion,
   type ChatAttachmentInfo,
   type ChatMessage,
+  type ChatUsageState,
   type FileEntry,
   type ProposedUpdate,
   type SessionSummary,
@@ -33,22 +47,32 @@ import {
   updateProposedUpdateStatusInMessages,
 } from "../_lib/proposed-update-acceptance";
 
-type ChatReasoningEffort = Exclude<ReasoningEffort, "none">;
-
-function parseStoredReasoningEffort(
-  value: string | null
-): ChatReasoningEffort {
-  return value === "low" || value === "medium" || value === "high" || value === "xhigh"
-    ? value
-    : "medium";
-}
-
 export function useWorkspace(runId: string) {
+  const {
+    chatCollapsed,
+    sidebarCollapsed,
+    expanded,
+    searchFilters,
+    setSearchFilters,
+    autoAcceptEdits,
+    autoAcceptEditsRef,
+    reasoningEffort,
+    toggleAutoAcceptEdits,
+    updateReasoningEffort,
+    activeTaskPlan,
+    setActiveTaskPlan,
+    dismissTaskPlan,
+    toggleChat,
+    toggleSidebar,
+    toggleExpanded,
+  } = useWorkspaceUI();
+
   const [artifacts, setArtifacts] = useState<Artifacts | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [files, setFiles] = useState<FileEntry[]>([]);
+  const [noteFolderPaths, setNoteFolderPaths] = useState<string[]>([]);
   const [activeFileKey, setActiveFileKey] = useState<string>("");
   const [pendingLineRange, setPendingLineRange] = useState<LineRange | null>(null);
   const [editedContents, setEditedContents] = useState<Map<string, string>>(
@@ -56,55 +80,21 @@ export function useWorkspace(runId: string) {
   );
 
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [chatCollapsed, setChatCollapsed] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const [agentTyping, setAgentTyping] = useState(false);
-
-  // Search filter state
-  const [searchFilters, setSearchFilters] = useState<SearchFilterConfig>({});
-
-  // Auto-accept edits toggle
-  const [autoAcceptEdits, setAutoAcceptEdits] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("autoAcceptEdits") === "true";
-    }
-    return false;
-  });
-  const [reasoningEffort, setReasoningEffort] =
-    useState<ChatReasoningEffort>(() => {
-      if (typeof window !== "undefined") {
-        return parseStoredReasoningEffort(
-          localStorage.getItem("chatReasoningEffort")
-        );
-      }
-      return "medium";
-    });
-  const autoAcceptEditsRef = useRef(autoAcceptEdits);
-  useEffect(() => {
-    autoAcceptEditsRef.current = autoAcceptEdits;
-  }, [autoAcceptEdits]);
-  const toggleAutoAcceptEdits = useCallback(() => {
-    setAutoAcceptEdits((prev) => {
-      const next = !prev;
-      localStorage.setItem("autoAcceptEdits", String(next));
-      return next;
-    });
-  }, []);
-  const updateReasoningEffort = useCallback((next: ChatReasoningEffort) => {
-    setReasoningEffort(next);
-    localStorage.setItem("chatReasoningEffort", next);
-  }, []);
 
   // Session state
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionsLoading, setSessionsLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [compactionStatus, setCompactionStatus] =
+    useState<ChatUsageState["compactionStatus"]>("idle");
+  const [lastProviderUsage, setLastProviderUsage] =
+    useState<TokenUsage | null>(null);
+  const compactPulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Active task plan (lifted from per-message to top-level for persistent panel)
-  const [activeTaskPlan, setActiveTaskPlan] = useState<TaskState[] | null>(null);
-  const dismissTaskPlan = useCallback(() => setActiveTaskPlan(null), []);
+  // activeTaskPlan, dismissTaskPlan provided by useWorkspaceUI
 
   // Auto-save state
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
@@ -127,6 +117,31 @@ export function useWorkspace(runId: string) {
   useEffect(() => {
     activeSessionIdRef.current = activeSessionId;
   }, [activeSessionId]);
+
+  useEffect(
+    () => () => {
+      if (compactPulseTimeoutRef.current) {
+        clearTimeout(compactPulseTimeoutRef.current);
+      }
+    },
+    []
+  );
+
+  const folderPaths = useMemo(
+    () => collectFolderPaths(files, noteFolderPaths),
+    [files, noteFolderPaths]
+  );
+
+  const pulseCompactionStatus = useCallback(() => {
+    setCompactionStatus("recently_compacted");
+    if (compactPulseTimeoutRef.current) {
+      clearTimeout(compactPulseTimeoutRef.current);
+    }
+    compactPulseTimeoutRef.current = setTimeout(
+      () => setCompactionStatus("idle"),
+      4000
+    );
+  }, []);
 
   const replaceChatMessages = useCallback((nextMessages: ChatMessage[]) => {
     chatMessagesRef.current = nextMessages;
@@ -164,49 +179,62 @@ export function useWorkspace(runId: string) {
     [runId]
   );
 
+  const refreshArtifacts = useCallback(
+    async ({ initial = false }: { initial?: boolean } = {}) => {
+      if (initial) {
+        setLoading(true);
+      }
+
+      const res = await fetch(`/api/init/${runId}/artifacts`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to load results (HTTP ${res.status})`);
+      }
+
+      const data = await res.json();
+      const nextArtifacts = data.artifacts as Artifacts;
+      if (!nextArtifacts.notes) nextArtifacts.notes = {};
+      if (!nextArtifacts.experiments) nextArtifacts.experiments = {};
+
+      const meta = (data.sourcesMeta ?? {}) as Record<string, SourceMeta>;
+      const nMeta = (data.notesMeta ?? {}) as Record<string, NoteMeta>;
+      const eMeta = (data.experimentsMeta ?? {}) as Record<string, ExperimentMeta>;
+      const fileList = buildFileList(nextArtifacts, meta, nMeta, eMeta);
+
+      artifactsRef.current = nextArtifacts;
+      notesMetaRef.current = nMeta;
+      setArtifacts(nextArtifacts);
+      setFiles(fileList);
+      setActiveFileKey((current) => resolveActiveFileKey(fileList, current));
+      setError(null);
+      setLoading(false);
+
+      return {
+        artifacts: nextArtifacts,
+        files: fileList,
+        sourcesMeta: meta,
+        notesMeta: nMeta,
+        experimentsMeta: eMeta,
+      };
+    },
+    [runId]
+  );
+
   // Fetch artifacts
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchArtifacts() {
-      try {
-        const res = await fetch(`/api/init/${runId}/artifacts`);
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || `Failed to load results (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        if (!cancelled) {
-          const a = data.artifacts as Artifacts;
-          if (!a.notes) a.notes = {};
-          if (!a.experiments) a.experiments = {};
-          const meta = (data.sourcesMeta ?? {}) as Record<string, SourceMeta>;
-          const nMeta = (data.notesMeta ?? {}) as Record<string, NoteMeta>;
-          const eMeta = (data.experimentsMeta ?? {}) as Record<string, ExperimentMeta>;
-          artifactsRef.current = a;
-          notesMetaRef.current = nMeta;
-          setArtifacts(a);
-
-          const fileList = buildFileList(a, meta, nMeta, eMeta);
-          setFiles(fileList);
-          if (fileList.length > 0) {
-            setActiveFileKey(fileList[0].key);
-          }
-          setLoading(false);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError((err as Error).message);
-          setLoading(false);
-        }
+    void refreshArtifacts({ initial: true }).catch((err) => {
+      if (!cancelled) {
+        setError((err as Error).message);
+        setLoading(false);
       }
-    }
+    });
 
-    fetchArtifacts();
     return () => {
       cancelled = true;
     };
-  }, [runId]);
+  }, [refreshArtifacts]);
 
   // ── Session helpers ──
 
@@ -242,7 +270,13 @@ export function useWorkspace(runId: string) {
             createdAt: string;
           }) => hydrateStoredChatMessage(m)
         );
+        const continuation = deriveChatContinuationState(messages);
+        const latestProviderUsage =
+          [...messages].reverse().find((message) => message.providerUsage)
+            ?.providerUsage ?? null;
         replaceChatMessages(messages);
+        setLastProviderUsage(latestProviderUsage);
+        setActiveTaskPlan(continuation.taskPlan?.tasks ?? null);
         setActiveSessionId(sessionId);
         setShowHistory(false);
       } catch {
@@ -263,6 +297,8 @@ export function useWorkspace(runId: string) {
       const data = await res.json();
       setActiveSessionId(data.id);
       replaceChatMessages([]);
+      setLastProviderUsage(null);
+      setActiveTaskPlan(null);
       setShowHistory(false);
       // Refresh session list
       fetchSessions();
@@ -282,6 +318,7 @@ export function useWorkspace(runId: string) {
         if (activeSessionIdRef.current === sessionId) {
           setActiveSessionId(null);
           replaceChatMessages([]);
+          setLastProviderUsage(null);
         }
         // Refresh list
         fetchSessions();
@@ -445,6 +482,49 @@ export function useWorkspace(runId: string) {
     };
   }, [runId]);
 
+  const createFolder = useCallback((path: string) => {
+    setNoteFolderPaths((prev) => collectFolderPaths([], [...prev, path]));
+  }, []);
+
+  const deleteFolder = useCallback((path: string) => {
+    setNoteFolderPaths((prev) =>
+      prev.filter((existing) => existing !== path && !existing.startsWith(`${path}/`))
+    );
+  }, []);
+
+  const persistGeneratedNote = useCallback(
+    (update: ProposedUpdate) => {
+      if (!update.key.startsWith("note:")) return;
+
+      const noteId = update.key.slice(5);
+      const label = update.label || "Untitled Note";
+
+      void fetch(`/api/init/${runId}/notes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: noteId,
+          label,
+          folder: update.folder || undefined,
+          content: update.content,
+        }),
+      })
+        .then((res) => {
+          if (res.ok) return;
+          return fetch(`/api/init/${runId}/notes/${noteId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              label,
+              folder: update.folder ?? null,
+            }),
+          }).then(() => undefined);
+        })
+        .catch(() => {});
+    },
+    [runId]
+  );
+
   // Auto-apply new files/papers/notes without user approval
   const autoApplyNewUpdate = useCallback(
     (update: ProposedUpdate) => {
@@ -480,12 +560,17 @@ export function useWorkspace(runId: string) {
           shortLabel: truncateSourceName(label),
           icon: "note",
           group: "note",
+          ...(update.folder ? { folder: update.folder } : {}),
         };
 
         setFiles((prev) => {
           if (prev.some((f) => f.key === newFile.key)) return prev;
           return [...prev, newFile];
         });
+        if (update.folder) {
+          setNoteFolderPaths((prev) => collectFolderPaths([], [...prev, update.folder!]));
+        }
+        persistGeneratedNote(update);
         setActiveFileKey(update.key);
       }
 
@@ -508,11 +593,83 @@ export function useWorkspace(runId: string) {
         setActiveFileKey(update.key);
       }
     },
-    [updateContent]
+    [persistGeneratedNote, updateContent]
   );
+
+  const appendAgentStatusMessage = useCallback(
+    (text: string, extras?: Partial<ChatMessage>) => {
+      const message: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "agent",
+        text,
+        timestamp: Date.now(),
+        ...(extras ?? {}),
+      };
+      replaceChatMessages([...chatMessagesRef.current, message]);
+      return message;
+    },
+    [replaceChatMessages]
+  );
+
+  const compactSessionHistory = useCallback(async () => {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId) {
+      appendAgentStatusMessage("Nothing meaningful to compact yet.");
+      return;
+    }
+
+    setCompactionStatus("compacting");
+
+    try {
+      const res = await fetch(
+        `/api/agent/${runId}/sessions/${sessionId}/compact`,
+        {
+          method: "POST",
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Compaction failed" }));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.message) {
+        const message = data.message as ChatMessage;
+        replaceChatMessages([...chatMessagesRef.current, message]);
+        if (message.taskPlan?.length) {
+          setActiveTaskPlan(message.taskPlan);
+        }
+      }
+
+      if (data.compacted) {
+        pulseCompactionStatus();
+      } else {
+        setCompactionStatus("idle");
+      }
+
+      void fetchSessions();
+    } catch (error) {
+      appendAgentStatusMessage(
+        `Unable to compact context: ${(error as Error).message}`
+      );
+      setCompactionStatus("idle");
+    }
+  }, [
+    appendAgentStatusMessage,
+    fetchSessions,
+    pulseCompactionStatus,
+    replaceChatMessages,
+    runId,
+    setActiveTaskPlan,
+  ]);
 
   const sendMessage = useCallback(
     async (text: string, attachments?: File[]) => {
+      if (isCompactCommand(text, attachments)) {
+        await compactSessionHistory();
+        return;
+      }
+
       // Abort any in-flight request
       if (abortRef.current) {
         abortRef.current.abort();
@@ -574,16 +731,18 @@ export function useWorkspace(runId: string) {
       };
 
       const previousMessages = chatMessagesRef.current;
+      const continuationState: AgentContinuationState =
+        deriveChatContinuationState(previousMessages);
       replaceChatMessages([...previousMessages, userMsg, agentMsg]);
       setAgentTyping(true);
+      setCompactionStatus("idle");
+      setLastProviderUsage(null);
 
-      // Build conversation history from previous messages (exclude current pair)
-      const history = previousMessages
-        .filter((m) => m.text.trim())
-        .map((m) => ({
-          role: m.role === "user" ? ("user" as const) : ("assistant" as const),
-          content: m.text,
-        }));
+      // Build compaction-aware conversation history from previous messages (exclude current pair)
+      const history = buildConversationHistoryFromMessages(
+        previousMessages,
+        continuationState
+      );
 
       // Build edited contents as plain object for API
       const editedObj: Record<string, string> = {};
@@ -636,9 +795,12 @@ export function useWorkspace(runId: string) {
             reasoningEffort,
             ...(encodedAttachments?.length ? { attachments: encodedAttachments } : {}),
             conversationHistory: history,
+            historyVisibleMessageCount: previousMessages.length,
+            agentState: continuationState,
             workspaceContext: {
               editedContents: editedObj,
               activeFileKey,
+              folderPaths,
               searchFilters,
             },
           }),
@@ -685,7 +847,11 @@ export function useWorkspace(runId: string) {
               taskId?: string;
               status?: string;
               message?: string;
-              usage?: { totalTokens: number };
+              scope?: "history" | "turn";
+              estimatedTokensBefore?: number;
+              estimatedTokensAfter?: number;
+              snapshot?: ChatMessage["compactionSnapshot"];
+              usage?: TokenUsage;
             };
             try {
               event = JSON.parse(data);
@@ -912,6 +1078,44 @@ export function useWorkspace(runId: string) {
                 }
                 break;
 
+              case "skill_activated":
+                if (event.skills?.length) {
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? {
+                            ...m,
+                            activatedSkills: Array.from(
+                              new Set([
+                                ...(m.activatedSkills ?? []),
+                                ...event.skills!,
+                              ])
+                            ),
+                          }
+                        : m
+                    )
+                  );
+                }
+                break;
+
+              case "context_compacted":
+                if (event.scope === "history" && event.snapshot) {
+                  const snapshot = event.snapshot;
+                  updateChatMessages((prev) =>
+                    prev.map((m) =>
+                      m.id === agentMsgId
+                        ? {
+                            ...m,
+                            compactionSnapshot: snapshot,
+                            activatedSkills: snapshot.activatedSkills,
+                          }
+                        : m
+                    )
+                  );
+                }
+                pulseCompactionStatus();
+                break;
+
               case "task_plan":
                 if (event.tasks) {
                   finalTaskPlan = event.tasks;
@@ -978,12 +1182,16 @@ export function useWorkspace(runId: string) {
                 break;
 
               case "done":
+                if (event.usage) {
+                  setLastProviderUsage(event.usage);
+                }
                 updateChatMessages((prev) =>
                   prev.map((m) =>
                     m.id === agentMsgId
                       ? {
                           ...m,
                           isStreaming: false,
+                          ...(event.usage ? { providerUsage: event.usage } : {}),
                           processTrace: completeActiveProcessTrace(
                             m.processTrace ?? []
                           ),
@@ -1044,6 +1252,9 @@ export function useWorkspace(runId: string) {
               currentAgentMessage?.taskPlan ?? finalTaskPlan,
             processTrace:
               currentAgentMessage?.processTrace,
+            activatedSkills: currentAgentMessage?.activatedSkills,
+            compactionSnapshot: currentAgentMessage?.compactionSnapshot,
+            providerUsage: currentAgentMessage?.providerUsage,
           });
 
           fetch(
@@ -1112,12 +1323,14 @@ export function useWorkspace(runId: string) {
     [
       activeFileKey,
       autoApplyNewUpdate,
+      compactSessionHistory,
       editedContents,
       fetchSessions,
       persistMessageMetadata,
       replaceChatMessages,
       reasoningEffort,
       runId,
+      folderPaths,
       searchFilters,
       sessions,
       files,
@@ -1174,12 +1387,19 @@ export function useWorkspace(runId: string) {
             shortLabel: truncateSourceName(label),
             icon: "note",
             group: "note",
+            ...(appliedUpdate.folder ? { folder: appliedUpdate.folder } : {}),
           };
 
           setFiles((prev) => {
             if (prev.some((f) => f.key === newFile.key)) return prev;
             return [...prev, newFile];
           });
+          if (appliedUpdate.folder) {
+            setNoteFolderPaths((prev) =>
+              collectFolderPaths([], [...prev, appliedUpdate.folder!])
+            );
+          }
+          persistGeneratedNote(appliedUpdate);
           setActiveFileKey(appliedUpdate.key);
         }
 
@@ -1219,7 +1439,7 @@ export function useWorkspace(runId: string) {
         }
       }
     },
-    [persistMessageMetadata, replaceChatMessages, updateContent]
+    [persistGeneratedNote, persistMessageMetadata, replaceChatMessages, updateContent]
   );
 
   const rejectProposedUpdate = useCallback(
@@ -1391,6 +1611,9 @@ export function useWorkspace(runId: string) {
       };
 
       setFiles((prev) => [...prev, newFile]);
+      if (folder) {
+        setNoteFolderPaths((prev) => collectFolderPaths([], [...prev, folder]));
+      }
       updateContent(key, "");
       setActiveFileKey(key);
 
@@ -1460,6 +1683,9 @@ export function useWorkspace(runId: string) {
           f.key === noteKey ? { ...f, folder: newFolder ?? undefined } : f
         )
       );
+      if (newFolder) {
+        setNoteFolderPaths((prev) => collectFolderPaths([], [...prev, newFolder]));
+      }
 
       // Background persist
       const noteId = noteKey.slice(5);
@@ -1590,23 +1816,66 @@ export function useWorkspace(runId: string) {
     setPendingLineRange(null);
   }, []);
 
-  const toggleChat = useCallback(() => {
-    setChatCollapsed((prev) => !prev);
-  }, []);
+  const continuationState = useMemo(
+    () => deriveChatContinuationState(chatMessages),
+    [chatMessages]
+  );
 
-  const toggleSidebar = useCallback(() => {
-    setSidebarCollapsed((prev) => !prev);
-  }, []);
+  const chatUsage = useMemo(() => {
+    const workspaceContext = {
+      workspaceFiles: Object.fromEntries(
+        files.map((file) => [file.key, getContent(file.key)])
+      ) as Record<string, string>,
+      activeFileKey,
+      availableKeys: files.map((file) => file.key),
+      folderPaths,
+      fileLabels: Object.fromEntries(
+        files.map((file) => [file.key, file.label])
+      ) as Record<string, string>,
+      fileMeta: Object.fromEntries(
+        files.map((file) => [
+          file.key,
+          { group: file.group, origin: file.origin, folder: file.folder },
+        ])
+      ),
+      searchFilters,
+    };
+    const baseUsage = estimateLiveContextUsage({
+      messages: chatMessages,
+      continuation: continuationState,
+      workspaceContext,
+    });
+    const resolvedUsage = resolveDisplayedChatUsage(
+      baseUsage,
+      lastProviderUsage
+    );
 
-  const toggleExpanded = useCallback(() => {
-    setExpanded((prev) => !prev);
-  }, []);
+    return {
+      ...resolvedUsage,
+      compactionStatus:
+        compactionStatus === "compacting" || compactionStatus === "recently_compacted"
+          ? compactionStatus
+          : resolvedUsage.compactionStatus,
+    };
+  }, [
+    activeFileKey,
+    chatMessages,
+    compactionStatus,
+      continuationState,
+      files,
+      folderPaths,
+      getContent,
+    lastProviderUsage,
+    searchFilters,
+  ]);
 
   return {
     loading,
     error,
     artifacts,
     files,
+    folderPaths,
+    noteFolderPaths,
     activeFileKey,
     setActiveFileKey,
     pendingLineRange,
@@ -1618,6 +1887,8 @@ export function useWorkspace(runId: string) {
     saveNow: flushSave,
     deleteFile,
     createNote,
+    createFolder,
+    deleteFolder,
     createExperiment,
     moveNote,
     renameNote,
@@ -1642,6 +1913,7 @@ export function useWorkspace(runId: string) {
     toggleAutoAcceptEdits,
     reasoningEffort,
     setReasoningEffort: updateReasoningEffort,
+    chatUsage,
     // Task plan (top-level for persistent panel)
     activeTaskPlan,
     dismissTaskPlan,
@@ -1656,5 +1928,6 @@ export function useWorkspace(runId: string) {
     deleteSession: deleteSessionById,
     renameSession,
     toggleHistory,
+    refreshArtifacts,
   };
 }

@@ -8,9 +8,9 @@ import {
   createResearchProjectRun,
   updateResearchRunStatus,
 } from "@/lib/db/research-projects";
-import { costTracker, setRequestProvider, clearRequestProvider } from "@/lib/llm/openrouter";
-import { checkUserBudget, recordUserCost } from "@/lib/rate-limit";
-import { createProviderForUser } from "@/lib/llm/provider-factory";
+import { runWithRequestProvider } from "@/lib/llm/runtime";
+import { ensureOpenAIProviderAccess } from "@/lib/llm/openai-access";
+import { acquireExclusiveLock } from "@/lib/utils/exclusive-lock";
 
 export const maxDuration = 300;
 
@@ -22,6 +22,7 @@ interface InitRequestBody {
 export async function POST(request: NextRequest) {
   let projectId: string | null = null;
   let runId: string | null = null;
+  let releaseLock: (() => void) | null = null;
 
   try {
     const session = await getSession();
@@ -29,27 +30,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Resolve user's LLM provider (Codex OAuth or OpenRouter fallback)
-    let provider;
-    try {
-      provider = await createProviderForUser(session.userId);
-    } catch {
-      // Fall back to server default if no user provider configured
-      provider = null;
+    releaseLock = acquireExclusiveLock(`init:${session.userId}`);
+    if (!releaseLock) {
+      return NextResponse.json(
+        { error: "An init pipeline is already running for this account." },
+        { status: 409 }
+      );
     }
 
-    // Per-user daily cost budget check (skip for Codex users)
-    if (!provider || provider.kind !== "codex") {
-      const budgetCheck = checkUserBudget(session.userId);
-      if (!budgetCheck.allowed) {
-        return NextResponse.json(
-          {
-            error: `Daily usage limit reached ($${budgetCheck.spentUsd.toFixed(2)}/$${budgetCheck.limitUsd}). Resets at midnight UTC.`,
-          },
-          { status: 429 }
-        );
-      }
-    }
+    const provider = await ensureOpenAIProviderAccess(session.userId, {
+      forceRevalidate: true,
+    });
 
     const body = (await request.json()) as InitRequestBody;
 
@@ -80,34 +71,19 @@ export async function POST(request: NextRequest) {
     });
 
     const config = { configurable: { thread_id: threadId } };
-    const costBefore = costTracker.snapshot().totalCostUsd;
 
-    // Set request-scoped provider so all engine nodes use the user's provider
-    if (provider) setRequestProvider(provider);
+    const initialState = {
+      projectId,
+      runId,
+      userId: session.userId,
+      status: "queued" as const,
+      input: body.input,
+      sources: body.sources ?? [],
+    };
 
-    let result;
-    try {
-      // Invoke graph — it will run until the interrupt at confirm_inferred_brief
-      result = await initGraph.invoke(
-        {
-          projectId,
-          runId,
-          userId: session.userId,
-          status: "queued",
-          input: body.input,
-          sources: body.sources ?? [],
-        },
-        config
-      );
-    } finally {
-      clearRequestProvider();
-    }
-
-    // Record cost for this request
-    const costAfter = costTracker.snapshot().totalCostUsd;
-    if (!provider || provider.kind !== "codex") {
-      recordUserCost(session.userId, costAfter - costBefore);
-    }
+    const result = await runWithRequestProvider(provider, () =>
+      initGraph.invoke(initialState, config)
+    );
 
     // After invoke returns due to interrupt, update run status
     memoryStore.setRun(runId, {
@@ -157,5 +133,7 @@ export async function POST(request: NextRequest) {
       { error: (err as Error).message },
       { status: 500 }
     );
+  } finally {
+    releaseLock?.();
   }
 }

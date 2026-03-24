@@ -26,8 +26,8 @@ export interface StepProgress {
 const PIPELINE_STEPS: Omit<StepProgress, "status">[] = [
   { id: "build_source_set", label: "Parsing sources" },
   { id: "classify_source_folders", label: "Organizing sources" },
-  { id: "analyze_evidence", label: "Extracting evidence" },
-  { id: "consolidate_findings", label: "Consolidating findings" },
+  { id: "analyze_evidence", label: "Digesting sources" },
+  { id: "consolidate_findings", label: "Adjudicating findings" },
   { id: "synthesize_project", label: "Writing deliverables" },
   { id: "persist_project", label: "Finalizing project" },
 ];

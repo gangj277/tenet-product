@@ -1,0 +1,64 @@
+{
+  "generatedAt": "2026-03-23T18:43:49.231Z",
+  "user": {
+    "userId": "e768e2c9-331c-42ba-87ba-6d88536230e7",
+    "email": "gangj277@gmail.com",
+    "validationStatus": "valid",
+    "validatedAt": "2026-03-23T18:36:10.930Z",
+    "capabilities": {
+      "json": true,
+      "basic": true,
+      "liteModel": true,
+      "streaming": true,
+      "toolCalling": true
+    }
+  },
+  "input": {
+    "sourceType": "url",
+    "label": "2312.10997",
+    "resolvedUrl": "https://arxiv.org/pdf/2312.10997",
+    "contentType": "application/pdf",
+    "bytes": 1662567
+  },
+  "rawLocalExtraction": {
+    "pageCount": 21,
+    "charCount": 113450,
+    "durationMs": 700,
+    "outputPath": "/Users/gangjimin/Documents/main_dev/startup-ideas/research-cursor/research-cursor-product/artifacts/diagnostics/pdf-extraction/2026-03-23T18-43-02-296Z-2312/01-raw-local.txt"
+  },
+  "directModelExtractionFromBytes": {
+    "model": "gpt-5.4-mini",
+    "charCount": null,
+    "durationMs": 1426,
+    "validationOk": false,
+    "validationReason": null,
+    "chunkCount": 0,
+    "outputPath": null,
+    "error": "OpenAI auth 400: {\n  \"error\": {\n    \"message\": \"Invalid 'input[0].content[0].file_data'.\",\n    \"type\": \"invalid_request_error\",\n    \"param\": \"input[0].content[0].file_data\",\n    \"code\": \"invalid_value\"\n  }\n}"
+  },
+  "directModelExtractionFromUrl": {
+    "model": "gpt-5.4-mini",
+    "charCount": null,
+    "durationMs": 364,
+    "validationOk": false,
+    "validationReason": null,
+    "chunkCount": 0,
+    "outputPath": null,
+    "error": "OpenAI auth 400: {\n  \"error\": {\n    \"message\": \"Mutually exclusive parameters: 'input[0].content[0]'. Ensure you are only providing one of: 'file_id' or 'filename'.\",\n    \"type\": \"invalid_request_error\",\n    \"param\": \"input[0].content[0]\",\n    \"code\": \"mutually_exclusive_parameters\"\n  }\n}"
+  },
+  "llmNormalizationFromLocalText": {
+    "model": "gpt-5.4-mini",
+    "charCount": 13381,
+    "durationMs": 17861,
+    "validationOk": true,
+    "validationReason": null,
+    "chunkCount": 15,
+    "outputPath": "/Users/gangjimin/Documents/main_dev/startup-ideas/research-cursor/research-cursor-product/artifacts/diagnostics/pdf-extraction/2026-03-23T18-43-02-296Z-2312/04-normalized-from-local-text-gpt-5.4-mini.md"
+  },
+  "fullParsePath": {
+    "pageCount": 21,
+    "charCount": 18842,
+    "durationMs": 26579,
+    "outputPath": "/Users/gangjimin/Documents/main_dev/startup-ideas/research-cursor/research-cursor-product/artifacts/diagnostics/pdf-extraction/2026-03-23T18-43-02-296Z-2312/05-full-parse-path.md"
+  }
+}

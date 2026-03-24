@@ -1,7 +1,7 @@
 import type { DiscoveredSource } from "@/lib/discovery/scholarly-search";
 import type { PaperQualityMeta } from "@/lib/discovery/paper-quality";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
-import type { LLMMessage } from "@/lib/llm/openrouter";
+import type { LLMMessage } from "@/lib/llm/runtime";
 
 // ── Proposed Update (file edit / new file) ──
 
@@ -10,6 +10,7 @@ export interface ProposedUpdate {
   type: "edit" | "new";
   key: string;
   label?: string;
+  folder?: string;
   content: string;
   summary: string;
 }
@@ -32,6 +33,57 @@ export interface AskUserAnswer {
   questionId: string;
   answer: string;
   isCustom: boolean;
+}
+
+// ── Task Decomposition ──
+
+export type TaskMode = "inline" | "isolated";
+export type TaskStatus = "pending" | "active" | "completed";
+
+export interface TaskDefinition {
+  id: string;
+  objective: string;
+  context_keys?: string[];
+  depends_on?: string[];
+  mode?: TaskMode;
+}
+
+export interface TaskState extends TaskDefinition {
+  status: TaskStatus;
+  result?: string;
+}
+
+export interface TaskPlan {
+  tasks: TaskState[];
+  activeTaskId?: string;
+  created: number;
+}
+
+// ── Context Compaction ──
+
+export interface CompactionSnapshot {
+  version: 1;
+  compactedMessageCount: number;
+  summary: string;
+  keyFacts: string[];
+  openLoops: string[];
+  nextStepHint?: string;
+  activatedSkills: string[];
+  taskPlan?: TaskPlan;
+  estimatedTokensAfter: number;
+  compactedAt: string;
+}
+
+export interface AgentContinuationState {
+  activeSkills: string[];
+  taskPlan?: TaskPlan;
+  compactionSnapshot?: CompactionSnapshot;
+}
+
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
 }
 
 // ── Agent Messages ──
@@ -64,6 +116,8 @@ export interface WorkspaceContext {
   activeFileKey?: string;
   /** File keys available in workspace */
   availableKeys: string[];
+  /** Explicit folder paths available in the workspace, including empty UI folders */
+  folderPaths?: string[];
   /** Human-readable labels for each key (e.g. source:abc → "Neural Networks in Climate") */
   fileLabels?: Record<string, string>;
   /** Per-file metadata for structured grouping in system prompt */
@@ -95,9 +149,18 @@ export type SSEEvent =
   | { type: "search_results"; results: DiscoveredSource[] }
   | { type: "sources_added"; sources: AddedSource[] }
   | { type: "skill_activated"; skills: string[] }
+  | {
+      type: "context_compacted";
+      scope: "history" | "turn";
+      estimatedTokensBefore: number;
+      estimatedTokensAfter: number;
+      snapshot?: CompactionSnapshot;
+    }
   | { type: "ask_user"; question: AskUserQuestion }
+  | { type: "task_plan"; tasks: TaskState[] }
+  | { type: "task_update"; taskId: string; status: TaskStatus; result?: string }
   | { type: "error"; message: string }
-  | { type: "done"; usage?: { totalTokens: number } };
+  | { type: "done"; usage?: TokenUsage };
 
 // ── Agent State (conversation within one turn) ──
 
@@ -106,6 +169,8 @@ export interface AgentState {
   proposedUpdates: ProposedUpdate[];
   searchResults: DiscoveredSource[];
   activatedSkills: string[];
+  compactionSnapshot?: CompactionSnapshot;
   totalTokens: number;
   iterations: number;
+  taskPlan?: TaskPlan;
 }

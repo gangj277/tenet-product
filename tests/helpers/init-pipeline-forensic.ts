@@ -107,13 +107,11 @@ const TEST_USER = {
 export async function runForensicInitPipeline(): Promise<ForensicInitPipelineReport> {
   const previousEnv = {
     LOCAL_BLOB_ROOT: process.env.LOCAL_BLOB_ROOT,
-    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   };
   const originalFetch = global.fetch;
   const tempBlobRoot = await mkdtemp(path.join(os.tmpdir(), "lumen-init-forensic-"));
 
   process.env.LOCAL_BLOB_ROOT = tempBlobRoot;
-  process.env.OPENROUTER_API_KEY = "forensic-test-key";
 
   resetRuntimeSingletons();
 
@@ -203,6 +201,12 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
         project.status = params.status;
       }
     },
+    async updateProjectTitle(projectId: string, title: string) {
+      const project = persistedProjects.get(projectId);
+      if (project) {
+        project.title = title;
+      }
+    },
     async getOwnedResearchRun(userId: string, runId: string) {
       const run = persistedRuns.get(runId);
       if (!run || run.userId !== userId) return null;
@@ -251,17 +255,23 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
     ],
   });
 
-  const restorePdfParser = patchModule("../../lib/pdf/gemini-extract.ts", {
-    parsePDF: async (_buffer: Buffer, filename: string) => {
+  const restorePdfParser = patchModule("../../lib/pdf/pdf-parse-orchestrator.ts", {
+    parsePdfWithFallbacks: async (_buffer: Buffer, filename: string) => {
       parsedPdfFiles.push(filename);
       return {
+        ok: true,
         text: buildMockPdfText(filename),
         pageCount: 6,
+        parseEngine: "forensic-mock-pdf",
+        parseAttempts: 1,
+        parseQuality: "validated",
+        attempts: [],
+        winnerStage: "normalize_primary",
       };
     },
   });
 
-  const restoreOpenrouter = patchModule("../../lib/llm/openrouter.ts", {
+  const restoreRuntime = patchModule("../../lib/llm/runtime.ts", {
     costTracker: {
       record: () => {},
       snapshot: () => ({
@@ -273,6 +283,7 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
       }),
       reset: () => {},
     },
+    runWithRequestProvider: (_provider: unknown, fn: () => unknown) => fn(),
     callLLMJson: async (options: {
       jsonSchema?: { name: string };
       messages: Array<{ role: string; content: string }>;
@@ -285,6 +296,7 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
       if (schemaName === "perspective") {
         return {
           data: {
+            projectTitle: "RAG Hallucination Review",
             briefSummary: "Assess whether RAG reduces hallucinations in enterprise support copilots.",
             interpretedIntent: "Evaluate RAG reliability tradeoffs for enterprise support copilots.",
             inferredResearchFrame: "Effectiveness and residual failure modes of retrieval grounding",
@@ -305,79 +317,145 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
         };
       }
 
-      if (schemaName === "chunk_evidence_items") {
+      if (schemaName === "search_query_plan") {
+        return {
+          data: {
+            queries: [
+              { query: "rag hallucination enterprise support", intent: "primary" },
+              { query: "retrieval grounding hallucination reduction", intent: "mechanism" },
+              { query: "enterprise support copilot rag evaluation", intent: "deployment" },
+              { query: "rag retrieval quality stale corpus failures", intent: "failure modes" },
+              { query: "support copilot grounding benchmark", intent: "evidence" },
+            ],
+          },
+          raw: emptyRawResponse(),
+        };
+      }
+
+      if (
+        schemaName === "source_digest" ||
+        schemaName === "source_window_notes" ||
+        schemaName === "source_digest_merge"
+      ) {
         const payload = JSON.parse(userContent) as {
           sourceId: string;
           sourceName: string;
-          headingPath: string;
-          chunkText: string;
+          sourceText?: string;
+          windowText?: string;
         };
+        const sourceText = payload.sourceText ?? payload.windowText ?? "";
 
-        const items =
-          payload.chunkText.includes("27% drop")
-            ? [
-                {
-                  claim: "RAG grounding reduced unsupported factual statements in the study setting.",
-                  sourceId: payload.sourceId,
-                  sourceName: payload.sourceName,
-                  location: payload.headingPath,
-                  confidence: "high",
-                  quote: "27% drop in unsupported factual statements",
-                  evidenceType: "supporting",
-                },
-              ]
-            : payload.chunkText.toLowerCase().includes("benefits shrink")
-              ? [
+        const claims = sourceText.includes("27% drop")
+          ? [
+              {
+                claimSignature: "rag-reduces-unsupported-statements",
+                claim:
+                  "RAG grounding reduced unsupported factual statements in the study setting.",
+                subquestion: "When does retrieval grounding help?",
+                stance: "supporting",
+                confidence: "high",
+                citations: [
                   {
-                    claim: "Retrieval gains weaken when retrieval coverage is poor or stale.",
-                    sourceId: payload.sourceId,
-                    sourceName: payload.sourceName,
-                    location: payload.headingPath,
-                    confidence: "medium",
-                    quote: "Benefits shrink when retrieval misses long-tail tickets",
-                    evidenceType: "methodological",
+                    location: "Results",
+                    quote: "27% drop in unsupported factual statements",
                   },
-                ]
-              : [
+                ],
+                caveats: [],
+              },
+            ]
+          : [
+              {
+                claimSignature: "rag-depends-on-retrieval-quality",
+                claim:
+                  "RAG effectiveness depends on relevant, current grounding material.",
+                subquestion: "When does retrieval grounding help?",
+                stance: "supporting",
+                confidence: "medium",
+                citations: [
                   {
-                    claim: "RAG effectiveness depends on relevant, current grounding material.",
-                    sourceId: payload.sourceId,
-                    sourceName: payload.sourceName,
-                    location: payload.headingPath,
-                    confidence: "medium",
+                    location: "Operational Findings",
                     quote: "retrieval grounding improves factual precision",
-                    evidenceType: "neutral",
                   },
-                ];
+                ],
+                caveats: [
+                  "Benefits shrink when retrieval misses long-tail tickets",
+                ],
+              },
+            ];
+
+        const methodologicalNotes = sourceText.toLowerCase().includes("benefits shrink")
+          ? [
+              {
+                note: "Retrieval gains weaken when retrieval coverage is poor or stale.",
+                confidence: "medium",
+                citations: [
+                  {
+                    location: "Limitations",
+                    quote: "Benefits shrink when retrieval misses long-tail tickets",
+                  },
+                ],
+              },
+            ]
+          : [];
 
         return {
-          data: { items },
+          data: {
+            sourceSummary: `Digest for ${payload.sourceName}`,
+            claims,
+            methodologicalNotes,
+            openQuestions: [],
+          },
+          raw: emptyRawResponse(),
+        };
+      }
+
+      if (schemaName === "claim_family_batch") {
+        const payload = JSON.parse(userContent) as {
+          families: Array<{
+            representativeClaim: string;
+            support: Array<Record<string, unknown>>;
+            contradictions: Array<Record<string, unknown>>;
+          }>;
+        };
+
+        return {
+          data: {
+            canonicalClaims: payload.families.map((family) => ({
+              claim: family.representativeClaim,
+              support: family.support,
+              contradictions: family.contradictions,
+              confidence: "medium-high",
+            })),
+            prioritizedSupport: payload.families.flatMap((family) => family.support),
+            prioritizedContradictions: payload.families.flatMap(
+              (family) => family.contradictions
+            ),
+            openQuestions: [
+              "How much retrieval freshness is required to preserve the gains in enterprise environments?",
+            ],
+            confidenceNotes: [
+              "Evidence is directionally consistent but depends on retrieval quality assumptions.",
+            ],
+            unresolvedDisagreements: [],
+          },
           raw: emptyRawResponse(),
         };
       }
 
       if (schemaName === "consolidated_findings") {
-        const payload = JSON.parse(userContent) as {
-          evidenceMap: {
-            supportingEvidence: Array<Record<string, unknown>>;
-            contradictoryEvidence: Array<Record<string, unknown>>;
-            methodologicalCautions: Array<Record<string, unknown>>;
-          };
-        };
-
         return {
           data: {
             canonicalClaims: [
               {
                 claim:
                   "RAG reduces hallucinations when retrieval quality is high, but stale or incomplete corpora leave material failure modes.",
-                support: payload.evidenceMap.supportingEvidence,
-                contradictions: payload.evidenceMap.contradictoryEvidence,
+                support: [],
+                contradictions: [],
                 confidence: "medium-high",
               },
             ],
-            prioritizedSupport: payload.evidenceMap.supportingEvidence,
-            prioritizedContradictions: payload.evidenceMap.contradictoryEvidence,
+            prioritizedSupport: [],
+            prioritizedContradictions: [],
             openQuestions: [
               "How much retrieval freshness is required to preserve the gains in enterprise environments?",
             ],
@@ -410,6 +488,35 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
         content: `Generated artifact ${llmArtifactCalls}`,
       };
     },
+  });
+  const restoreOpenAIAccess = patchModule("../../lib/llm/openai-access.ts", {
+    ensureOpenAIProviderAccess: async () => ({
+      kind: "openai_auth" as const,
+      async callLLM() {
+        return {
+          content: "",
+          model: "gpt-5.4",
+          usage: {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+          },
+          latencyMs: 0,
+        };
+      },
+      async *callLLMStreaming() {
+        yield {
+          type: "done" as const,
+          content: "",
+          toolCalls: [],
+          usage: {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+          },
+        };
+      },
+    }),
   });
 
   global.fetch = (async (input: string | URL | Request) => {
@@ -702,7 +809,8 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
     };
   } finally {
     global.fetch = originalFetch;
-    restoreOpenrouter();
+    restoreOpenAIAccess();
+    restoreRuntime();
     restorePdfParser();
     restoreDiscovery();
     restoreResearchProjects();
@@ -813,18 +921,11 @@ function resetRuntimeSingletons() {
 
 function restoreEnv(previousEnv: {
   LOCAL_BLOB_ROOT?: string;
-  OPENROUTER_API_KEY?: string;
 }) {
   if (previousEnv.LOCAL_BLOB_ROOT === undefined) {
     delete process.env.LOCAL_BLOB_ROOT;
   } else {
     process.env.LOCAL_BLOB_ROOT = previousEnv.LOCAL_BLOB_ROOT;
-  }
-
-  if (previousEnv.OPENROUTER_API_KEY === undefined) {
-    delete process.env.OPENROUTER_API_KEY;
-  } else {
-    process.env.OPENROUTER_API_KEY = previousEnv.OPENROUTER_API_KEY;
   }
 }
 

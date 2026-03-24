@@ -1,14 +1,28 @@
-import type { LLMMessage, ContentPart } from "@/lib/llm/openrouter";
+import type { LLMMessage, ContentPart } from "@/lib/llm/runtime";
 import { MODEL_AGENT } from "@/lib/llm/models";
-import { callLLMStreaming } from "@/lib/llm/openrouter-streaming";
+import { callLLMStreaming } from "@/lib/llm/runtime-streaming";
 import type { LLMProvider } from "@/lib/llm/provider";
 import { getToolSchemas, executeTool } from "./tools";
 import { executeAskUser } from "./tools/ask-user";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { buildSystemPrompt } from "./prompts/constitution";
 import { SKILL_BY_SLASH, SKILL_MAP, type SkillDefinition } from "./prompts/skills";
-import type { AgentState, AskUserOption, SSEEvent, TaskPlan, TaskState, TaskStatus, WorkspaceContext } from "./state";
+import type {
+  AgentContinuationState,
+  AgentState,
+  AskUserOption,
+  SSEEvent,
+  TaskPlan,
+  TaskState,
+  TaskStatus,
+  TokenUsage,
+  WorkspaceContext,
+} from "./state";
 import { sleep } from "@/lib/utils/async";
+import {
+  compactMessagesToFitBudget,
+  COMPACTION_THRESHOLD_TOKENS,
+} from "./compaction";
 
 const MAX_ITERATIONS = 20;
 const MAX_ITERATIONS_WITH_PLAN = 40;
@@ -67,11 +81,22 @@ export async function* runAgentLoop(
   imageAttachments?: ContentPart[],
   model?: string,
   provider?: LLMProvider,
-  reasoningEffort?: "none" | "low" | "medium" | "high",
+  reasoningEffort?: "none" | "low" | "medium" | "high" | "xhigh",
+  continuationState?: AgentContinuationState,
+  historyVisibleMessageCount = conversationHistory.length,
 ): AsyncGenerator<SSEEvent> {
+  const seededSkills = (continuationState?.activeSkills ?? [])
+    .map((skillId) => SKILL_MAP.get(skillId))
+    .filter((skill): skill is SkillDefinition => Boolean(skill));
+
   // 1. Pre-detect slash commands and build active skills array
   const preDetected = detectSlashCommands(userMessage);
-  const activeSkills: SkillDefinition[] = [...preDetected];
+  const activeSkills: SkillDefinition[] = [...seededSkills];
+  for (const skill of preDetected) {
+    if (!activeSkills.some((entry) => entry.id === skill.id)) {
+      activeSkills.push(skill);
+    }
+  }
 
   // Strip slash commands from user message; fall back to generic prompt if empty
   const cleanMessage =
@@ -98,8 +123,10 @@ export async function* runAgentLoop(
     proposedUpdates: [],
     searchResults: [],
     activatedSkills: activeSkills.map((s) => s.id),
+    compactionSnapshot: continuationState?.compactionSnapshot,
     totalTokens: 0,
     iterations: 0,
+    taskPlan: continuationState?.taskPlan,
   };
 
   // Emit skill_activated for pre-detected skills before first LLM call
@@ -109,6 +136,8 @@ export async function* runAgentLoop(
 
   // 4. ReAct loop
   yield { type: "activity", activity: "Analyzing your question" };
+  let currentTurnStartIndex = 1 + conversationHistory.length;
+  let latestUsage: TokenUsage | undefined;
 
   while (state.iterations < getMaxIterations(state.taskPlan)) {
     state.iterations++;
@@ -122,6 +151,30 @@ export async function* runAgentLoop(
 
     // Compute current tools based on active skills
     const currentTools = getToolSchemas(activeSkills);
+
+    if (provider) {
+      const compactionResult = await compactMessagesToFitBudget({
+        messages: state.messages,
+        provider,
+        activeSkills: state.activatedSkills,
+        taskPlan: state.taskPlan,
+        historyVisibleMessageCount,
+        currentTurnStartIndex,
+        thresholdTokens: COMPACTION_THRESHOLD_TOKENS,
+      });
+
+      if (compactionResult.events.length > 0) {
+        yield { type: "activity", activity: "Compacting context" };
+        state.messages = compactionResult.messages;
+        currentTurnStartIndex = compactionResult.currentTurnStartIndex;
+        if (compactionResult.historySnapshot) {
+          state.compactionSnapshot = compactionResult.historySnapshot;
+        }
+        for (const event of compactionResult.events) {
+          yield event;
+        }
+      }
+    }
 
     // Stream LLM response
     try {
@@ -145,6 +198,7 @@ export async function* runAgentLoop(
             fullContent = chunk.content;
             toolCalls = chunk.toolCalls;
             if (chunk.usage) {
+              latestUsage = chunk.usage;
               state.totalTokens += chunk.usage.totalTokens;
             }
             break;
@@ -288,6 +342,11 @@ export async function* runAgentLoop(
               folder: s.folder,
             };
           }
+          if (s.folder) {
+            workspaceCtx.folderPaths = Array.from(
+              new Set([...(workspaceCtx.folderPaths ?? []), s.folder])
+            ).sort((a, b) => a.localeCompare(b));
+          }
         }
       }
 
@@ -299,9 +358,11 @@ export async function* runAgentLoop(
           activeSkills.push(skill);
           // Rebuild system prompt with newly added skill
           systemPrompt = buildSystemPrompt(workspaceCtx, activeSkills);
-          messages[0] = { role: "system", content: systemPrompt };
+          state.messages[0] = { role: "system", content: systemPrompt };
         }
-        state.activatedSkills.push(tr.loadedSkillId);
+        if (!state.activatedSkills.includes(tr.loadedSkillId)) {
+          state.activatedSkills.push(tr.loadedSkillId);
+        }
         yield { type: "skill_activated", skills: [tr.loadedSkillId] };
       }
 
@@ -366,5 +427,5 @@ export async function* runAgentLoop(
   }
 
   // 5. Done
-  yield { type: "done", usage: { totalTokens: state.totalTokens } };
+  yield { type: "done", ...(latestUsage ? { usage: latestUsage } : {}) };
 }

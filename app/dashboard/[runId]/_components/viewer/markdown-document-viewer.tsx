@@ -7,6 +7,7 @@ import type { LineRange } from "../../../_lib/citation-utils";
 import type { FileEntry, PendingUpdateContext } from "../../_lib/workspace-types";
 import { DiffActionBar, InlineDiffView } from "../diff";
 import { SourceMetadataBar } from "./source-metadata-bar";
+import { getPrimarySourceUrl } from "./source-link-utils";
 import { buildMarkdownEditorExtensions } from "./markdown-editor-config";
 import { getPlainTextNeedleForLineRange } from "./scroll-to-line-range";
 import { useTextSelection } from "../../_hooks/use-text-selection";
@@ -81,10 +82,15 @@ export function MarkdownDocumentViewer({
   }, [activeFile?.key, editing]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (editing && content !== lastSyncedContentRef.current) {
-      setEditing(false);
-    }
+    const shouldExitEditing =
+      editing && content !== lastSyncedContentRef.current;
     lastSyncedContentRef.current = content;
+
+    if (!shouldExitEditing) return;
+
+    queueMicrotask(() => {
+      setEditing(false);
+    });
   }, [content, editing]);
 
   useEffect(() => {
@@ -149,6 +155,14 @@ export function MarkdownDocumentViewer({
     );
   }
 
+  const sourceOpenUrl =
+    activeFile.group === "source"
+      ? getPrimarySourceUrl({
+          sourceUrl: activeFile.sourceUrl,
+          paperQuality: activeFile.paperQuality,
+        })
+      : null;
+
   return (
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between px-6 py-3 border-b border-edge/30 flex-shrink-0">
@@ -192,6 +206,20 @@ export function MarkdownDocumentViewer({
               </svg>
               Save
             </button>
+          )}
+          {sourceOpenUrl && (
+            <a
+              href={sourceOpenUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer hover:bg-page text-dim hover:text-sub"
+              title="Open source URL"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+              </svg>
+              Open source
+            </a>
           )}
           <button
             onClick={copyToClipboard}

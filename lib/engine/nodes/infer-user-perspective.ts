@@ -1,6 +1,6 @@
 import type { InitRunState, InitRunUpdate, Perspective } from "../state";
-import { callLLMJson } from "@/lib/llm/openrouter";
-import { MODEL } from "@/lib/llm/models";
+import { callLLMJson } from "@/lib/llm/runtime";
+import { MODEL_INTENT } from "@/lib/llm/models";
 import { buildPerspectiveInferencePrompt } from "../prompts/perspective-inference";
 
 const PERSPECTIVE_SCHEMA = {
@@ -49,7 +49,7 @@ export async function inferUserPerspective(
     const userContent = JSON.stringify(state.input, null, 2);
 
     const { data } = await callLLMJson<Perspective>({
-      model: MODEL,
+      model: MODEL_INTENT,
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },

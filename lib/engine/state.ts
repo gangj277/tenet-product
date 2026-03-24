@@ -44,7 +44,33 @@ export interface SourceMetadata {
   parseAttempts?: number;
   parseQuality?: "validated" | "fallback_validated" | "rejected";
   parseError?: string;
+  parseDiagnostics?: PdfParseAttempt[];
+  parseStrategyVersion?: "v2";
   paperQuality?: PaperQualityMeta;
+  sourceChunks?: Array<{
+    chunkIndex: number;
+    headingPath: string;
+    tokenEstimate: number;
+    charCount: number;
+    blobKey: string;
+  }>;
+}
+
+export interface PdfParseAttempt {
+  stage:
+    | "local_extract"
+    | "normalize_primary"
+    | "normalize_fallback"
+    | "direct_bytes"
+    | "direct_url"
+    | "raw_salvage";
+  engine: string;
+  ok: boolean;
+  durationMs: number;
+  charCount?: number;
+  quality?: "validated" | "fallback_validated" | "rejected";
+  error?: string;
+  warning?: string;
 }
 
 export interface Perspective {
@@ -85,6 +111,49 @@ export interface EvidenceItem {
   confidence: "high" | "medium" | "low";
   evidenceType: "supporting" | "contradictory" | "methodological" | "neutral";
   quote?: string;
+}
+
+export interface SourceCitation {
+  location: string;
+  quote?: string;
+}
+
+export interface SourceDigestClaim {
+  claimSignature: string;
+  claim: string;
+  subquestion?: string;
+  stance: "supporting" | "contradictory" | "neutral";
+  confidence: "high" | "medium" | "low";
+  citations: SourceCitation[];
+  caveats: string[];
+}
+
+export interface SourceDigestMethodologicalNote {
+  note: string;
+  confidence: "high" | "medium" | "low";
+  citations: SourceCitation[];
+}
+
+export interface SourceDigest {
+  sourceId: string;
+  sourceName: string;
+  sourceSummary: string;
+  claims: SourceDigestClaim[];
+  methodologicalNotes: SourceDigestMethodologicalNote[];
+  openQuestions: string[];
+}
+
+export interface ClaimFamily {
+  familyId: string;
+  claimSignature: string;
+  representativeClaim: string;
+  subquestion?: string;
+  supportingEvidence: EvidenceItem[];
+  contradictoryEvidence: EvidenceItem[];
+  neutralEvidence: EvidenceItem[];
+  methodologicalNotes: string[];
+  caveats: string[];
+  sourceIds: string[];
 }
 
 export interface EvidenceMap {
@@ -145,7 +214,13 @@ export const InitRunAnnotation = Annotation.Root({
   runId: Annotation<string>(),
   userId: Annotation<string>(),
   status: Annotation<
-    "queued" | "running" | "awaiting_confirmation" | "failed" | "partial" | "completed"
+    | "draft"
+    | "queued"
+    | "running"
+    | "awaiting_confirmation"
+    | "failed"
+    | "partial"
+    | "completed"
   >(),
   currentStep: Annotation<string>({
     reducer: (_prev, next) => next,
@@ -188,6 +263,16 @@ export const InitRunAnnotation = Annotation.Root({
   evidenceMap: Annotation<EvidenceMap | undefined>({
     reducer: (_prev, next) => next,
     default: () => undefined,
+  }),
+
+  sourceDigests: Annotation<SourceDigest[]>({
+    reducer: (_prev, next) => next,
+    default: () => [],
+  }),
+
+  claimFamilies: Annotation<ClaimFamily[]>({
+    reducer: (_prev, next) => next,
+    default: () => [],
   }),
 
   consolidatedFindings: Annotation<ConsolidatedFindings | undefined>({

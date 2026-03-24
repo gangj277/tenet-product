@@ -8,19 +8,42 @@ export function ProposedUpdateCard({
   update,
   onAccept,
   onReject,
+  onOpen,
   currentContent,
 }: {
   update: ProposedUpdate;
   onAccept: () => void;
   onReject: () => void;
+  onOpen?: () => void;
   currentContent?: string;
 }) {
   const isPending = update.status === "pending";
   const [showDiff, setShowDiff] = useState(false);
   const canShowDiff = update.type === "edit" && currentContent !== undefined;
+  const isOpenable = update.type === "edit" && !!onOpen;
+
+  const handleOpen = () => {
+    if (!isOpenable) return;
+    onOpen();
+  };
 
   return (
-    <div className="mt-2.5 rounded-lg border border-edge/40 bg-page/40 p-3">
+    <div
+      className={`mt-2.5 rounded-lg border border-edge/40 bg-page/40 p-3 ${
+        isOpenable ? "cursor-pointer hover:border-edge/60 hover:bg-page/60" : ""
+      }`}
+      onClick={handleOpen}
+      onKeyDown={(event) => {
+        if (!isOpenable) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
+      role={isOpenable ? "button" : undefined}
+      tabIndex={isOpenable ? 0 : undefined}
+      title={isOpenable ? "Open proposed edit" : undefined}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 mb-1">
@@ -45,7 +68,10 @@ export function ProposedUpdateCard({
           <p className="text-[12px] text-sub leading-relaxed">{update.summary}</p>
           {canShowDiff && (
             <button
-              onClick={() => setShowDiff((v) => !v)}
+              onClick={(event) => {
+                event.stopPropagation();
+                setShowDiff((v) => !v);
+              }}
               className="mt-1.5 text-[10px] text-dim hover:text-sub transition-colors cursor-pointer flex items-center gap-1"
             >
               <svg
@@ -64,13 +90,19 @@ export function ProposedUpdateCard({
         {isPending ? (
           <div className="flex items-center gap-1 flex-shrink-0">
             <button
-              onClick={onAccept}
+              onClick={(event) => {
+                event.stopPropagation();
+                onAccept();
+              }}
               className="px-2.5 py-1 text-[10px] font-semibold rounded-md bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors cursor-pointer"
             >
               Accept
             </button>
             <button
-              onClick={onReject}
+              onClick={(event) => {
+                event.stopPropagation();
+                onReject();
+              }}
               className="px-2.5 py-1 text-[10px] font-semibold rounded-md text-dim hover:bg-page hover:text-sub transition-colors cursor-pointer"
             >
               Dismiss

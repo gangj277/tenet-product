@@ -70,6 +70,7 @@ test("persistResearchArtifacts stores source metadata and chunk manifests withou
   });
 
   try {
+    clearModule("../lib/db/research-project-artifacts.ts");
     clearModule("../lib/db/research-projects.ts");
     const loadedModule = reloadModule<typeof import("../lib/db/research-projects")>(
       "../lib/db/research-projects.ts"
@@ -98,9 +99,27 @@ test("persistResearchArtifacts stores source metadata and chunk manifests withou
             byteSize: 2048,
             charCount: 1200,
             estimatedTokens: 300,
-            parseEngine: "google/gemini-2.5-flash-lite",
+            parseEngine: "pdfjs+normalize-lite",
             parseAttempts: 1,
             parseQuality: "validated",
+            parseStrategyVersion: "v2",
+            parseDiagnostics: [
+              {
+                stage: "local_extract",
+                engine: "pdfjs-local",
+                ok: true,
+                durationMs: 12,
+                charCount: 1200,
+              },
+              {
+                stage: "normalize_primary",
+                engine: "google/gemini-2.5-flash-lite",
+                ok: true,
+                durationMs: 80,
+                charCount: 1200,
+                quality: "validated",
+              },
+            ],
           },
         },
       ],
@@ -148,9 +167,36 @@ test("persistResearchArtifacts stores source metadata and chunk manifests withou
       byteSize: 2048,
       charCount: 1200,
       estimatedTokens: 300,
-      parseEngine: "google/gemini-2.5-flash-lite",
+      parseEngine: "pdfjs+normalize-lite",
       parseAttempts: 1,
       parseQuality: "validated",
+      parseStrategyVersion: "v2",
+      parseDiagnostics: [
+        {
+          stage: "local_extract",
+          engine: "pdfjs-local",
+          ok: true,
+          durationMs: 12,
+          charCount: 1200,
+        },
+        {
+          stage: "normalize_primary",
+          engine: "google/gemini-2.5-flash-lite",
+          ok: true,
+          durationMs: 80,
+          charCount: 1200,
+          quality: "validated",
+        },
+      ],
+      sourceChunks: [
+        {
+          chunkIndex: 0,
+          headingPath: "Results",
+          tokenEstimate: 120,
+          charCount: 480,
+          blobKey: "sources/source-1/chunks/0000.md",
+        },
+      ],
     });
 
     const chunkInsert = inserts.find((entry) => {

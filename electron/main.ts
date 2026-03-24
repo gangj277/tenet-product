@@ -8,6 +8,7 @@ import { spawn, type ChildProcess } from "child_process";
 import path from "path";
 import fs from "fs";
 import net from "net";
+import { loadAppEnv } from "./load-env";
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
@@ -47,6 +48,61 @@ function loadEnvConfig(): Record<string, string> {
   return {};
 }
 
+function runCommand(
+  command: string,
+  args: string[],
+  options?: { cwd?: string; env?: NodeJS.ProcessEnv }
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, {
+      cwd: options?.cwd,
+      env: options?.env,
+      stdio: "pipe",
+    });
+
+    let stderr = "";
+
+    child.stdout?.on("data", (data: Buffer) => {
+      console.log(`[startup] ${data.toString().trim()}`);
+    });
+
+    child.stderr?.on("data", (data: Buffer) => {
+      const text = data.toString();
+      stderr += text;
+      console.error(`[startup] ${text.trim()}`);
+    });
+
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+
+      reject(new Error(stderr || `${command} exited with code ${code}`));
+    });
+  });
+}
+
+async function ensureDevDatabaseSchema() {
+  if (!isDev) {
+    return;
+  }
+
+  const drizzleBin = path.join(process.cwd(), "node_modules", ".bin", "drizzle-kit");
+  if (!fs.existsSync(drizzleBin)) {
+    throw new Error("drizzle-kit is not installed in this workspace.");
+  }
+
+  await runCommand(drizzleBin, ["push", "--force"], {
+    cwd: process.cwd(),
+    env: {
+      ...loadAppEnv(process.cwd()),
+      ...process.env,
+    },
+  });
+}
+
 function waitForServer(port: number, timeout = 30_000): Promise<void> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -72,10 +128,13 @@ function waitForServer(port: number, timeout = 30_000): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function startServer(): Promise<number> {
+  await ensureDevDatabaseSchema();
+
   const port = await findFreePort();
   const envConfig = loadEnvConfig();
 
   const env: Record<string, string> = {
+    ...loadAppEnv(process.cwd()),
     ...process.env as Record<string, string>,
     PORT: String(port),
     HOSTNAME: "127.0.0.1",

@@ -30,11 +30,13 @@ export default function DashboardPage() {
   const [runId, setRunId] = useState<string | null>(null);
   const [perspective, setPerspective] = useState<Perspective | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [creatingBlankWorkspace, setCreatingBlankWorkspace] = useState(false);
 
   // ── Submit research question ──
   const handleSubmit = useCallback(async () => {
     if (!question.trim()) return;
     setError(null);
+    setCreatingBlankWorkspace(false);
     setPhase("submitting");
 
     try {
@@ -67,6 +69,30 @@ export default function DashboardPage() {
       setPhase("form");
     }
   }, [question, sources, advanced, searchFilters]);
+
+  const handleCreateBlankWorkspace = useCallback(async () => {
+    setError(null);
+    setCreatingBlankWorkspace(true);
+
+    try {
+      const res = await fetch("/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to create workspace");
+      }
+
+      const data = await res.json();
+      router.push(`/dashboard/${data.runId}`);
+    } catch (err) {
+      setError((err as Error).message);
+      setCreatingBlankWorkspace(false);
+    }
+  }, [router]);
 
   // ── Confirm perspective (fire-and-forget, then poll) ──
   const handleConfirm = useCallback(
@@ -122,7 +148,7 @@ export default function DashboardPage() {
               onChange={(e) => setQuestion(e.target.value)}
               placeholder="e.g. Is model collapse an inevitable consequence of training on synthetic data, or can it be mitigated through data mixing strategies?"
               rows={4}
-              disabled={phase === "submitting"}
+              disabled={phase === "submitting" || creatingBlankWorkspace}
               className="w-full bg-transparent border border-edge/60 rounded-lg px-4 py-3.5 font-serif text-[15px] leading-[1.7] text-heading placeholder:text-dim/60 placeholder:font-sans placeholder:text-[14px] focus:outline-none focus:border-accent/40 focus:glow-accent-sm transition-all duration-300 resize-y disabled:opacity-50"
             />
           </div>
@@ -138,7 +164,7 @@ export default function DashboardPage() {
             <FileUpload
               sources={sources}
               onSourcesChange={setSources}
-              disabled={phase === "submitting"}
+              disabled={phase === "submitting" || creatingBlankWorkspace}
             />
           </div>
 
@@ -146,6 +172,7 @@ export default function DashboardPage() {
           <div className="reveal reveal-delay-3 mb-8">
             <button
               onClick={() => setShowAdvanced(!showAdvanced)}
+              disabled={creatingBlankWorkspace}
               className="font-sans text-[12px] text-dim hover:text-sub transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <svg
@@ -238,7 +265,11 @@ export default function DashboardPage() {
           <div className="reveal reveal-delay-4">
             <button
               onClick={handleSubmit}
-              disabled={!question.trim() || phase === "submitting"}
+              disabled={
+                !question.trim() ||
+                phase === "submitting" ||
+                creatingBlankWorkspace
+              }
               className="font-sans text-[14px] font-medium px-8 py-3 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 glow-accent-sm hover:glow-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {phase === "submitting" ? (
@@ -256,6 +287,18 @@ export default function DashboardPage() {
                 {sources.length} source{sources.length > 1 ? "s" : ""} attached
               </p>
             )}
+
+            <div className="mt-4">
+              <button
+                onClick={handleCreateBlankWorkspace}
+                disabled={phase === "submitting" || creatingBlankWorkspace}
+                className="font-sans text-[13px] text-sub hover:text-heading transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {creatingBlankWorkspace
+                  ? "Creating blank workspace..."
+                  : "Start blank workspace"}
+              </button>
+            </div>
           </div>
         </div>
       )}

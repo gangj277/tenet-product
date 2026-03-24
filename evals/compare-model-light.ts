@@ -17,7 +17,7 @@ dotenv.config({ path: resolve(process.cwd(), ".env.local") });
 
 import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
-import { callLLM, type LLMResponse } from "../lib/llm/openrouter";
+import { callLLM, type LLMResponse } from "../lib/llm/runtime";
 import { initGraph } from "../lib/engine/graph";
 import { generateId } from "../lib/utils/id";
 import { memoryStore } from "../lib/storage/memory-store";
