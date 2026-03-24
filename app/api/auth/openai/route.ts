@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { createSession, setSessionCookie } from "@/lib/auth/session";
 import { readLocalCodexAuthTokens } from "@/lib/auth/codex-local-auth";
 import { connectOpenAIAccount } from "@/lib/auth/openai-account";
-import {
-  buildAuthorizationUrl,
-  generateCodeVerifier,
-  generateCodeChallenge,
-  generateState,
-} from "@/lib/auth/openai-oauth";
-
-const PKCE_COOKIE = "lumen_openai_pkce";
 
 function redirectTo(path: string) {
   return new NextResponse(null, {
@@ -20,7 +11,7 @@ function redirectTo(path: string) {
 }
 
 export async function GET() {
-  // Try local Codex session first (works in dev / Electron)
+  // Try local Codex session (works in dev / Electron where user ran `codex login`)
   try {
     const localTokens = await readLocalCodexAuthTokens();
     const account = await connectOpenAIAccount({
@@ -39,30 +30,13 @@ export async function GET() {
 
     return redirectTo("/dashboard");
   } catch {
-    // Local session not available — fall through to OAuth flow
-  }
-
-  // Deployed environment: start OpenAI OAuth PKCE flow
-  try {
-    const verifier = generateCodeVerifier();
-    const challenge = generateCodeChallenge(verifier);
-    const state = generateState();
-
-    const authUrl = buildAuthorizationUrl(state, challenge);
-
-    const cookieStore = await cookies();
-    cookieStore.set(PKCE_COOKIE, JSON.stringify({ verifier, state }), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      maxAge: 600, // 10 minutes
-      path: "/",
-    });
-
-    return redirectTo(authUrl);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "OpenAI sign-in failed.";
-    return redirectTo(`/auth/login?error=${encodeURIComponent(message)}`);
+    // Local session not available (deployed environment).
+    // Redirect to login page which shows the token-paste flow.
+    return redirectTo(
+      "/auth/login?mode=paste&error=" +
+        encodeURIComponent(
+          "Paste your OpenAI session tokens below to sign in."
+        )
+    );
   }
 }
