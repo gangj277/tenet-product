@@ -133,9 +133,9 @@ async function startServer(): Promise<number> {
   const port = await findFreePort();
   const envConfig = loadEnvConfig();
 
-  const env: Record<string, string> = {
+  const env = {
     ...loadAppEnv(process.cwd()),
-    ...process.env as Record<string, string>,
+    ...process.env,
     PORT: String(port),
     HOSTNAME: "127.0.0.1",
     ELECTRON: "1",
