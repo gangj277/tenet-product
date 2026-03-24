@@ -51,3 +51,4 @@ next-env.d.ts
 .tenet-blob-store/
 .playwright-cli/
 /public/pdfjs/
+.env*.local

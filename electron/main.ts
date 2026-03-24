@@ -9,12 +9,14 @@ import path from "path";
 import fs from "fs";
 import net from "net";
 import { loadAppEnv } from "./load-env";
+import { getProductionServerLaunchConfig } from "./server-launch";
 
 let mainWindow: BrowserWindow | null = null;
 let serverProcess: ChildProcess | null = null;
 let serverPort: number = 3000;
 
 const isDev = !app.isPackaged;
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -157,14 +159,14 @@ async function startServer(): Promise<number> {
     });
   } else {
     // Production: run the standalone server
-    const serverPath = path.join(process.resourcesPath, "standalone", "server.js");
-    serverProcess = spawn(process.execPath.replace(/electron/i, "node"), [serverPath], {
-      env: {
-        ...env,
-        // Tell Next.js standalone where static files live
-        NEXT_STATIC_DIR: path.join(process.resourcesPath, "static"),
-      },
-      cwd: path.join(process.resourcesPath, "standalone"),
+    const launch = getProductionServerLaunchConfig({
+      env,
+      execPath: process.execPath,
+      resourcesPath: process.resourcesPath,
+    });
+    serverProcess = spawn(launch.command, launch.args, {
+      env: launch.env,
+      cwd: launch.cwd,
       stdio: "pipe",
     });
   }
@@ -236,28 +238,44 @@ function createWindow() {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-app.whenReady().then(async () => {
-  try {
-    serverPort = await startServer();
-    console.log(`Next.js server running on port ${serverPort}`);
-    createWindow();
-  } catch (err) {
-    console.error("Failed to start server:", err);
-    app.quit();
-  }
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    if (!mainWindow) {
+      return;
+    }
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    mainWindow.focus();
+  });
+
+  app.whenReady().then(async () => {
+    try {
+      serverPort = await startServer();
+      console.log(`Next.js server running on port ${serverPort}`);
       createWindow();
+    } catch (err) {
+      console.error("Failed to start server:", err);
+      app.quit();
+    }
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        createWindow();
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
     }
   });
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+}
 
 app.on("before-quit", () => {
   stopServer();
