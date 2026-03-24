@@ -1,0 +1,40 @@
+<svg width="1280" height="640" viewBox="0 0 1280 640" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="40" x2="1180" y2="600" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#171410"/>
+      <stop offset="0.5" stop-color="#211B14"/>
+      <stop offset="1" stop-color="#0D0B09"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(245 192) rotate(49.6859) scale(327.955 446.529)">
+      <stop stop-color="#D3A86A" stop-opacity="0.32"/>
+      <stop offset="1" stop-color="#D3A86A" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="lumen-clip-r">
+      <circle cx="245" cy="192" r="108"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1280" height="640" rx="32" fill="url(#bg)"/>
+  <rect x="32" y="32" width="1216" height="576" rx="24" stroke="rgba(245,230,209,0.12)" stroke-width="1"/>
+  <circle cx="245" cy="192" r="188" fill="url(#glow)"/>
+  <circle cx="214" cy="192" r="108" stroke="#F3E0C5" stroke-opacity="0.22" stroke-width="13"/>
+  <circle cx="276" cy="192" r="108" stroke="#F3E0C5" stroke-opacity="0.22" stroke-width="13"/>
+  <circle cx="214" cy="192" r="108" fill="#F3E0C5" fill-opacity="0.06" clip-path="url(#lumen-clip-r)"/>
+  <path d="M245 84C274.82 112.932 292 151.702 292 192C292 232.298 274.82 271.068 245 300" stroke="#F7D39C" stroke-opacity="0.65" stroke-width="13"/>
+  <path d="M245 84C215.18 112.932 198 151.702 198 192C198 232.298 215.18 271.068 245 300" stroke="#F7D39C" stroke-opacity="0.65" stroke-width="13"/>
+  <circle cx="245" cy="192" r="39" stroke="#F7D39C" stroke-opacity="0.18" stroke-width="7"/>
+  <circle cx="245" cy="192" r="21" fill="#F7D39C"/>
+
+  <text x="390" y="196" fill="#F7E7D1" font-family="Georgia, 'Times New Roman', serif" font-size="96" letter-spacing="-2">Lumen</text>
+  <text x="390" y="256" fill="#E8D4B8" font-family="Helvetica, Arial, sans-serif" font-size="34" letter-spacing="2.2">OPEN-SOURCE AI RESEARCH WORKSPACE</text>
+  <text x="390" y="340" fill="#F7E7D1" font-family="Helvetica, Arial, sans-serif" font-size="30">Source-grounded synthesis for serious literature review,</text>
+  <text x="390" y="382" fill="#F7E7D1" font-family="Helvetica, Arial, sans-serif" font-size="30">tracked claims, visible contradictions, and local-first workspaces.</text>
+
+  <rect x="390" y="445" width="252" height="56" rx="16" fill="#D5A766"/>
+  <text x="426" y="482" fill="#13100C" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="700">Run locally from GitHub</text>
+
+  <rect x="664" y="445" width="228" height="56" rx="16" fill="rgba(247,231,209,0.07)" stroke="rgba(247,231,209,0.18)" stroke-width="2"/>
+  <text x="703" y="482" fill="#F7E7D1" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="600">Electron + Next.js</text>
+
+  <text x="390" y="552" fill="#BFA98A" font-family="Helvetica, Arial, sans-serif" font-size="24">github.com/gangj277/tenet-product</text>
+</svg>

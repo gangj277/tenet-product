@@ -35,6 +35,13 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function patchStorage(storage: Record<string, unknown>): () => void {
+  return patchModule("../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
+  });
+}
+
 test("POST /api/agent/[runId]/sessions/[sessionId]/compact appends a compacted agent status message", async () => {
   const appendedMessages: Array<{
     sessionId: string;
@@ -44,10 +51,8 @@ test("POST /api/agent/[runId]/sessions/[sessionId]/compact appends a compacted a
   const restoreSession = patchModule("../lib/auth/session.ts", {
     getSession: async () => ({ userId: "user-1" }),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({ runId: "run-1", projectId: "project-1" }),
-  });
-  const restoreChatSessions = patchModule("../lib/db/chat-sessions.ts", {
     getSessionMessages: async () => [
       {
         id: "user-1",
@@ -127,8 +132,7 @@ test("POST /api/agent/[runId]/sessions/[sessionId]/compact appends a compacted a
     assert.ok(payload.estimatedTokensBefore > payload.estimatedTokensAfter);
   } finally {
     restoreOpenAIAccess();
-    restoreChatSessions();
-    restoreResearchProjects();
+    restoreStorage();
     restoreSession();
     clearModule("../app/api/agent/[runId]/sessions/[sessionId]/compact/route.ts");
   }

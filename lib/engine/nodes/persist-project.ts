@@ -1,6 +1,6 @@
 import type { InitRunState, InitRunUpdate } from "../state";
+import { getStorage } from "@/lib/storage";
 import { memoryStore } from "@/lib/storage/memory-store";
-import { persistResearchArtifacts } from "@/lib/db/research-projects";
 import { mergeWorkspaceArtifacts } from "@/lib/workspace/source-cache";
 
 export async function persistProject(
@@ -53,7 +53,8 @@ export async function persistProject(
   }
   memoryStore.saveSourcesMeta(projectId, sourcesMetaRecord);
 
-  await persistResearchArtifacts({
+  const storage = await getStorage();
+  await storage.persistResearchArtifacts({
     runId,
     sources,
     sourceChunks,

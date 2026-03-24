@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun, addAgentDiscoveredSource, getSourceMetadataForRun } from "@/lib/db/research-projects";
 import {
   fetchSourceBytes,
   sniffMimeType,
@@ -11,6 +10,7 @@ import { classifySourceIntoFolder } from "@/lib/ingest/classify-source-folder";
 import { blobStore } from "@/lib/storage/blob-store";
 import { syncAddedSourcesToWorkspaceCache } from "@/lib/workspace/source-cache";
 import type { SourceEntry } from "@/lib/engine/state";
+import { getStorage } from "@/lib/storage";
 
 export async function POST(
   request: NextRequest,
@@ -23,7 +23,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
@@ -116,7 +117,7 @@ export async function POST(
       : "";
 
     // Classify into folder
-    const existingMeta = await getSourceMetadataForRun(runId);
+    const existingMeta = await storage.getSourceMetadataForRun(runId);
     const existingFolders = [
       ...new Set(
         Object.values(existingMeta)
@@ -135,7 +136,7 @@ export async function POST(
     };
 
     // Insert into DB (source row + source_summary artifact)
-    await addAgentDiscoveredSource({
+    await storage.addAgentDiscoveredSource({
       runId,
       sourceId,
       name: label,

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun, createNote } from "@/lib/db/research-projects";
+import { getStorage } from "@/lib/storage";
 
 export async function POST(
   request: NextRequest,
@@ -14,7 +14,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
@@ -31,7 +32,7 @@ export async function POST(
       return NextResponse.json({ error: "label is required" }, { status: 400 });
     }
 
-    const noteId = await createNote(runId, {
+    const noteId = await storage.createNote(runId, {
       id,
       label,
       folder: folder || undefined,

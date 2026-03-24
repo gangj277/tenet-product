@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun } from "@/lib/db/research-projects";
-import { getSessionsForRun, createSession } from "@/lib/db/chat-sessions";
+import { getStorage } from "@/lib/storage";
 
 export async function GET(
   _req: NextRequest,
@@ -13,12 +12,13 @@ export async function GET(
   }
 
   const { runId } = await params;
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  const sessions = await getSessionsForRun(runId);
+  const sessions = await storage.getSessionsForRun(runId);
   return NextResponse.json({ sessions });
 }
 
@@ -32,12 +32,13 @@ export async function POST(
   }
 
   const { runId } = await params;
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
   const body = await req.json().catch(() => ({}));
-  const newSession = await createSession(runId, body.title);
+  const newSession = await storage.createSession(runId, body.title);
   return NextResponse.json(newSession, { status: 201 });
 }

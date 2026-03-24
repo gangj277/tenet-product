@@ -34,7 +34,7 @@ const CITATION_SCHEMA = {
     location: { type: "string" },
     quote: { type: "string" },
   },
-  required: ["location"],
+  required: ["location", "quote"],
   additionalProperties: false,
 } as const;
 
@@ -61,6 +61,7 @@ const DIGEST_CLAIM_SCHEMA = {
   required: [
     "claimSignature",
     "claim",
+    "subquestion",
     "confidence",
     "stance",
     "citations",
@@ -224,31 +225,7 @@ async function digestSource(
   perspectiveJson: string
 ): Promise<SourceDigest> {
   if (shouldDigestWholeSource(parsedSource) || sourceChunks.length === 0) {
-    const sourceText = await blobStore.getText(parsedSource.normalizedBlobKey);
-    const { data } = await callLLMJson<Omit<SourceDigest, "sourceId" | "sourceName">>({
-      model: MODEL_LITE,
-      messages: [
-        { role: "system", content: buildSourceDigestPrompt() },
-        {
-          role: "user",
-          content: JSON.stringify(
-            {
-              sourceId: parsedSource.sourceId,
-              sourceName: parsedSource.name,
-              perspective: JSON.parse(perspectiveJson) as unknown,
-              sourceText,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-      temperature: 0.1,
-      maxTokens: 4096,
-      jsonSchema: SOURCE_DIGEST_SCHEMA,
-    });
-
-    return normalizeSourceDigest(data, parsedSource);
+    return digestWholeSource(parsedSource, perspectiveJson);
   }
 
   const chunkTexts = new Map(
@@ -257,6 +234,13 @@ async function digestSource(
     )
   );
   const windows = buildSourceWindows({ parsedSource, sourceChunks, chunkTexts });
+  if (windows.length === 0) {
+    return fallbackToWholeSourceDigest(
+      parsedSource,
+      perspectiveJson,
+      "All chunk windows were empty after loading chunk text."
+    );
+  }
 
   const notesSettled = await allSettledWithConcurrency(
     windows,
@@ -293,14 +277,21 @@ async function digestSource(
   );
 
   const windowNotes: Array<Omit<SourceDigest, "sourceId" | "sourceName">> = [];
+  const windowErrors: string[] = [];
   for (const result of notesSettled) {
     if (result.status === "fulfilled") {
       windowNotes.push(result.value);
+    } else {
+      windowErrors.push(getErrorMessage(result.reason));
     }
   }
 
   if (windowNotes.length === 0) {
-    throw new Error(`No source windows could be digested for ${parsedSource.name}`);
+    return fallbackToWholeSourceDigest(
+      parsedSource,
+      perspectiveJson,
+      `No source windows could be digested for ${parsedSource.name}. ${summarizeWindowErrors(windowErrors)}`
+    );
   }
 
   const { data } = await callLLMJson<Omit<SourceDigest, "sourceId" | "sourceName">>({
@@ -327,6 +318,68 @@ async function digestSource(
   });
 
   return normalizeSourceDigest(data, parsedSource);
+}
+
+async function digestWholeSource(
+  parsedSource: ParsedSource,
+  perspectiveJson: string
+): Promise<SourceDigest> {
+  const sourceText = await blobStore.getText(parsedSource.normalizedBlobKey);
+  const { data } = await callLLMJson<Omit<SourceDigest, "sourceId" | "sourceName">>({
+    model: MODEL_LITE,
+    messages: [
+      { role: "system", content: buildSourceDigestPrompt() },
+      {
+        role: "user",
+        content: JSON.stringify(
+          {
+            sourceId: parsedSource.sourceId,
+            sourceName: parsedSource.name,
+            perspective: JSON.parse(perspectiveJson) as unknown,
+            sourceText,
+          },
+          null,
+          2
+        ),
+      },
+    ],
+    temperature: 0.1,
+    maxTokens: 4096,
+    jsonSchema: SOURCE_DIGEST_SCHEMA,
+  });
+
+  return normalizeSourceDigest(data, parsedSource);
+}
+
+async function fallbackToWholeSourceDigest(
+  parsedSource: ParsedSource,
+  perspectiveJson: string,
+  reason: string
+): Promise<SourceDigest> {
+  try {
+    return await digestWholeSource(parsedSource, perspectiveJson);
+  } catch (fallbackError) {
+    throw new Error(
+      `${reason} Fallback whole-source digest also failed: ${getErrorMessage(fallbackError)}`
+    );
+  }
+}
+
+function summarizeWindowErrors(errors: string[]): string {
+  if (errors.length === 0) {
+    return "No underlying window error details were captured.";
+  }
+
+  const unique = Array.from(new Set(errors.map((error) => error.trim()).filter(Boolean)));
+  const preview = unique.slice(0, 3).join("; ");
+  if (unique.length <= 3) {
+    return `Window digest failures: ${preview}`;
+  }
+  return `Window digest failures: ${preview}; and ${unique.length - 3} more.`;
+}
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 function dedupeEvidence(items: EvidenceItem[]): EvidenceItem[] {

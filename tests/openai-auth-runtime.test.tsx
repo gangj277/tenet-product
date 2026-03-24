@@ -43,10 +43,34 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function withEnv<T>(values: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(values)) {
+    previous.set(key, process.env[key]);
+    if (value === undefined) {
+      delete process.env[key];
+    } else {
+      process.env[key] = value;
+    }
+  }
+
+  return fn().finally(() => {
+    for (const [key, value] of previous.entries()) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+  });
+}
+
 test("createProviderForUser rejects users without OpenAI auth credentials", async () => {
-  const restoreCreds = patchModule("../lib/db/user-credentials.ts", {
-    getUserLLMCredentials: async () => null,
-    upsertUserLLMCredentials: async () => {},
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      getLLMCredentials: async () => null,
+    }),
+    resetStorageForTests: () => {},
   });
 
   try {
@@ -60,7 +84,7 @@ test("createProviderForUser rejects users without OpenAI auth credentials", asyn
       /Connect your OpenAI account/i
     );
   } finally {
-    restoreCreds();
+    restoreStorage();
   }
 });
 
@@ -109,31 +133,20 @@ test("OAuth callback refuses to create a session when provider validation fails"
       lastErrorMessage: "permission error",
     }),
   });
-  const restoreDb = patchModule("../lib/db/client.ts", {
-    db: {
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => [],
-          }),
-        }),
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      upsertUser: async (value: { email: string; name: string }) => ({
+        id: "user-1",
+        email: value.email,
+        name: value.name,
+        organization: null,
+        authProvider: "openai_auth" as const,
       }),
-      insert: () => ({
-        values: () => ({
-          returning: async () => [{ id: "user-1" }],
-        }),
-      }),
-      update: () => ({
-        set: () => ({
-          where: async () => {},
-        }),
-      }),
-    },
-  });
-  const restoreCreds = patchModule("../lib/db/user-credentials.ts", {
-    upsertUserLLMCredentials: async (_userId: string, value: Record<string, unknown>) => {
-      upsertedCredentials.push(value);
-    },
+      upsertLLMCredentials: async (_userId: string, value: Record<string, unknown>) => {
+        upsertedCredentials.push(value);
+      },
+    }),
+    resetStorageForTests: () => {},
   });
   const restoreSession = patchModule("../lib/auth/session.ts", {
     createSession: async () => {
@@ -167,8 +180,7 @@ test("OAuth callback refuses to create a session when provider validation fails"
     assert.match(response.headers.get("location") ?? "", /error=/i);
   } finally {
     restoreSession();
-    restoreCreds();
-    restoreDb();
+    restoreStorage();
     restoreOpenAIConnection();
     restoreOAuth();
     restoreCookies();
@@ -177,7 +189,7 @@ test("OAuth callback refuses to create a session when provider validation fails"
 
 test("OAuth callback merges an existing email user and creates a session only after validation succeeds", async () => {
   const upsertedCredentials: Array<Record<string, unknown>> = [];
-  const updatedUsers: Array<Record<string, unknown>> = [];
+  const upsertedUsers: Array<Record<string, unknown>> = [];
   const createdSessions: Array<Record<string, unknown>> = [];
 
   const restoreCookies = patchModule("next/headers", {
@@ -220,36 +232,23 @@ test("OAuth callback merges an existing email user and creates a session only af
       validatedAt: "2026-03-23T00:00:00.000Z",
     }),
   });
-  const restoreDb = patchModule("../lib/db/client.ts", {
-    db: {
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => [{ id: "user-existing" }],
-          }),
-        }),
-      }),
-      insert: () => ({
-        values: () => ({
-          returning: async () => {
-            throw new Error("should not create a new user when email matches");
-          },
-        }),
-      }),
-      update: () => ({
-        set: (value: Record<string, unknown>) => {
-          updatedUsers.push(value);
-          return {
-            where: async () => {},
-          };
-        },
-      }),
-    },
-  });
-  const restoreCreds = patchModule("../lib/db/user-credentials.ts", {
-    upsertUserLLMCredentials: async (_userId: string, value: Record<string, unknown>) => {
-      upsertedCredentials.push(value);
-    },
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      upsertUser: async (value: Record<string, unknown>) => {
+        upsertedUsers.push(value);
+        return {
+          id: "user-existing",
+          email: String(value.email),
+          name: String(value.name),
+          organization: null,
+          authProvider: "openai_auth" as const,
+        };
+      },
+      upsertLLMCredentials: async (_userId: string, value: Record<string, unknown>) => {
+        upsertedCredentials.push(value);
+      },
+    }),
+    resetStorageForTests: () => {},
   });
   const restoreSession = patchModule("../lib/auth/session.ts", {
     createSession: async (value: Record<string, unknown>) => {
@@ -271,16 +270,15 @@ test("OAuth callback merges an existing email user and creates a session only af
 
     assert.equal(response.status, 307);
     assert.match(response.headers.get("location") ?? "", /\/dashboard$/);
-    assert.equal(updatedUsers.length, 1);
-    assert.equal(updatedUsers[0].authProvider, "openai_auth");
+    assert.equal(upsertedUsers.length, 1);
+    assert.equal(upsertedUsers[0].authProvider, "openai_auth");
     assert.equal(upsertedCredentials.length, 1);
     assert.equal(upsertedCredentials[0].kind, "openai_auth");
     assert.equal(createdSessions.length, 1);
     assert.equal(createdSessions[0].userId, "user-existing");
   } finally {
     restoreSession();
-    restoreCreds();
-    restoreDb();
+    restoreStorage();
     restoreOpenAIConnection();
     restoreOAuth();
     restoreCookies();
@@ -344,31 +342,20 @@ test("OpenAI login imports a local Codex session instead of redirecting to remot
       lastErrorMessage: null,
     }),
   });
-  const restoreDb = patchModule("../lib/db/client.ts", {
-    db: {
-      select: () => ({
-        from: () => ({
-          where: () => ({
-            limit: async () => [],
-          }),
-        }),
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      upsertUser: async (value: { email: string; name: string }) => ({
+        id: "user-local",
+        email: value.email,
+        name: value.name,
+        organization: null,
+        authProvider: "openai_auth" as const,
       }),
-      insert: () => ({
-        values: () => ({
-          returning: async () => [{ id: "user-local" }],
-        }),
-      }),
-      update: () => ({
-        set: () => ({
-          where: async () => {},
-        }),
-      }),
-    },
-  });
-  const restoreCreds = patchModule("../lib/db/user-credentials.ts", {
-    upsertUserLLMCredentials: async (_userId: string, value: Record<string, unknown>) => {
-      upsertedCredentials.push(value);
-    },
+      upsertLLMCredentials: async (_userId: string, value: Record<string, unknown>) => {
+        upsertedCredentials.push(value);
+      },
+    }),
+    resetStorageForTests: () => {},
   });
   const restoreSession = patchModule("../lib/auth/session.ts", {
     createSession: async (value: Record<string, unknown>) => {
@@ -404,8 +391,7 @@ test("OpenAI login imports a local Codex session instead of redirecting to remot
   } finally {
     restoreCookies();
     restoreSession();
-    restoreCreds();
-    restoreDb();
+    restoreStorage();
     restoreOpenAIConnection();
     clearModule("../app/api/auth/openai/route.ts");
     if (originalAuthFile === undefined) {
@@ -430,22 +416,24 @@ test("OpenAI login shows an actionable error when no local Codex session exists"
   });
 
   try {
-    clearModule("../lib/auth/openai-oauth.ts");
-    clearModule("../app/api/auth/openai/route.ts");
-    const route = reloadModule<
-      typeof import("../app/api/auth/openai/route")
-    >("../app/api/auth/openai/route.ts");
+    await withEnv({ ELECTRON: "1" }, async () => {
+      clearModule("../lib/auth/openai-oauth.ts");
+      clearModule("../app/api/auth/openai/route.ts");
+      const route = reloadModule<
+        typeof import("../app/api/auth/openai/route")
+      >("../app/api/auth/openai/route.ts");
 
-    const response = await route.GET(
-      new Request("http://localhost/api/auth/openai") as never
-    );
+      const response = await route.GET(
+        new Request("http://localhost/api/auth/openai") as never
+      );
 
-    assert.equal(response.status, 307);
-    assert.match(response.headers.get("location") ?? "", /\/auth\/login\?error=/);
-    assert.match(
-      decodeURIComponent(response.headers.get("location") ?? ""),
-      /codex login/i
-    );
+      assert.equal(response.status, 307);
+      assert.match(response.headers.get("location") ?? "", /\/auth\/login\?error=/);
+      assert.match(
+        decodeURIComponent(response.headers.get("location") ?? ""),
+        /codex login/i
+      );
+    });
   } finally {
     restoreCookies();
     clearModule("../app/api/auth/openai/route.ts");

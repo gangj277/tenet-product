@@ -277,6 +277,7 @@ export default function ResultsPage({
         }
         document={
           <DocumentViewer
+            runId={runId}
             activeFile={activeFile}
             content={ws.getContent(ws.activeFileKey)}
             onUpdate={(markdown) => ws.updateContent(ws.activeFileKey, markdown)}

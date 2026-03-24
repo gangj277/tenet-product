@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import type { UserInput, SourceEntry, Perspective } from "@/lib/engine/state";
 import type { SearchFilterConfig } from "@/lib/discovery/search-filters";
@@ -8,12 +8,13 @@ import { FileUpload } from "../_components/file-upload";
 import { PerspectiveReview } from "../_components/perspective-review";
 import { ProcessingState } from "../_components/processing-state";
 import { SearchFilterPanel } from "../_components/search-filter-panel";
-
-type Phase =
-  | "form"
-  | "submitting"
-  | "review"
-  | "processing";
+import { WorkspaceFolderField } from "./_components/workspace-folder-field";
+import {
+  canStartBlankWorkspace,
+  canStartResearch,
+  requireSelectedWorkspacePath,
+  type DashboardNewPhase as Phase,
+} from "./_lib/workspace-folder";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -24,6 +25,8 @@ export default function DashboardPage() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [advanced, setAdvanced] = useState<Partial<UserInput>>({});
   const [searchFilters, setSearchFilters] = useState<SearchFilterConfig>({});
+  const [isElectron, setIsElectron] = useState(false);
+  const [workspacePath, setWorkspacePath] = useState<string | null>(null);
 
   // ── Pipeline state ──
   const [phase, setPhase] = useState<Phase>("form");
@@ -32,14 +35,53 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [creatingBlankWorkspace, setCreatingBlankWorkspace] = useState(false);
 
+  useEffect(() => {
+    setIsElectron(Boolean(window.electronAPI?.isElectron));
+  }, []);
+
+  const requestWorkspacePath = useCallback(async (): Promise<string | undefined> => {
+    if (!window.electronAPI?.isElectron) {
+      return undefined;
+    }
+
+    if (!window.electronAPI.chooseWorkspaceFolder) {
+      throw new Error("Electron workspace folder picker is unavailable.");
+    }
+
+    const selection = await window.electronAPI.chooseWorkspaceFolder();
+    if (selection.canceled || !selection.path) {
+      return undefined;
+    }
+
+    return selection.path;
+  }, []);
+
+  const handleChooseWorkspaceFolder = useCallback(async () => {
+    setError(null);
+
+    try {
+      const selectedPath = await requestWorkspacePath();
+      if (selectedPath) {
+        setWorkspacePath(selectedPath);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }, [requestWorkspacePath]);
+
   // ── Submit research question ──
   const handleSubmit = useCallback(async () => {
     if (!question.trim()) return;
     setError(null);
     setCreatingBlankWorkspace(false);
-    setPhase("submitting");
 
     try {
+      const selectedWorkspacePath = requireSelectedWorkspacePath({
+        isElectron,
+        workspacePath,
+      });
+
+      setPhase("submitting");
       const hasFilters = Object.values(searchFilters).some(
         (v) => v !== undefined && v !== "" && !(Array.isArray(v) && v.length === 0)
       );
@@ -52,7 +94,11 @@ export default function DashboardPage() {
       const res = await fetch("/api/init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input, sources }),
+        body: JSON.stringify({
+          input,
+          sources,
+          ...(selectedWorkspacePath ? { workspacePath: selectedWorkspacePath } : {}),
+        }),
       });
 
       if (!res.ok) {
@@ -68,17 +114,26 @@ export default function DashboardPage() {
       setError((err as Error).message);
       setPhase("form");
     }
-  }, [question, sources, advanced, searchFilters]);
+  }, [question, sources, advanced, searchFilters, isElectron, workspacePath]);
 
   const handleCreateBlankWorkspace = useCallback(async () => {
     setError(null);
-    setCreatingBlankWorkspace(true);
 
     try {
+      const selectedWorkspacePath = requireSelectedWorkspacePath({
+        isElectron,
+        workspacePath,
+      });
+
+      setCreatingBlankWorkspace(true);
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({
+          ...(selectedWorkspacePath
+            ? { workspacePath: selectedWorkspacePath }
+            : {}),
+        }),
       });
 
       if (!res.ok) {
@@ -92,7 +147,7 @@ export default function DashboardPage() {
       setError((err as Error).message);
       setCreatingBlankWorkspace(false);
     }
-  }, [router]);
+  }, [router, isElectron, workspacePath]);
 
   // ── Confirm perspective (fire-and-forget, then poll) ──
   const handleConfirm = useCallback(
@@ -167,6 +222,14 @@ export default function DashboardPage() {
               disabled={phase === "submitting" || creatingBlankWorkspace}
             />
           </div>
+
+          {isElectron && (
+            <WorkspaceFolderField
+              workspacePath={workspacePath}
+              disabled={phase === "submitting" || creatingBlankWorkspace}
+              onChoose={handleChooseWorkspaceFolder}
+            />
+          )}
 
           {/* Advanced options toggle */}
           <div className="reveal reveal-delay-3 mb-8">
@@ -265,11 +328,13 @@ export default function DashboardPage() {
           <div className="reveal reveal-delay-4">
             <button
               onClick={handleSubmit}
-              disabled={
-                !question.trim() ||
-                phase === "submitting" ||
-                creatingBlankWorkspace
-              }
+              disabled={!canStartResearch({
+                question,
+                isElectron,
+                workspacePath,
+                phase,
+                creatingBlankWorkspace,
+              })}
               className="font-sans text-[14px] font-medium px-8 py-3 bg-accent-fill text-on-accent rounded-lg hover:bg-accent-hover transition-all duration-300 glow-accent-sm hover:glow-accent disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               {phase === "submitting" ? (
@@ -291,7 +356,12 @@ export default function DashboardPage() {
             <div className="mt-4">
               <button
                 onClick={handleCreateBlankWorkspace}
-                disabled={phase === "submitting" || creatingBlankWorkspace}
+                disabled={!canStartBlankWorkspace({
+                  isElectron,
+                  workspacePath,
+                  phase,
+                  creatingBlankWorkspace,
+                })}
                 className="font-sans text-[13px] text-sub hover:text-heading transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
               >
                 {creatingBlankWorkspace

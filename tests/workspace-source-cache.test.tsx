@@ -35,6 +35,13 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function patchStorage(storage: Record<string, unknown>): () => void {
+  return patchModule("../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
+  });
+}
+
 test("mergeWorkspaceArtifacts keeps cached edits but includes persisted discovered sources", () => {
   const loadedModule = reloadModule<
     typeof import("../lib/workspace/source-cache")
@@ -156,7 +163,7 @@ test("executeSearchExternalSources syncs added sources into workspace cache", as
     }),
   });
 
-  const restoreDb = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     addAgentDiscoveredSource: async () => {},
     getResearchRun: async () => ({
       runId: "run-1",
@@ -233,7 +240,7 @@ test("executeSearchExternalSources syncs added sources into workspace cache", as
   } finally {
     restoreMemoryStore();
     restoreFolder();
-    restoreDb();
+    restoreStorage();
     restoreLlm();
     restoreBlob();
     restoreIngest();

@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { db } from "@/lib/db/client";
-import { users, userLlmCredentials } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getStorage } from "@/lib/storage";
 
 export async function GET() {
   const session = await getSession();
@@ -10,43 +8,25 @@ export async function GET() {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  const [user] = await db
-    .select({
-      id: users.id,
-      email: users.email,
-      name: users.name,
-      organization: users.organization,
-      authProvider: users.authProvider,
-    })
-    .from(users)
-    .where(eq(users.id, session.userId))
-    .limit(1);
+  const storage = await getStorage();
+  const user = await storage.getUserById(session.userId);
 
   if (!user) {
     return NextResponse.json({ user: null }, { status: 401 });
   }
 
-  // Check if user has Codex OAuth connected
-  const [creds] = await db
-    .select({
-      provider: userLlmCredentials.provider,
-      validationStatus: userLlmCredentials.validationStatus,
-      lastErrorMessage: userLlmCredentials.lastErrorMessage,
-      capabilities: userLlmCredentials.capabilities,
-    })
-    .from(userLlmCredentials)
-    .where(eq(userLlmCredentials.userId, user.id))
-    .limit(1);
+  const creds = await storage.getLLMCredentials(user.id);
 
   return NextResponse.json({
     user: {
       ...user,
-      openaiConnected: creds?.provider === "openai_auth",
+      sessionMode: process.env.ELECTRON ? "electron_local" : "web_cookie",
+      openaiConnected: creds?.kind === "openai_auth",
       openaiConnection: creds
         ? {
-            status: creds.validationStatus,
-            lastErrorMessage: creds.lastErrorMessage,
-            capabilities: creds.capabilities,
+            status: creds.validation.status,
+            lastErrorMessage: creds.validation.lastErrorMessage ?? null,
+            capabilities: creds.validation.capabilities,
           }
         : null,
     },

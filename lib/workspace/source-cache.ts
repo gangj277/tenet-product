@@ -1,6 +1,7 @@
 import type { AddedSource } from "@/lib/agent/state";
-import { getResearchRun, type SourceMeta } from "@/lib/db/research-projects";
 import type { Artifacts } from "@/lib/engine/state";
+import { getStorage } from "@/lib/storage";
+import type { SourceMeta } from "@/lib/storage/project-types";
 import { memoryStore } from "@/lib/storage/memory-store";
 
 export function mergeWorkspaceArtifacts(
@@ -85,8 +86,9 @@ export async function syncAddedSourcesToWorkspaceCache(
   if (addedSources.length === 0) return;
 
   const runEntry = memoryStore.getRun(runId);
+  const storage = await getStorage();
   const projectId =
-    runEntry?.projectId ?? (await getResearchRun(runId))?.projectId;
+    runEntry?.projectId ?? (await storage.getResearchRun(runId))?.projectId;
 
   if (!projectId) return;
 

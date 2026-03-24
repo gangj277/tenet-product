@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { db } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { getStorage } from "@/lib/storage";
 
 export async function POST(request: NextRequest) {
   const session = await getSession();
@@ -17,13 +15,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
-  await db
-    .update(users)
-    .set({
-      name: name.trim(),
-      organization: organization?.trim() || null,
-    })
-    .where(eq(users.id, session.userId));
+  const storage = await getStorage();
+  await storage.updateUserProfile(session.userId, {
+    name: name.trim(),
+    organization: organization?.trim() || null,
+  });
 
   return NextResponse.json({ ok: true });
 }

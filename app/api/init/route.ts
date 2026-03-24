@@ -1,22 +1,21 @@
+import path from "node:path";
 import { NextRequest, NextResponse } from "next/server";
 import { generateId } from "@/lib/utils/id";
 import { initGraph } from "@/lib/engine/graph";
 import { memoryStore } from "@/lib/storage/memory-store";
 import type { UserInput, SourceEntry } from "@/lib/engine/state";
 import { getSession } from "@/lib/auth/session";
-import {
-  createResearchProjectRun,
-  updateResearchRunStatus,
-} from "@/lib/db/research-projects";
 import { runWithRequestProvider } from "@/lib/llm/runtime";
 import { ensureOpenAIProviderAccess } from "@/lib/llm/openai-access";
 import { acquireExclusiveLock } from "@/lib/utils/exclusive-lock";
+import { getStorage } from "@/lib/storage";
 
 export const maxDuration = 300;
 
 interface InitRequestBody {
   input: UserInput;
   sources?: SourceEntry[];
+  workspacePath?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -29,6 +28,7 @@ export async function POST(request: NextRequest) {
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    const storage = await getStorage();
 
     releaseLock = acquireExclusiveLock(`init:${session.userId}`);
     if (!releaseLock) {
@@ -38,11 +38,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const provider = await ensureOpenAIProviderAccess(session.userId, {
-      forceRevalidate: true,
-    });
-
     const body = (await request.json()) as InitRequestBody;
+    const workspacePath =
+      typeof body.workspacePath === "string" ? body.workspacePath.trim() : undefined;
 
     if (!body.input?.researchQuestion?.trim()) {
       return NextResponse.json(
@@ -51,15 +49,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (process.env.ELECTRON) {
+      if (!workspacePath) {
+        return NextResponse.json(
+          { error: "workspacePath is required in Electron mode" },
+          { status: 400 }
+        );
+      }
+
+      if (!path.isAbsolute(workspacePath)) {
+        return NextResponse.json(
+          { error: "workspacePath must be an absolute path" },
+          { status: 400 }
+        );
+      }
+    }
+
+    const provider = await ensureOpenAIProviderAccess(session.userId, {
+      forceRevalidate: true,
+    });
+
     projectId = generateId();
     runId = generateId();
     const threadId = runId; // 1:1 mapping for simplicity
 
-    await createResearchProjectRun({
+    await storage.createResearchProjectRun({
       projectId,
       runId,
       userId: session.userId,
       input: body.input,
+      ...(workspacePath ? { workspacePath } : {}),
       status: "running",
     });
 
@@ -93,7 +112,7 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date().toISOString(),
     });
 
-    await updateResearchRunStatus({
+    await storage.updateResearchRunStatus({
       projectId,
       runId,
       status: "awaiting_confirmation",
@@ -120,7 +139,8 @@ export async function POST(request: NextRequest) {
     console.error("[init] Pipeline error:", (err as Error).message);
 
     if (projectId && runId) {
-      await updateResearchRunStatus({
+      const storage = await getStorage();
+      await storage.updateResearchRunStatus({
         projectId,
         runId,
         status: "failed",

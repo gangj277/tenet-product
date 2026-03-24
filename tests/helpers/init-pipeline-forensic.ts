@@ -150,10 +150,7 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
     getSession: async () => TEST_USER,
   });
 
-  const restoreResearchProjects = patchModule("../../lib/db/research-projects.ts", {
-    buildProjectTitle(researchQuestion: string) {
-      return researchQuestion.trim().replace(/\s+/g, " ").slice(0, 500);
-    },
+  const storage = {
     async createResearchProjectRun(params: {
       projectId: string;
       runId: string;
@@ -239,6 +236,92 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
         artifacts: params.artifacts,
       });
     },
+    async getSourceMetadataForRun(runId: string) {
+      const record = persistedArtifacts.get(runId);
+      if (!record) {
+        return {};
+      }
+
+      return Object.fromEntries(
+        record.sources.map((source) => {
+          const metadata = (source.metadata ?? {}) as Record<string, unknown>;
+          return [
+            String(source.sourceId),
+            {
+              name: String(source.name),
+              origin: String(source.origin ?? "discovered"),
+              ...(typeof metadata.folder === "string" ? { folder: metadata.folder } : {}),
+              ...(typeof metadata.resolvedUrl === "string"
+                ? { sourceUrl: metadata.resolvedUrl }
+                : typeof metadata.sourceUrl === "string"
+                  ? { sourceUrl: metadata.sourceUrl }
+                  : {}),
+            },
+          ];
+        })
+      );
+    },
+    async addAgentDiscoveredSource(params: {
+      runId: string;
+      sourceId: string;
+      name: string;
+      origin?: string;
+      mimeType: string;
+      storagePath: string;
+      metadata: Record<string, unknown>;
+      sourceChunks?: Array<Record<string, unknown>>;
+      summaryContent: string;
+    }) {
+      const record = persistedArtifacts.get(params.runId) ?? {
+        sources: [],
+        sourceChunks: [],
+        artifacts: {
+          overview: "",
+          synthesis: "",
+          claims: "",
+          gaps: "",
+          nextSteps: "",
+          sources: {},
+          papers: {},
+          notes: {},
+          experiments: {},
+        },
+      };
+
+      record.sources = [
+        ...record.sources.filter(
+          (source) => String(source.sourceId) !== params.sourceId
+        ),
+        {
+          sourceId: params.sourceId,
+          name: params.name,
+          origin: params.origin ?? "discovered",
+          mimeType: params.mimeType,
+          checksum: "",
+          storageUrl: params.storagePath,
+          parseStatus: "parsed",
+          metadata: params.metadata,
+        },
+      ];
+      record.sourceChunks = [
+        ...record.sourceChunks.filter(
+          (chunk) => String(chunk.sourceId) !== params.sourceId
+        ),
+        ...(params.sourceChunks ?? []),
+      ];
+      record.artifacts = {
+        ...record.artifacts,
+        sources: {
+          ...(record.artifacts.sources as Record<string, string> | undefined),
+          [params.sourceId]: params.summaryContent,
+        },
+      };
+      persistedArtifacts.set(params.runId, record);
+    },
+  };
+  const restoreStorage = patchModule("../../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
   });
 
   const restoreDiscovery = patchModule("../../lib/discovery/scholarly-search.ts", {
@@ -813,7 +896,7 @@ export async function runForensicInitPipeline(): Promise<ForensicInitPipelineRep
     restoreRuntime();
     restorePdfParser();
     restoreDiscovery();
-    restoreResearchProjects();
+    restoreStorage();
     restoreSession();
     restoreIds();
     await rm(tempBlobRoot, { recursive: true, force: true });
@@ -884,6 +967,9 @@ function clearRuntimeModules() {
     "../../lib/engine/nodes/persist-project.ts",
     "../../lib/engine/nodes/infer-user-perspective.ts",
     "../../lib/engine/nodes/confirm-inferred-brief.ts",
+    "../../lib/workspace/source-cache.ts",
+    "../../lib/agent/tools/search-external-sources.ts",
+    "../../lib/agent/tools/search-external-persist.ts",
     "../../lib/ingest/source-ingestion.ts",
     "../../lib/storage/blob-store.ts",
     "../../lib/storage/memory-store.ts",
@@ -898,25 +984,49 @@ function resetRuntimeSingletons() {
     __lumenMemoryStore?: unknown;
     __lumenMemoryStoreState?: unknown;
     __lumenInitGraphCheckpointer?: unknown;
+    __lumenStorageAdapter?: unknown;
+    __lumenStorageKey?: unknown;
   }).__lumenBlobStore;
   delete (globalThis as typeof globalThis & {
     __lumenBlobStore?: unknown;
     __lumenMemoryStore?: unknown;
     __lumenMemoryStoreState?: unknown;
     __lumenInitGraphCheckpointer?: unknown;
+    __lumenStorageAdapter?: unknown;
+    __lumenStorageKey?: unknown;
   }).__lumenMemoryStore;
   delete (globalThis as typeof globalThis & {
     __lumenBlobStore?: unknown;
     __lumenMemoryStore?: unknown;
     __lumenMemoryStoreState?: unknown;
     __lumenInitGraphCheckpointer?: unknown;
+    __lumenStorageAdapter?: unknown;
+    __lumenStorageKey?: unknown;
   }).__lumenMemoryStoreState;
   delete (globalThis as typeof globalThis & {
     __lumenBlobStore?: unknown;
     __lumenMemoryStore?: unknown;
     __lumenMemoryStoreState?: unknown;
     __lumenInitGraphCheckpointer?: unknown;
+    __lumenStorageAdapter?: unknown;
+    __lumenStorageKey?: unknown;
   }).__lumenInitGraphCheckpointer;
+  delete (globalThis as typeof globalThis & {
+    __lumenBlobStore?: unknown;
+    __lumenMemoryStore?: unknown;
+    __lumenMemoryStoreState?: unknown;
+    __lumenInitGraphCheckpointer?: unknown;
+    __lumenStorageAdapter?: unknown;
+    __lumenStorageKey?: unknown;
+  }).__lumenStorageAdapter;
+  delete (globalThis as typeof globalThis & {
+    __lumenBlobStore?: unknown;
+    __lumenMemoryStore?: unknown;
+    __lumenMemoryStoreState?: unknown;
+    __lumenInitGraphCheckpointer?: unknown;
+    __lumenStorageAdapter?: unknown;
+    __lumenStorageKey?: unknown;
+  }).__lumenStorageKey;
 }
 
 function restoreEnv(previousEnv: {

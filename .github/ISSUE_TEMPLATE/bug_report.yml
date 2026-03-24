@@ -1,0 +1,58 @@
+name: Bug report
+description: Report a broken workflow, crash, or incorrect Lumen behavior.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Please be concrete so we can reproduce it.
+  - type: input
+    id: mode
+    attributes:
+      label: Runtime mode
+      description: Which mode were you using?
+      placeholder: "electron:local / electron:dev / web"
+    validations:
+      required: true
+  - type: textarea
+    id: workflow
+    attributes:
+      label: What were you trying to do?
+      description: Describe the exact research workflow.
+      placeholder: "I created a workspace, added 3 PDFs, clicked Start research..."
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error text or logs
+      description: Paste the exact error if you have it.
+  - type: textarea
+    id: source-shape
+    attributes:
+      label: Source details
+      description: Tell us whether this involved PDFs, URLs, discovered sources, notes, or chat.
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true

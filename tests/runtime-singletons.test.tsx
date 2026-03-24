@@ -9,6 +9,11 @@ interface MemoryStoreGlobals {
   __lumenMemoryStoreState?: unknown;
 }
 
+interface StorageGlobals {
+  __lumenStorageAdapter?: Promise<unknown>;
+  __lumenStorageKey?: string;
+}
+
 function reloadModule<T>(modulePath: string): T {
   delete require.cache[require.resolve(modulePath)];
   return require(modulePath) as T;
@@ -27,6 +32,22 @@ function resetMemoryStoreGlobals(previous: MemoryStoreGlobals) {
     delete globals.__lumenMemoryStoreState;
   } else {
     globals.__lumenMemoryStoreState = previous.__lumenMemoryStoreState;
+  }
+}
+
+function resetStorageGlobals(previous: StorageGlobals) {
+  const globals = globalThis as typeof globalThis & StorageGlobals;
+
+  if (previous.__lumenStorageAdapter === undefined) {
+    delete globals.__lumenStorageAdapter;
+  } else {
+    globals.__lumenStorageAdapter = previous.__lumenStorageAdapter;
+  }
+
+  if (previous.__lumenStorageKey === undefined) {
+    delete globals.__lumenStorageKey;
+  } else {
+    globals.__lumenStorageKey = previous.__lumenStorageKey;
   }
 }
 
@@ -93,5 +114,48 @@ test("memory store replaces stale cached instances that are missing newer APIs",
   } finally {
     resetMemoryStoreGlobals(previous);
     delete require.cache[require.resolve("../lib/storage/memory-store.ts")];
+  }
+});
+
+test("storage adapter replaces stale cached instances that are missing newer APIs", async () => {
+  const globals = globalThis as typeof globalThis & StorageGlobals;
+  const previous = {
+    __lumenStorageAdapter: globals.__lumenStorageAdapter,
+    __lumenStorageKey: globals.__lumenStorageKey,
+  };
+  const previousElectron = process.env.ELECTRON;
+  const previousDataDir = process.env.LUMEN_DATA_DIR;
+  const dataDir = `/tmp/lumen-storage-singleton-${Date.now()}`;
+
+  try {
+    process.env.ELECTRON = "1";
+    process.env.LUMEN_DATA_DIR = dataDir;
+    globals.__lumenStorageKey = `electron:${dataDir}`;
+    globals.__lumenStorageAdapter = Promise.resolve({
+      listResearchProjectsForUser: async () => [],
+    });
+
+    const reloaded = reloadModule<typeof import("../lib/storage/index")>(
+      "../lib/storage/index.ts"
+    );
+    const storage = await reloaded.getStorage();
+
+    assert.equal(typeof storage.getLocalWorkspaceFilePath, "function");
+    assert.equal(typeof storage.deleteProjectForUser, "function");
+  } finally {
+    if (previousElectron === undefined) {
+      delete process.env.ELECTRON;
+    } else {
+      process.env.ELECTRON = previousElectron;
+    }
+
+    if (previousDataDir === undefined) {
+      delete process.env.LUMEN_DATA_DIR;
+    } else {
+      process.env.LUMEN_DATA_DIR = previousDataDir;
+    }
+
+    resetStorageGlobals(previous);
+    delete require.cache[require.resolve("../lib/storage/index.ts")];
   }
 });

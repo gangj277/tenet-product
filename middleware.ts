@@ -11,6 +11,10 @@ const PUBLIC_PATHS = ["/", "/auth/login", "/auth/signup", "/auth/onboarding"];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  if (process.env.ELECTRON) {
+    return NextResponse.next();
+  }
+
   // Allow public paths and API routes
   if (
     PUBLIC_PATHS.includes(pathname) ||

@@ -313,3 +313,247 @@ test("analyzeEvidence still digests directly from the normalized document when c
     restoreBlobStore();
   }
 });
+
+test("analyzeEvidence falls back to the normalized source when every window digest fails", async () => {
+  const blobReads: string[] = [];
+  const llmCalls: string[] = [];
+
+  const restoreBlobStore = patchModule("../lib/storage/blob-store.ts", {
+    blobStore: {
+      async getText(key: string) {
+        blobReads.push(key);
+        if (key === "sources/source-3/normalized.md") {
+          return [
+            "# Robotics cyber security",
+            "",
+            "This survey reviews vulnerabilities, attacks, countermeasures, and recommendations for robotics systems.",
+          ].join("\n");
+        }
+
+        if (key === "sources/source-3/chunks/0000.md") {
+          return "Chunked robotics security analysis text.";
+        }
+
+        throw new Error(`Unexpected blob read: ${key}`);
+      },
+    },
+  });
+  const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
+    callLLMJson: async (options: {
+      jsonSchema?: { name: string };
+    }) => {
+      const schemaName = options.jsonSchema?.name ?? "unknown";
+      llmCalls.push(schemaName);
+
+      if (schemaName === "source_window_notes") {
+        throw new Error("window digest rejected");
+      }
+
+      assert.equal(schemaName, "source_digest");
+      return {
+        data: {
+          sourceSummary:
+            "The survey catalogs robotics cybersecurity risks and recommends layered mitigations.",
+          claims: [
+            {
+              claimSignature: "robotics-security-risks",
+              claim:
+                "Robotics systems face recurring cybersecurity vulnerabilities across software, networks, and sensors.",
+              confidence: "medium",
+              stance: "supporting",
+              citations: [{ location: "Source" }],
+              caveats: [],
+            },
+          ],
+          methodologicalNotes: [],
+          openQuestions: [],
+        },
+        raw: {
+          content: "",
+          model: "test-model",
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          latencyMs: 0,
+        },
+      };
+    },
+  });
+  const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
+    memoryStore: {
+      updateProgress: () => {},
+    },
+  });
+
+  try {
+    clearModule("../lib/engine/nodes/analyze-evidence.ts");
+    const loadedModule = reloadModule<typeof import("../lib/engine/nodes/analyze-evidence")>(
+      "../lib/engine/nodes/analyze-evidence.ts"
+    );
+
+    const result = await loadedModule.analyzeEvidence({
+      runId: "run-3",
+      projectId: "project-3",
+      userId: "user-3",
+      status: "running",
+      currentStep: "build_source_set",
+      input: {
+        researchQuestion: "How secure are robotics systems?",
+      },
+      perspective: {
+        projectTitle: "Robotics security review",
+        briefSummary: "Review robotics cybersecurity evidence",
+        interpretedIntent: "Review robotics cybersecurity evidence",
+        inferredResearchFrame: "Robotics security risks",
+        evidenceForCriteria: [],
+        evidenceAgainstCriteria: [],
+        subquestions: ["What risks recur?"],
+      },
+      sources: [],
+      parsedSources: [
+        {
+          sourceId: "source-3",
+          name: "Robotics cyber security: vulnerabilities, attacks, countermeasures, and recommendations",
+          normalizedBlobKey: "sources/source-3/normalized.md",
+          charCount: 50000,
+          estimatedTokens: 12000,
+          parseQuality: "validated",
+          metadata: {},
+        },
+      ],
+      sourceChunks: [
+        {
+          sourceId: "source-3",
+          sourceName:
+            "Robotics cyber security: vulnerabilities, attacks, countermeasures, and recommendations",
+          chunkIndex: 0,
+          headingPath: "Survey",
+          tokenEstimate: 500,
+          charCount: 2000,
+          blobKey: "sources/source-3/chunks/0000.md",
+        },
+      ],
+      errors: [],
+      startedAt: "",
+      completedAt: "",
+    } as unknown as Parameters<typeof loadedModule.analyzeEvidence>[0]);
+
+    assert.ok(result.sourceDigests);
+    assert.deepEqual(llmCalls, ["source_window_notes", "source_digest"]);
+    assert.deepEqual(blobReads, [
+      "sources/source-3/chunks/0000.md",
+      "sources/source-3/normalized.md",
+    ]);
+  } finally {
+    restoreMemoryStore();
+    restoreRuntime();
+    restoreBlobStore();
+  }
+});
+
+test("analyzeEvidence falls back to the normalized source when chunk windows are empty", async () => {
+  const llmCalls: string[] = [];
+
+  const restoreBlobStore = patchModule("../lib/storage/blob-store.ts", {
+    blobStore: {
+      async getText(key: string) {
+        if (key === "sources/source-4/normalized.md") {
+          return "A complete normalized source text is available for fallback digestion.";
+        }
+
+        if (key === "sources/source-4/chunks/0000.md") {
+          return "";
+        }
+
+        throw new Error(`Unexpected blob read: ${key}`);
+      },
+    },
+  });
+  const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
+    callLLMJson: async (options: {
+      jsonSchema?: { name: string };
+    }) => {
+      const schemaName = options.jsonSchema?.name ?? "unknown";
+      llmCalls.push(schemaName);
+      assert.equal(schemaName, "source_digest");
+
+      return {
+        data: {
+          sourceSummary: "Fallback digest succeeded from the normalized document.",
+          claims: [],
+          methodologicalNotes: [],
+          openQuestions: [],
+        },
+        raw: {
+          content: "",
+          model: "test-model",
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+          latencyMs: 0,
+        },
+      };
+    },
+  });
+  const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
+    memoryStore: {
+      updateProgress: () => {},
+    },
+  });
+
+  try {
+    clearModule("../lib/engine/nodes/analyze-evidence.ts");
+    const loadedModule = reloadModule<typeof import("../lib/engine/nodes/analyze-evidence")>(
+      "../lib/engine/nodes/analyze-evidence.ts"
+    );
+
+    const result = await loadedModule.analyzeEvidence({
+      runId: "run-4",
+      projectId: "project-4",
+      userId: "user-4",
+      status: "running",
+      currentStep: "build_source_set",
+      input: {
+        researchQuestion: "What fallback should evidence digestion use?",
+      },
+      perspective: {
+        projectTitle: "Fallback review",
+        briefSummary: "Review fallback behavior",
+        interpretedIntent: "Review fallback behavior",
+        inferredResearchFrame: "Digest fallback",
+        evidenceForCriteria: [],
+        evidenceAgainstCriteria: [],
+        subquestions: ["What happens if chunk windows are empty?"],
+      },
+      sources: [],
+      parsedSources: [
+        {
+          sourceId: "source-4",
+          name: "Fallback Source",
+          normalizedBlobKey: "sources/source-4/normalized.md",
+          charCount: 60000,
+          estimatedTokens: 15000,
+          parseQuality: "validated",
+          metadata: {},
+        },
+      ],
+      sourceChunks: [
+        {
+          sourceId: "source-4",
+          sourceName: "Fallback Source",
+          chunkIndex: 0,
+          headingPath: "Empty chunk",
+          tokenEstimate: 100,
+          charCount: 0,
+          blobKey: "sources/source-4/chunks/0000.md",
+        },
+      ],
+      errors: [],
+      startedAt: "",
+      completedAt: "",
+    } as unknown as Parameters<typeof loadedModule.analyzeEvidence>[0]);
+
+    assert.ok(result.sourceDigests);
+    assert.deepEqual(llmCalls, ["source_digest"]);
+  } finally {
+    restoreMemoryStore();
+    restoreRuntime();
+    restoreBlobStore();
+  }
+});

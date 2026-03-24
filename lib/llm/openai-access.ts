@@ -1,8 +1,7 @@
 import {
-  getUserLLMCredentials,
-  upsertUserLLMCredentials,
   type ProviderTokens,
-} from "@/lib/db/user-credentials";
+} from "@/lib/storage/credential-types";
+import { getStorage } from "@/lib/storage";
 import { OPENAI_VALIDATION_STALE_MS } from "./config";
 import { validateOpenAIConnection } from "./openai-connection";
 import { createProviderForUser } from "./provider-factory";
@@ -38,7 +37,8 @@ export async function ensureOpenAIProviderAccess(
   userId: string,
   options?: { forceRevalidate?: boolean }
 ) {
-  const credentials = await getUserLLMCredentials(userId);
+  const storage = await getStorage();
+  const credentials = await storage.getLLMCredentials(userId);
   if (!credentials) {
     throw new Error("Connect your OpenAI account to continue.");
   }
@@ -61,7 +61,7 @@ export async function ensureOpenAIProviderAccess(
       validation,
     };
 
-    await upsertUserLLMCredentials(userId, nextCredentials);
+    await storage.upsertLLMCredentials(userId, nextCredentials);
 
     if (!validation.ok) {
       throw new Error(getValidationErrorMessage(nextCredentials));

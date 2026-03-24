@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun, createExperiment } from "@/lib/db/research-projects";
+import { getStorage } from "@/lib/storage";
 
 export async function POST(
   request: NextRequest,
@@ -14,7 +14,8 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
@@ -30,7 +31,7 @@ export async function POST(
       return NextResponse.json({ error: "title is required" }, { status: 400 });
     }
 
-    const experimentId = await createExperiment(runId, {
+    const experimentId = await storage.createExperiment(runId, {
       id,
       title,
       content: content ?? "",

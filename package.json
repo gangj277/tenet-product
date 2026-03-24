@@ -1,8 +1,31 @@
 {
   "name": "research-cursor-product",
   "version": "0.1.0",
+  "description": "Lumen is an open-source AI-native research workspace for source-grounded synthesis, tracked claims, and thesis development.",
   "private": true,
+  "license": "MIT",
   "main": "dist-electron/main.js",
+  "homepage": "https://github.com/gangj277/tenet-product",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gangj277/tenet-product.git"
+  },
+  "bugs": {
+    "url": "https://github.com/gangj277/tenet-product/issues"
+  },
+  "keywords": [
+    "research",
+    "llm",
+    "literature-review",
+    "evidence-synthesis",
+    "academic",
+    "electron",
+    "nextjs",
+    "local-first"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "prepare:pdfjs-assets": "node scripts/sync-pdfjs-assets.mjs",
     "dev": "npm run prepare:pdfjs-assets && bash scripts/dev-start.sh",
@@ -19,6 +42,7 @@
     "test:source-attrition": "tsx scripts/test-source-attrition.ts",
     "electron:compile": "tsc --project electron/tsconfig.json",
     "electron:dev": "npm run electron:compile && electron .",
+    "electron:local": "node scripts/electron-local-start.mjs",
     "electron:build": "npm run electron:compile && npm run build && electron-builder",
     "electron:build:mac": "npm run electron:compile && npm run build && electron-builder --mac",
     "electron:verify:mac": "bash scripts/verify-macos-release.sh",

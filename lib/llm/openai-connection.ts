@@ -1,7 +1,7 @@
 import {
   getDefaultCredentialCapabilities,
   type CredentialValidation,
-} from "@/lib/db/user-credentials";
+} from "@/lib/storage/credential-types";
 import { CODEX_RESPONSES_URL } from "./config";
 
 export interface OpenAIConnectionInput {

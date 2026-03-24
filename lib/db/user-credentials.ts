@@ -2,57 +2,28 @@ import { db } from "./client";
 import { userLlmCredentials } from "./schema";
 import { eq } from "drizzle-orm";
 import { encryptTokens, decryptTokens } from "@/lib/auth/token-crypto";
+import {
+  getDefaultCredentialCapabilities,
+  type ProviderKind,
+  type CredentialValidationStatus,
+  type CredentialCapabilities,
+  type CredentialValidation,
+  type OpenAIAuthTokens,
+  type ProviderTokens,
+} from "@/lib/storage/credential-types";
 
-export type ProviderKind = "openai_auth";
-export type CredentialValidationStatus = "valid" | "invalid" | "degraded";
-
-export interface CredentialCapabilities {
-  basic: boolean;
-  json: boolean;
-  streaming: boolean;
-  toolCalling: boolean;
-  liteModel: boolean;
-}
-
-export interface CredentialValidation {
-  status: CredentialValidationStatus;
-  validatedAt?: string | null;
-  capabilities: CredentialCapabilities;
-  lastErrorCode?: number | null;
-  lastErrorMessage?: string | null;
-}
-
-export interface OpenAIAuthTokens {
-  access: string;
-  refresh: string;
-  expires: number; // Unix ms
-  accountId: string;
-}
-
-export function getDefaultCredentialCapabilities(): CredentialCapabilities {
-  return {
-    basic: false,
-    json: false,
-    streaming: false,
-    toolCalling: false,
-    liteModel: false,
-  };
-}
-
-export function getDefaultCredentialValidation(): CredentialValidation {
-  return {
-    status: "invalid",
-    validatedAt: null,
-    capabilities: getDefaultCredentialCapabilities(),
-    lastErrorCode: null,
-    lastErrorMessage: null,
-  };
-}
-
-export type ProviderTokens = {
-  kind: "openai_auth";
-  validation: CredentialValidation;
-} & OpenAIAuthTokens;
+export {
+  getDefaultCredentialCapabilities,
+  getDefaultCredentialValidation,
+} from "@/lib/storage/credential-types";
+export type {
+  ProviderKind,
+  CredentialValidationStatus,
+  CredentialCapabilities,
+  CredentialValidation,
+  OpenAIAuthTokens,
+  ProviderTokens,
+} from "@/lib/storage/credential-types";
 
 export async function getUserLLMCredentials(
   userId: string

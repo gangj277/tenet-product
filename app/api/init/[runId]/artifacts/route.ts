@@ -5,14 +5,7 @@ import {
   mergeWorkspaceSourceMeta,
 } from "@/lib/workspace/source-cache";
 import { getSession } from "@/lib/auth/session";
-import {
-  getOwnedResearchRun,
-  getExperimentMetadataForRun,
-  getNoteMetadataForRun,
-  getPersistedArtifacts,
-  getSourceMetadataForRun,
-  updateArtifactContents,
-} from "@/lib/db/research-projects";
+import { getStorage } from "@/lib/storage";
 
 export async function GET(
   _request: NextRequest,
@@ -25,15 +18,16 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
     const run = memoryStore.getRun(runId);
     const [persistedArtifacts, persistedSourcesMeta] = await Promise.all([
-      getPersistedArtifacts(runId),
-      getSourceMetadataForRun(runId),
+      storage.getPersistedArtifacts(runId),
+      storage.getSourceMetadataForRun(runId),
     ]);
     const artifacts = mergeWorkspaceArtifacts(
       memoryStore.getArtifacts(ownedRun.projectId),
@@ -52,8 +46,8 @@ export async function GET(
       persistedSourcesMeta
     );
 
-    const notesMeta = await getNoteMetadataForRun(runId);
-    const experimentsMeta = await getExperimentMetadataForRun(runId);
+    const notesMeta = await storage.getNoteMetadataForRun(runId);
+    const experimentsMeta = await storage.getExperimentMetadataForRun(runId);
 
     return NextResponse.json({
       projectId: ownedRun.projectId,
@@ -82,7 +76,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
@@ -94,7 +89,7 @@ export async function PATCH(
     }
 
     // Persist to database
-    await updateArtifactContents(runId, edits);
+    await storage.updateArtifactContents(runId, edits);
 
     // Update memory store (if cached) so subsequent reads stay fresh
     const cached = memoryStore.getArtifacts(ownedRun.projectId);

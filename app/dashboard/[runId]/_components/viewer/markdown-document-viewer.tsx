@@ -12,8 +12,10 @@ import { buildMarkdownEditorExtensions } from "./markdown-editor-config";
 import { getPlainTextNeedleForLineRange } from "./scroll-to-line-range";
 import { useTextSelection } from "../../_hooks/use-text-selection";
 import { SelectionQuoteButton } from "./selection-quote-button";
+import { OpenInIdeButton } from "./open-in-ide-button";
 
 export function MarkdownDocumentViewer({
+  runId,
   activeFile,
   content,
   onUpdate,
@@ -28,6 +30,7 @@ export function MarkdownDocumentViewer({
   onRejectUpdate,
   onQuoteToChat,
 }: {
+  runId: string;
   activeFile: FileEntry | undefined;
   content: string;
   onUpdate: (md: string) => void;
@@ -221,6 +224,7 @@ export function MarkdownDocumentViewer({
               Open source
             </a>
           )}
+          {activeFile && <OpenInIdeButton runId={runId} fileKey={activeFile.key} />}
           <button
             onClick={copyToClipboard}
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer hover:bg-page text-dim hover:text-sub"

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun } from "@/lib/db/research-projects";
 import { memoryStore } from "@/lib/storage/memory-store";
+import { getStorage } from "@/lib/storage";
 
 interface AnswerRequestBody {
   questionId: string;
@@ -22,7 +22,8 @@ export async function POST(
   }
 
   // Verify ownership
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }

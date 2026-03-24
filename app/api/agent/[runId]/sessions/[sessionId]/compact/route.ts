@@ -1,10 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun } from "@/lib/db/research-projects";
-import {
-  appendMessages,
-  getSessionMessages,
-} from "@/lib/db/chat-sessions";
 import { ensureOpenAIProviderAccess } from "@/lib/llm/openai-access";
 import type { LLMMessage } from "@/lib/llm/runtime";
 import {
@@ -16,6 +11,7 @@ import {
   buildPersistedMessageMetadata,
   hydrateStoredChatMessage,
 } from "@/app/dashboard/[runId]/_lib/chat-message-metadata";
+import { getStorage } from "@/lib/storage";
 
 function toLLMHistory(
   history: Array<{ role: "user" | "assistant"; content: string }>
@@ -36,20 +32,21 @@ export async function POST(
   }
 
   const { runId, sessionId } = await params;
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
   const provider = await ensureOpenAIProviderAccess(session.userId);
-  const storedMessages = await getSessionMessages(sessionId);
+  const storedMessages = await storage.getSessionMessages(sessionId);
   const hydratedMessages = storedMessages.map((message) =>
     hydrateStoredChatMessage(message)
   );
 
   const appendStatusMessage = async (text: string) => {
     const id = crypto.randomUUID();
-    await appendMessages(sessionId, [{ id, role: "agent", text }]);
+    await storage.appendMessages(sessionId, [{ id, role: "agent", text }]);
     return {
       id,
       role: "agent" as const,
@@ -104,7 +101,7 @@ export async function POST(
     taskPlan: continuation.taskPlan?.tasks,
   });
 
-  await appendMessages(sessionId, [
+  await storage.appendMessages(sessionId, [
     {
       id,
       role: "agent",

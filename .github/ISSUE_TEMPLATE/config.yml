@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Lumen README
+    url: https://github.com/gangj277/tenet-product#readme
+    about: Start with install, usage, and contributor setup instructions.

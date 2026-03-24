@@ -40,11 +40,18 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function patchStorage(storage: Record<string, unknown>): () => void {
+  return patchModule("../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
+  });
+}
+
 test("POST /api/init/[runId]/start rejects runs that are not drafts", async () => {
   const restoreSession = patchModule("../lib/auth/session.ts", {
     getSession: async () => ({ userId: "user-1" }),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({
       runId: "run-1",
       projectId: "project-1",
@@ -76,7 +83,7 @@ test("POST /api/init/[runId]/start rejects runs that are not drafts", async () =
       error: "Only draft workspaces can start deep analysis.",
     });
   } finally {
-    restoreResearchProjects();
+    restoreStorage();
     restoreSession();
   }
 });
@@ -109,7 +116,7 @@ test("POST /api/init/[runId]/start starts first-phase analysis for a draft works
   const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
     runWithRequestProvider: async (_provider: unknown, fn: () => unknown) => fn(),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({
       runId: "run-1",
       projectId: "project-1",
@@ -257,7 +264,7 @@ test("POST /api/init/[runId]/start starts first-phase analysis for a draft works
   } finally {
     restoreGraph();
     restoreMemoryStore();
-    restoreResearchProjects();
+    restoreStorage();
     restoreRuntime();
     restoreOpenAIAccess();
     restoreSession();

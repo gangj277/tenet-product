@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
-import { and, eq } from "drizzle-orm";
 import { getSession } from "@/lib/auth/session";
-import { db } from "@/lib/db/client";
-import { projects } from "@/lib/db/schema";
+import { getStorage } from "@/lib/storage";
+import { memoryStore } from "@/lib/storage/memory-store";
 
 export async function DELETE(
   _req: Request,
@@ -14,17 +13,14 @@ export async function DELETE(
   }
 
   const { projectId } = await params;
-
-  const result = await db
-    .delete(projects)
-    .where(
-      and(eq(projects.id, projectId), eq(projects.userId, session.userId))
-    )
-    .returning({ id: projects.id });
-
-  if (result.length === 0) {
+  const storage = await getStorage();
+  const before = await storage.listResearchProjectsForUser(session.userId);
+  const project = before.find((entry) => entry.id === projectId);
+  if (!project) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+  await storage.deleteProjectForUser(session.userId, projectId);
+  memoryStore.deleteProject(projectId);
 
   return NextResponse.json({ deleted: true });
 }

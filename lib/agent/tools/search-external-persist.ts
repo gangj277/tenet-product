@@ -1,5 +1,5 @@
-import { addAgentDiscoveredSource, getSourceMetadataForRun } from "@/lib/db/research-projects";
 import { classifySourceIntoFolder } from "@/lib/ingest/classify-source-folder";
+import { getStorage } from "@/lib/storage";
 import type { AddedSource } from "../state";
 import type { DiscoveredSource } from "@/lib/discovery/scholarly-search";
 import type {
@@ -16,6 +16,7 @@ export async function persistIngestedSources(
   runId: string,
   progress: ProgressCallback
 ): Promise<AddedSource[]> {
+  const storage = await getStorage();
   // Build lookup from source URL → extraction
   const extractionMap = new Map<string, DeepSearchExtraction>();
   for (const e of extractions) {
@@ -23,7 +24,7 @@ export async function persistIngestedSources(
   }
 
   // Gather existing folder names from the workspace
-  const existingMeta = await getSourceMetadataForRun(runId);
+  const existingMeta = await storage.getSourceMetadataForRun(runId);
   const existingFolders = [
     ...new Set(
       Object.values(existingMeta)
@@ -63,7 +64,7 @@ export async function persistIngestedSources(
       };
 
       // Insert DB row — blob storage already done by ingestDiscoveredSource
-      await addAgentDiscoveredSource({
+      await storage.addAgentDiscoveredSource({
         runId,
         sourceId,
         name: source.title,

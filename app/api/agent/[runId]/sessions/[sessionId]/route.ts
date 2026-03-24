@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun } from "@/lib/db/research-projects";
-import { getSessionMessages, deleteSession, updateSessionTitle } from "@/lib/db/chat-sessions";
+import { getStorage } from "@/lib/storage";
 
 export async function GET(
   _req: NextRequest,
@@ -13,12 +12,13 @@ export async function GET(
   }
 
   const { runId, sessionId } = await params;
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  const messages = await getSessionMessages(sessionId);
+  const messages = await storage.getSessionMessages(sessionId);
   return NextResponse.json({ messages });
 }
 
@@ -32,12 +32,13 @@ export async function DELETE(
   }
 
   const { runId, sessionId } = await params;
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
 
-  await deleteSession(sessionId);
+  await storage.deleteSession(sessionId);
   return NextResponse.json({ ok: true });
 }
 
@@ -51,7 +52,8 @@ export async function PATCH(
   }
 
   const { runId, sessionId } = await params;
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
@@ -61,6 +63,6 @@ export async function PATCH(
     return NextResponse.json({ error: "title required" }, { status: 400 });
   }
 
-  await updateSessionTitle(sessionId, body.title);
+  await storage.updateSessionTitle(sessionId, body.title);
   return NextResponse.json({ ok: true });
 }

@@ -40,6 +40,13 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function patchStorage(storage: Record<string, unknown>): () => void {
+  return patchModule("../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
+  });
+}
+
 type LoadedRuntimeModule = typeof import("../lib/llm/runtime");
 type LLMProvider = import("../lib/llm/provider").LLMProvider;
 
@@ -115,12 +122,12 @@ test("agent chat passes the connected provider into PDF parsing", async () => {
   const restoreOpenAIAccess = patchModule("../lib/llm/openai-access.ts", {
     ensureOpenAIProviderAccess: async () => fakeProvider,
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({ runId: "run-1", projectId: "project-1" }),
     getPersistedArtifacts: async () => null,
-    getExperimentMetadataForRun: async () => [],
-    getNoteMetadataForRun: async () => [],
-    getSourceMetadataForRun: async () => [],
+    getExperimentMetadataForRun: async () => ({}),
+    getNoteMetadataForRun: async () => ({}),
+    getSourceMetadataForRun: async () => ({}),
   });
   const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
     memoryStore: {
@@ -219,7 +226,7 @@ test("agent chat passes the connected provider into PDF parsing", async () => {
     restoreAgentGraph();
     restoreWorkspaceTypes();
     restoreMemoryStore();
-    restoreResearchProjects();
+    restoreStorage();
     restoreOpenAIAccess();
     restoreSession();
     clearModule("../app/api/agent/[runId]/chat/route.ts");

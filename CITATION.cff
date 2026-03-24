@@ -1,0 +1,12 @@
+cff-version: 1.2.0
+title: "Lumen"
+message: "If you use Lumen in research, please cite the repository using this metadata."
+type: software
+authors:
+  - family-names: "Gang"
+    given-names: "Jimin"
+repository-code: "https://github.com/gangj277/tenet-product"
+url: "https://github.com/gangj277/tenet-product"
+version: "0.1.0"
+date-released: 2026-03-25
+license: MIT

@@ -1,9 +1,6 @@
 import type { LLMProvider } from "./provider";
 import { createOpenAIAuthProvider } from "./providers/openai-auth";
-import {
-  getUserLLMCredentials,
-  upsertUserLLMCredentials,
-} from "@/lib/db/user-credentials";
+import { getStorage } from "@/lib/storage";
 import { resolveOpenAIModel } from "./model-map";
 
 /**
@@ -13,7 +10,8 @@ import { resolveOpenAIModel } from "./model-map";
 export async function createProviderForUser(
   userId: string
 ): Promise<LLMProvider> {
-  const creds = await getUserLLMCredentials(userId);
+  const storage = await getStorage();
+  const creds = await storage.getLLMCredentials(userId);
 
   if (creds?.kind === "openai_auth") {
     let currentValidation = { ...creds.validation };
@@ -25,7 +23,7 @@ export async function createProviderForUser(
     };
 
     const persistCredentials = async () => {
-      await upsertUserLLMCredentials(userId, {
+      await storage.upsertLLMCredentials(userId, {
         kind: "openai_auth",
         ...currentTokens,
         validation: currentValidation,

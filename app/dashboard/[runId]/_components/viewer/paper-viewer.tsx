@@ -6,6 +6,7 @@ import { LatexEditor } from "@/app/test/latex/_components/latex-editor";
 import { ErrorPanel } from "@/app/test/latex/_components/error-panel";
 import { SplitPane } from "@/app/test/latex/_components/split-pane";
 import type { FileEntry } from "../../_lib/workspace-types";
+import { OpenInIdeButton } from "./open-in-ide-button";
 
 const PdfPreview = dynamic(
   () => import("@/app/test/latex/_components/pdf-preview").then((m) => m.PdfPreview),
@@ -23,6 +24,7 @@ type CompileStatus = "idle" | "compiling";
 type ErrorInfo = { stderr?: string; stdout?: string } | null;
 
 export function PaperViewer({
+  runId,
   activeFile,
   content,
   onUpdate,
@@ -30,6 +32,7 @@ export function PaperViewer({
   expanded,
   onToggleExpanded,
 }: {
+  runId: string;
   activeFile: FileEntry;
   content: string;
   onUpdate: (latex: string) => void;
@@ -134,6 +137,7 @@ export function PaperViewer({
         </div>
 
         <div className="flex items-center gap-2">
+          <OpenInIdeButton runId={runId} fileKey={activeFile.key} />
           {/* Copy button */}
           <button
             onClick={copyToClipboard}

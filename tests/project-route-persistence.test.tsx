@@ -36,8 +36,8 @@ function patchModule(modulePath: string, exports: unknown): () => void {
 }
 
 test("POST /api/init persists project, run, and input rows for the logged-in user", async () => {
-  const inserts: unknown[] = [];
-  const updates: unknown[] = [];
+  const createdRuns: Array<Record<string, unknown>> = [];
+  const statusUpdates: Array<Record<string, unknown>> = [];
 
   const restoreSession = patchModule("../lib/auth/session.ts", {
     getSession: async () => ({
@@ -84,46 +84,19 @@ test("POST /api/init persists project, run, and input rows for the logged-in use
   const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
     runWithRequestProvider: async (_provider: unknown, fn: () => unknown) => fn(),
   });
-  const restoreDb = patchModule("../lib/db/client.ts", {
-    db: {
-      transaction: async (
-        callback: (tx: {
-          insert: (table: unknown) => {
-            values: (value: unknown) => Promise<void>;
-          };
-          update: (table: unknown) => {
-            set: (value: unknown) => {
-              where: (condition: unknown) => Promise<void>;
-            };
-          };
-        }) => Promise<void>
-      ) =>
-        callback({
-          insert(table) {
-            return {
-              async values(value) {
-                inserts.push({ table, value });
-              },
-            };
-          },
-          update(table) {
-            return {
-              set(value) {
-                updates.push({ table, value });
-                return {
-                  async where(condition) {
-                    updates.push({ table, condition });
-                  },
-                };
-              },
-            };
-          },
-        }),
-    },
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      createResearchProjectRun: async (value: Record<string, unknown>) => {
+        createdRuns.push(value);
+      },
+      updateResearchRunStatus: async (value: Record<string, unknown>) => {
+        statusUpdates.push(value);
+      },
+    }),
+    resetStorageForTests: () => {},
   });
 
   try {
-    clearModule("../lib/db/research-projects.ts");
     const route = reloadModule<typeof import("../app/api/init/route")>(
       "../app/api/init/route.ts"
     );
@@ -147,53 +120,25 @@ test("POST /api/init persists project, run, and input rows for the logged-in use
     assert.equal(body.projectId, "project-1");
     assert.equal(body.runId, "run-1");
 
-    assert.equal(inserts.length, 3);
+    assert.equal(createdRuns.length, 1);
+    assert.deepEqual(createdRuns[0], {
+      projectId: "project-1",
+      runId: "run-1",
+      userId: "user-1",
+      input: {
+        researchQuestion: "  How do   LLMs cite sources?  ",
+      },
+      status: "running",
+    });
 
-    const projectInsert = inserts.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "value" in entry &&
-        typeof entry.value === "object" &&
-        entry.value !== null &&
-        "userId" in entry.value
-    ) as { value: Record<string, unknown> } | undefined;
-    assert.ok(projectInsert);
-    assert.equal(projectInsert.value.id, "project-1");
-    assert.equal(projectInsert.value.userId, "user-1");
-    assert.equal(projectInsert.value.title, "How do LLMs cite sources?");
-
-    const runInsert = inserts.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "value" in entry &&
-        typeof entry.value === "object" &&
-        entry.value !== null &&
-        entry.value.id === "run-1"
-    ) as { value: Record<string, unknown> } | undefined;
-    assert.ok(runInsert);
-    assert.equal(runInsert.value.projectId, "project-1");
-
-    const inputInsert = inserts.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "value" in entry &&
-        typeof entry.value === "object" &&
-        entry.value !== null &&
-        entry.value.runId === "run-1" &&
-        "researchQuestion" in entry.value
-    ) as { value: Record<string, unknown> } | undefined;
-    assert.ok(inputInsert);
-    assert.equal(
-      inputInsert.value.researchQuestion,
-      "How do   LLMs cite sources?"
-    );
-
-    assert.ok(updates.length > 0);
+    assert.equal(statusUpdates.length, 1);
+    assert.deepEqual(statusUpdates[0], {
+      projectId: "project-1",
+      runId: "run-1",
+      status: "awaiting_confirmation",
+    });
   } finally {
-    restoreDb();
+    restoreStorage();
     restoreRuntime();
     restoreOpenAIAccess();
     restoreGraph();
@@ -208,7 +153,6 @@ test("POST /api/init rejects unauthenticated requests", async () => {
   });
 
   try {
-    clearModule("../lib/db/research-projects.ts");
     const route = reloadModule<typeof import("../app/api/init/route")>(
       "../app/api/init/route.ts"
     );
@@ -229,8 +173,9 @@ test("POST /api/init rejects unauthenticated requests", async () => {
   }
 });
 
-test("GET /api/projects selects runId so dashboard cards can link to the run route", async () => {
-  let selectShape: Record<string, unknown> | null = null;
+test("POST /api/init requires workspacePath in Electron mode", async () => {
+  const previousElectron = process.env.ELECTRON;
+  process.env.ELECTRON = "1";
 
   const restoreSession = patchModule("../lib/auth/session.ts", {
     getSession: async () => ({
@@ -238,45 +183,183 @@ test("GET /api/projects selects runId so dashboard cards can link to the run rou
       email: "user@example.com",
     }),
   });
-  const restoreDb = patchModule("../lib/db/client.ts", {
-    db: {
-      select(shape: Record<string, unknown>) {
-        selectShape = shape;
 
-        const chain = {
-          from() {
-            return chain;
-          },
-          leftJoin() {
-            return chain;
-          },
-          where() {
-            return chain;
-          },
-          orderBy() {
-            return Promise.resolve([
-              {
-                id: "project-1",
-                runId: "run-1",
-                title: "A saved project",
-                status: "completed",
-                createdAt: new Date("2026-03-17T00:00:00Z").toISOString(),
-                updatedAt: new Date("2026-03-17T01:00:00Z").toISOString(),
-              },
-            ]);
-          },
-        };
+  try {
+    const route = reloadModule<typeof import("../app/api/init/route")>(
+      "../app/api/init/route.ts"
+    );
 
-        return chain;
-      },
+    const response = await route.POST(
+      new Request("http://localhost/api/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: { researchQuestion: "Why?" },
+          sources: [],
+        }),
+      }) as never
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: "workspacePath is required in Electron mode",
+    });
+  } finally {
+    restoreSession();
+    if (previousElectron === undefined) {
+      delete process.env.ELECTRON;
+    } else {
+      process.env.ELECTRON = previousElectron;
+    }
+  }
+});
+
+test("POST /api/init forwards workspacePath to storage in Electron mode", async () => {
+  const previousElectron = process.env.ELECTRON;
+  process.env.ELECTRON = "1";
+
+  const createdRuns: Array<Record<string, unknown>> = [];
+  const statusUpdates: Array<Record<string, unknown>> = [];
+
+  const restoreSession = patchModule("../lib/auth/session.ts", {
+    getSession: async () => ({
+      userId: "user-1",
+      email: "user@example.com",
+    }),
+  });
+  const restoreIds = patchModule("../lib/utils/id.ts", {
+    generateId: (() => {
+      const values = ["project-1", "run-1"];
+      return () => values.shift() ?? "unexpected-id";
+    })(),
+  });
+  const restoreGraph = patchModule("../lib/engine/graph.ts", {
+    initGraph: {
+      invoke: async () => ({
+        perspective: {
+          briefSummary: "Summary",
+          interpretedIntent: "Intent",
+          inferredResearchFrame: "Frame",
+          evidenceForCriteria: [],
+          evidenceAgainstCriteria: [],
+          subquestions: [],
+        },
+      }),
     },
   });
-  const restoreBackfill = patchModule("../lib/db/backfill-warm-runs.ts", {
-    backfillWarmRunsForUser: async () => {},
+  const restoreOpenAIAccess = patchModule("../lib/llm/openai-access.ts", {
+    ensureOpenAIProviderAccess: async () => ({
+      kind: "openai_auth",
+      async callLLM() {
+        throw new Error("not used");
+      },
+      async *callLLMStreaming() {
+        yield {
+          type: "done" as const,
+          content: "",
+          toolCalls: [],
+          usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        };
+      },
+    }),
+  });
+  const restoreRuntime = patchModule("../lib/llm/runtime.ts", {
+    runWithRequestProvider: async (_provider: unknown, fn: () => unknown) => fn(),
+  });
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      createResearchProjectRun: async (value: Record<string, unknown>) => {
+        createdRuns.push(value);
+      },
+      updateResearchRunStatus: async (value: Record<string, unknown>) => {
+        statusUpdates.push(value);
+      },
+    }),
+    resetStorageForTests: () => {},
   });
 
   try {
-    clearModule("../lib/db/research-projects.ts");
+    const route = reloadModule<typeof import("../app/api/init/route")>(
+      "../app/api/init/route.ts"
+    );
+
+    const response = await route.POST(
+      new Request("http://localhost/api/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          input: {
+            researchQuestion: "Why?",
+          },
+          sources: [],
+          workspacePath: "/Users/tester/Workspace",
+        }),
+      }) as never
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(createdRuns.length, 1);
+    assert.deepEqual(createdRuns[0], {
+      projectId: "project-1",
+      runId: "run-1",
+      userId: "user-1",
+      input: {
+        researchQuestion: "Why?",
+      },
+      status: "running",
+      workspacePath: "/Users/tester/Workspace",
+    });
+    assert.equal(statusUpdates.length, 1);
+  } finally {
+    restoreStorage();
+    restoreRuntime();
+    restoreOpenAIAccess();
+    restoreGraph();
+    restoreIds();
+    restoreSession();
+    if (previousElectron === undefined) {
+      delete process.env.ELECTRON;
+    } else {
+      process.env.ELECTRON = previousElectron;
+    }
+  }
+});
+
+test("GET /api/projects selects runId so dashboard cards can link to the run route", async () => {
+  const listedUsers: string[] = [];
+  const backfilledUsers: string[] = [];
+
+  const restoreSession = patchModule("../lib/auth/session.ts", {
+    getSession: async () => ({
+      userId: "user-1",
+      email: "user@example.com",
+    }),
+  });
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      listResearchProjectsForUser: async (userId: string) => {
+        listedUsers.push(userId);
+        return [
+          {
+            id: "project-1",
+            runId: "run-1",
+            title: "A saved project",
+            status: "completed",
+            createdAt: new Date("2026-03-17T00:00:00Z"),
+            updatedAt: new Date("2026-03-17T01:00:00Z"),
+          },
+        ];
+      },
+    }),
+    resetStorageForTests: () => {},
+  });
+  const restoreBackfill = patchModule("../lib/storage/backfill-warm-runs.ts", {
+    backfillWarmRunsForUser: async (userId: string) => {
+      backfilledUsers.push(userId);
+    },
+  });
+
+  try {
     const route = reloadModule<typeof import("../app/api/projects/route")>(
       "../app/api/projects/route.ts"
     );
@@ -286,17 +369,17 @@ test("GET /api/projects selects runId so dashboard cards can link to the run rou
 
     const body = await response.json();
     assert.equal(body.projects[0].runId, "run-1");
-    assert.ok(selectShape);
-    assert.ok("runId" in selectShape);
+    assert.deepEqual(backfilledUsers, ["user-1"]);
+    assert.deepEqual(listedUsers, ["user-1"]);
   } finally {
     restoreBackfill();
-    restoreDb();
+    restoreStorage();
     restoreSession();
   }
 });
 
 test("POST /api/projects creates a draft workspace with a scratchpad note and no user input row", async () => {
-  const inserts: unknown[] = [];
+  const createdDrafts: Array<Record<string, unknown>> = [];
   const setRunCalls: Array<{ runId: string; value: Record<string, unknown> }> = [];
   const saveArtifactsCalls: Array<{ projectId: string; artifacts: Record<string, unknown> }> = [];
 
@@ -323,32 +406,20 @@ test("POST /api/projects creates a draft workspace with a scratchpad note and no
       saveSourcesMeta: () => {},
     },
   });
-  const restoreDb = patchModule("../lib/db/client.ts", {
-    db: {
-      transaction: async (
-        callback: (tx: {
-          insert: (table: unknown) => {
-            values: (value: unknown) => Promise<void>;
-          };
-        }) => Promise<void>
-      ) =>
-        callback({
-          insert(table) {
-            return {
-              async values(value) {
-                inserts.push({ table, value });
-              },
-            };
-          },
-        }),
-    },
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      createDraftWorkspaceProjectRun: async (value: Record<string, unknown>) => {
+        createdDrafts.push(value);
+        return { title: "Untitled workspace", noteId: "note-1" };
+      },
+    }),
+    resetStorageForTests: () => {},
   });
-  const restoreBackfill = patchModule("../lib/db/backfill-warm-runs.ts", {
+  const restoreBackfill = patchModule("../lib/storage/backfill-warm-runs.ts", {
     backfillWarmRunsForUser: async () => {},
   });
 
   try {
-    clearModule("../lib/db/research-projects.ts");
     const route = reloadModule<typeof import("../app/api/projects/route")>(
       "../app/api/projects/route.ts"
     );
@@ -370,55 +441,14 @@ test("POST /api/projects creates a draft workspace with a scratchpad note and no
       status: "draft",
     });
 
-    const projectInsert = inserts.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "value" in entry &&
-        typeof entry.value === "object" &&
-        entry.value !== null &&
-        "userId" in entry.value
-    ) as { value: Record<string, unknown> } | undefined;
-    assert.ok(projectInsert);
-    assert.equal(projectInsert.value.id, "project-1");
-    assert.equal(projectInsert.value.title, "Untitled workspace");
-    assert.equal(projectInsert.value.status, "draft");
-
-    const runInsert = inserts.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "value" in entry &&
-        typeof entry.value === "object" &&
-        entry.value !== null &&
-        entry.value.id === "run-1"
-    ) as { value: Record<string, unknown> } | undefined;
-    assert.ok(runInsert);
-    assert.equal(runInsert.value.projectId, "project-1");
-    assert.equal(runInsert.value.status, "draft");
-
-    const noteInsert = inserts.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "value" in entry &&
-        typeof entry.value === "object" &&
-        entry.value !== null &&
-        entry.value.runId === "run-1" &&
-        entry.value.label === "Scratchpad"
-    ) as { value: Record<string, unknown> } | undefined;
-    assert.ok(noteInsert);
-
-    const inputInsert = inserts.find(
-      (entry) =>
-        typeof entry === "object" &&
-        entry !== null &&
-        "value" in entry &&
-        typeof entry.value === "object" &&
-        entry.value !== null &&
-        "researchQuestion" in entry.value
-    );
-    assert.equal(inputInsert, undefined);
+    assert.deepEqual(createdDrafts, [
+      {
+        projectId: "project-1",
+        runId: "run-1",
+        userId: "user-1",
+        title: undefined,
+      },
+    ]);
 
     assert.equal(setRunCalls.length, 1);
     assert.equal(setRunCalls[0]?.runId, "run-1");
@@ -435,16 +465,186 @@ test("POST /api/projects creates a draft workspace with a scratchpad note and no
         sources: {},
         papers: {},
         notes: {
-          [String(noteInsert?.value.id ?? "")]: "",
+          "note-1": "",
         },
         experiments: {},
       },
     });
   } finally {
     restoreBackfill();
-    restoreDb();
+    restoreStorage();
     restoreMemoryStore();
     restoreIds();
+    restoreSession();
+  }
+});
+
+test("POST /api/projects requires workspacePath in Electron mode", async () => {
+  const previousElectron = process.env.ELECTRON;
+  process.env.ELECTRON = "1";
+
+  const restoreSession = patchModule("../lib/auth/session.ts", {
+    getSession: async () => ({
+      userId: "user-1",
+      email: "user@example.com",
+    }),
+  });
+
+  try {
+    const route = reloadModule<typeof import("../app/api/projects/route")>(
+      "../app/api/projects/route.ts"
+    );
+
+    const response = await route.POST(
+      new Request("http://localhost/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      }) as never
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      error: "workspacePath is required in Electron mode",
+    });
+  } finally {
+    restoreSession();
+    if (previousElectron === undefined) {
+      delete process.env.ELECTRON;
+    } else {
+      process.env.ELECTRON = previousElectron;
+    }
+  }
+});
+
+test("POST /api/projects forwards workspacePath to storage in Electron mode", async () => {
+  const previousElectron = process.env.ELECTRON;
+  process.env.ELECTRON = "1";
+
+  const createdDrafts: Array<Record<string, unknown>> = [];
+
+  const restoreSession = patchModule("../lib/auth/session.ts", {
+    getSession: async () => ({
+      userId: "user-1",
+      email: "user@example.com",
+    }),
+  });
+  const restoreIds = patchModule("../lib/utils/id.ts", {
+    generateId: (() => {
+      const values = ["project-1", "run-1"];
+      return () => values.shift() ?? "unexpected-id";
+    })(),
+  });
+  const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
+    memoryStore: {
+      setRun: () => {},
+      saveArtifacts: async () => {},
+      saveSourcesMeta: () => {},
+    },
+  });
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      createDraftWorkspaceProjectRun: async (value: Record<string, unknown>) => {
+        createdDrafts.push(value);
+        return { title: "Untitled workspace", noteId: "note-1" };
+      },
+    }),
+    resetStorageForTests: () => {},
+  });
+
+  try {
+    const route = reloadModule<typeof import("../app/api/projects/route")>(
+      "../app/api/projects/route.ts"
+    );
+
+    const response = await route.POST(
+      new Request("http://localhost/api/projects", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          workspacePath: "/Users/tester/Workspace",
+        }),
+      }) as never
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(createdDrafts, [
+      {
+        projectId: "project-1",
+        runId: "run-1",
+        userId: "user-1",
+        title: undefined,
+        workspacePath: "/Users/tester/Workspace",
+      },
+    ]);
+  } finally {
+    restoreStorage();
+    restoreMemoryStore();
+    restoreIds();
+    restoreSession();
+    if (previousElectron === undefined) {
+      delete process.env.ELECTRON;
+    } else {
+      process.env.ELECTRON = previousElectron;
+    }
+  }
+});
+
+test("DELETE /api/projects/[projectId] clears warm in-memory state so deleted projects stay deleted", async () => {
+  const deletedProjects: string[] = [];
+  const clearedProjects: string[] = [];
+
+  const restoreSession = patchModule("../lib/auth/session.ts", {
+    getSession: async () => ({
+      userId: "user-1",
+      email: "user@example.com",
+    }),
+  });
+  const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
+    memoryStore: {
+      deleteProject: (projectId: string) => {
+        clearedProjects.push(projectId);
+      },
+    },
+  });
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      listResearchProjectsForUser: async () => [
+        {
+          id: "project-1",
+          runId: "run-1",
+          title: "Draft workspace",
+          status: "draft",
+          createdAt: new Date("2026-03-17T00:00:00Z"),
+          updatedAt: new Date("2026-03-17T01:00:00Z"),
+        },
+      ],
+      deleteProjectForUser: async (userId: string, projectId: string) => {
+        deletedProjects.push(`${userId}:${projectId}`);
+      },
+    }),
+    resetStorageForTests: () => {},
+  });
+
+  try {
+    const route = reloadModule<typeof import("../app/api/projects/[projectId]/route")>(
+      "../app/api/projects/[projectId]/route.ts"
+    );
+
+    const response = await route.DELETE(
+      new Request("http://localhost/api/projects/project-1", {
+        method: "DELETE",
+      }) as never,
+      { params: Promise.resolve({ projectId: "project-1" }) }
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { deleted: true });
+    assert.deepEqual(deletedProjects, ["user-1:project-1"]);
+    assert.deepEqual(clearedProjects, ["project-1"]);
+  } finally {
+    restoreStorage();
+    restoreMemoryStore();
     restoreSession();
   }
 });
@@ -489,19 +689,22 @@ test("warm in-memory runs are backfilled into persisted project records for the 
       }),
     },
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
-    getResearchRun: async () => null,
-    createResearchProjectRun: async (value: unknown) => {
-      created.push(value);
-    },
-    persistResearchArtifacts: async (value: unknown) => {
-      persistedArtifacts.push(value);
-    },
+  const restoreStorage = patchModule("../lib/storage/index.ts", {
+    getStorage: async () => ({
+      getResearchRun: async () => null,
+      createResearchProjectRun: async (value: unknown) => {
+        created.push(value);
+      },
+      persistResearchArtifacts: async (value: unknown) => {
+        persistedArtifacts.push(value);
+      },
+    }),
+    resetStorageForTests: () => {},
   });
 
   try {
-    const backfillModule = reloadModule<typeof import("../lib/db/backfill-warm-runs")>(
-      "../lib/db/backfill-warm-runs.ts"
+    const backfillModule = reloadModule<typeof import("../lib/storage/backfill-warm-runs")>(
+      "../lib/storage/backfill-warm-runs.ts"
     );
 
     await backfillModule.backfillWarmRunsForUser("user-1");
@@ -522,7 +725,7 @@ test("warm in-memory runs are backfilled into persisted project records for the 
 
     assert.equal(persistedArtifacts.length, 1);
   } finally {
-    restoreResearchProjects();
+    restoreStorage();
     restoreGraph();
     restoreMemoryStore();
   }

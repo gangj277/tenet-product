@@ -29,7 +29,16 @@ export async function GET() {
     await setSessionCookie(sessionToken);
 
     return redirectTo("/dashboard");
-  } catch {
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : "Failed to read the local Codex auth state.";
+
+    if (process.env.ELECTRON) {
+      return redirectTo(`/auth/login?error=${encodeURIComponent(message)}`);
+    }
+
     // Local session not available (deployed environment).
     // Redirect to login page which shows the token-paste flow.
     return redirectTo(

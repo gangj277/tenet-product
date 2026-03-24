@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun, getPersistedArtifacts, getExperimentMetadataForRun, getNoteMetadataForRun, getSourceMetadataForRun } from "@/lib/db/research-projects";
 import { memoryStore } from "@/lib/storage/memory-store";
 import {
   buildFileList,
@@ -24,6 +23,7 @@ import {
   mergeWorkspaceArtifacts,
   mergeWorkspaceSourceMeta,
 } from "@/lib/workspace/source-cache";
+import { getStorage } from "@/lib/storage";
 
 export const maxDuration = 300;
 
@@ -85,7 +85,8 @@ export async function POST(
   }
 
   // Verify ownership
-  const run = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const run = await storage.getOwnedResearchRun(session.userId, runId);
   if (!run) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
@@ -133,10 +134,10 @@ export async function POST(
   const memRun = memoryStore.getRun(runId);
   const [persistedArtifacts, persistedSourcesMeta, notesMeta, experimentsMeta] =
     await Promise.all([
-      getPersistedArtifacts(runId),
-      getSourceMetadataForRun(runId),
-      getNoteMetadataForRun(runId),
-      getExperimentMetadataForRun(runId),
+      storage.getPersistedArtifacts(runId),
+      storage.getSourceMetadataForRun(runId),
+      storage.getNoteMetadataForRun(runId),
+      storage.getExperimentMetadataForRun(runId),
     ]);
 
   const artifacts: Artifacts | null = mergeWorkspaceArtifacts(

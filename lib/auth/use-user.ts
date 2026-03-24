@@ -8,6 +8,7 @@ export interface User {
   name: string;
   organization: string | null;
   authProvider: "openai_auth";
+  sessionMode: "web_cookie" | "electron_local";
   openaiConnected: boolean;
   openaiConnection: {
     status: "valid" | "invalid" | "degraded";
@@ -54,10 +55,13 @@ export function useUser(): UseUserReturn {
   }, [refresh]);
 
   const logout = useCallback(async () => {
+    if (user?.sessionMode === "electron_local") {
+      return;
+    }
     await fetch("/api/auth/logout", { method: "POST" });
     setUser(null);
     window.location.href = "/auth/login";
-  }, []);
+  }, [user?.sessionMode]);
 
   return { user, loading, logout, refresh };
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun, deleteNote, updateNoteMeta } from "@/lib/db/research-projects";
+import { getStorage } from "@/lib/storage";
 
 export async function DELETE(
   _request: NextRequest,
@@ -14,12 +14,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    const deleted = await deleteNote(runId, noteId);
+    const deleted = await storage.deleteNote(runId, noteId);
     if (!deleted) {
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }
@@ -51,7 +52,8 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
@@ -65,7 +67,7 @@ export async function PATCH(
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
-    const updated = await updateNoteMeta(runId, noteId, updates);
+    const updated = await storage.updateNoteMeta(runId, noteId, updates);
     if (!updated) {
       return NextResponse.json({ error: "Note not found" }, { status: 404 });
     }

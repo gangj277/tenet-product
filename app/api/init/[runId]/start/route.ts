@@ -3,16 +3,10 @@ import { initGraph } from "@/lib/engine/graph";
 import { memoryStore } from "@/lib/storage/memory-store";
 import type { SourceEntry, UserInput } from "@/lib/engine/state";
 import { getSession } from "@/lib/auth/session";
-import {
-  getOwnedResearchRun,
-  getPersistedSourcesForRun,
-  updateProjectTitle,
-  updateResearchRunStatus,
-  upsertResearchRunInput,
-} from "@/lib/db/research-projects";
 import { runWithRequestProvider } from "@/lib/llm/runtime";
 import { ensureOpenAIProviderAccess } from "@/lib/llm/openai-access";
 import { acquireExclusiveLock } from "@/lib/utils/exclusive-lock";
+import { getStorage } from "@/lib/storage";
 
 export const maxDuration = 300;
 
@@ -36,7 +30,8 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const ownedRun = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
   if (!ownedRun) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
@@ -71,21 +66,21 @@ export async function POST(
       forceRevalidate: true,
     });
 
-    await upsertResearchRunInput({
+    await storage.upsertResearchRunInput({
       runId,
       input: body.input,
     });
-    await updateProjectTitle(
+    await storage.updateProjectTitle(
       ownedRun.projectId,
       buildTemporaryProjectTitle(body.input.researchQuestion)
     );
-    await updateResearchRunStatus({
+    await storage.updateResearchRunStatus({
       projectId: ownedRun.projectId,
       runId,
       status: "running",
     });
 
-    const persistedSources = await getPersistedSourcesForRun(runId);
+    const persistedSources = await storage.getPersistedSourcesForRun(runId);
     const initialSources = body.sources ?? persistedSources;
     const existingRun =
       typeof memoryStore.getRun === "function"
@@ -131,7 +126,7 @@ export async function POST(
       updatedAt: new Date().toISOString(),
     });
 
-    await updateResearchRunStatus({
+    await storage.updateResearchRunStatus({
       projectId: ownedRun.projectId,
       runId,
       status: "awaiting_confirmation",
@@ -146,7 +141,7 @@ export async function POST(
   } catch (err) {
     console.error("[draft-start] Pipeline error:", (err as Error).message);
 
-    await updateResearchRunStatus({
+    await storage.updateResearchRunStatus({
       projectId: ownedRun.projectId,
       runId,
       status: "failed",

@@ -35,6 +35,13 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function patchStorage(storage: Record<string, unknown>): () => void {
+  return patchModule("../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
+  });
+}
+
 test("appendMessages preserves caller-provided message ids", async () => {
   const insertedRows: unknown[] = [];
 
@@ -119,14 +126,11 @@ test("PATCH /api/agent/[runId]/sessions/[sessionId]/messages updates message met
       email: "user@example.com",
     }),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({
       runId: "run-1",
       projectId: "project-1",
     }),
-  });
-  const restoreChatSessions = patchModule("../lib/db/chat-sessions.ts", {
-    appendMessages: async () => {},
     updateMessageMetadata: async (
       sessionId: string,
       messageId: string,
@@ -185,8 +189,7 @@ test("PATCH /api/agent/[runId]/sessions/[sessionId]/messages updates message met
       },
     ]);
   } finally {
-    restoreChatSessions();
-    restoreResearchProjects();
+    restoreStorage();
     restoreSession();
   }
 });

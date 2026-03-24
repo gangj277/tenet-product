@@ -50,6 +50,7 @@ export async function createResearchProjectRun({
   runId,
   userId,
   input,
+  workspacePath,
   status,
   currentStep = "",
   startedAt,
@@ -59,11 +60,13 @@ export async function createResearchProjectRun({
   runId: string;
   userId: string;
   input: UserInput;
+  workspacePath?: string;
   status: ResearchRunStatus;
   currentStep?: string;
   startedAt?: Date;
   completedAt?: Date | null;
 }) {
+  void workspacePath;
   const now = startedAt ?? new Date();
   const userInputRow = buildUserInputInsert(runId, input);
 
@@ -96,6 +99,7 @@ export async function createDraftWorkspaceProjectRun({
   userId,
   title,
   noteId = crypto.randomUUID(),
+  workspacePath,
   startedAt,
 }: {
   projectId: string;
@@ -103,8 +107,10 @@ export async function createDraftWorkspaceProjectRun({
   userId: string;
   title?: string;
   noteId?: string;
+  workspacePath?: string;
   startedAt?: Date;
 }) {
+  void workspacePath;
   const now = startedAt ?? new Date();
   const workspaceTitle = buildWorkspaceTitle(title);
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun, deletePaper } from "@/lib/db/research-projects";
+import { getStorage } from "@/lib/storage";
 
 export async function DELETE(
   _request: NextRequest,
@@ -14,12 +14,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const ownedRun = await getOwnedResearchRun(session.userId, runId);
+    const storage = await getStorage();
+    const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
     if (!ownedRun) {
       return NextResponse.json({ error: "Run not found" }, { status: 404 });
     }
 
-    const deleted = await deletePaper(runId, paperId);
+    const deleted = await storage.deletePaper(runId, paperId);
     if (!deleted) {
       return NextResponse.json({ error: "Paper not found" }, { status: 404 });
     }

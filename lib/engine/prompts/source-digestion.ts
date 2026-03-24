@@ -14,6 +14,7 @@ Rules:
 - A quantitative detail should support a larger claim, not become its own separate claim unless it is independently important.
 - claimSignature should be short, stable, lowercase, and hyphenated.
 - Every claim must include at least one citation grounded in the provided text.
+- Always include every schema field. If a claim has no natural subquestion, return an empty string. If a citation has no short verbatim quote, return an empty string for quote.
 - Return concise arrays. Avoid near-duplicate claims.
 
 Output valid JSON matching the schema provided.`;
@@ -33,6 +34,7 @@ Rules:
 - Merge nearby supporting details into coherent claims rather than many atomic fragments.
 - Every claim must include at least one citation grounded in the provided window text.
 - claimSignature should be short, stable, lowercase, and hyphenated.
+- Always include every schema field. If a claim has no natural subquestion, return an empty string. If a citation has no short verbatim quote, return an empty string for quote.
 
 Output valid JSON matching the schema provided.`;
 }
@@ -51,6 +53,7 @@ Rules:
 - Do not compare or reconcile across different sources.
 - claimSignature should stay stable and grouping-friendly.
 - Return a compact but meaningful digest of what this source says.
+- Always include every schema field. If a claim has no natural subquestion, return an empty string. If a citation has no short verbatim quote, return an empty string for quote.
 
 Output valid JSON matching the schema provided.`;
 }

@@ -1,5 +1,5 @@
 import type { Artifacts, RunError } from "@/lib/engine/state";
-import type { SourceMeta } from "@/lib/db/research-projects";
+import type { SourceMeta } from "@/lib/storage/project-types";
 import type { AskUserAnswer } from "@/lib/agent/state";
 
 interface RunEntry {
@@ -92,6 +92,20 @@ function createMemoryStore(state: MemoryStoreState) {
     },
     listRuns(): RunEntry[] {
       return Array.from(runs.values());
+    },
+    deleteProject(projectId: string) {
+      for (const run of Array.from(runs.values())) {
+        if (run.projectId !== projectId) continue;
+        runs.delete(run.runId);
+        progress.delete(run.runId);
+        const pending = pendingQuestions.get(run.runId);
+        if (pending) {
+          pending.reject(new Error("Project deleted"));
+          pendingQuestions.delete(run.runId);
+        }
+      }
+      artifacts.delete(projectId);
+      sourcesMeta.delete(projectId);
     },
 
     // Artifacts

@@ -9,6 +9,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user, loading, logout } = useUser();
+  const showLogout = !!user && user.sessionMode !== "electron_local";
 
   return (
     <div className="min-h-screen grain">
@@ -33,12 +34,14 @@ export default function DashboardLayout({
                     </span>
                   )}
                 </span>
-                <button
-                  onClick={logout}
-                  className="font-sans text-[11px] uppercase tracking-[0.1em] text-dim hover:text-sub transition-colors cursor-pointer"
-                >
-                  Sign out
-                </button>
+                {showLogout ? (
+                  <button
+                    onClick={logout}
+                    className="font-sans text-[11px] uppercase tracking-[0.1em] text-dim hover:text-sub transition-colors cursor-pointer"
+                  >
+                    Sign out
+                  </button>
+                ) : null}
               </>
             )}
             {loading && (
@@ -72,12 +75,14 @@ export default function DashboardLayout({
                 >
                   Reconnect OpenAI
                 </Link>
-                <button
-                  onClick={logout}
-                  className="font-sans text-[13px] text-dim hover:text-sub transition-colors cursor-pointer"
-                >
-                  Sign out
-                </button>
+                {showLogout ? (
+                  <button
+                    onClick={logout}
+                    className="font-sans text-[13px] text-dim hover:text-sub transition-colors cursor-pointer"
+                  >
+                    Sign out
+                  </button>
+                ) : null}
               </div>
             </div>
           </div>

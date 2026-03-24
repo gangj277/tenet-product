@@ -35,6 +35,13 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function patchStorage(storage: Record<string, unknown>): () => void {
+  return patchModule("../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
+  });
+}
+
 test("GET /api/init/[runId] prefers failed persisted status over stale graph state", async () => {
   const restoreSession = patchModule("../lib/auth/session.ts", {
     getSession: async () => ({
@@ -42,7 +49,7 @@ test("GET /api/init/[runId] prefers failed persisted status over stale graph sta
       email: "user@example.com",
     }),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({
       runId: "run-1",
       projectId: "project-1",
@@ -107,7 +114,7 @@ test("GET /api/init/[runId] prefers failed persisted status over stale graph sta
   } finally {
     restoreGraph();
     restoreMemoryStore();
-    restoreResearchProjects();
+    restoreStorage();
     restoreSession();
   }
 });
@@ -119,7 +126,7 @@ test("GET /api/init/[runId] includes the inferred perspective while awaiting con
       email: "user@example.com",
     }),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({
       runId: "run-1",
       projectId: "project-1",
@@ -176,7 +183,7 @@ test("GET /api/init/[runId] includes the inferred perspective while awaiting con
   } finally {
     restoreGraph();
     restoreMemoryStore();
-    restoreResearchProjects();
+    restoreStorage();
     restoreSession();
   }
 });
@@ -192,7 +199,7 @@ test("POST /api/init/[runId]/confirm marks the active step failed when backgroun
       email: "user@example.com",
     }),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({
       runId: "run-1",
       projectId: "project-1",
@@ -312,7 +319,7 @@ test("POST /api/init/[runId]/confirm marks the active step failed when backgroun
     restoreOpenAIAccess();
     restoreGraph();
     restoreMemoryStore();
-    restoreResearchProjects();
+    restoreStorage();
     restoreSession();
   }
 });

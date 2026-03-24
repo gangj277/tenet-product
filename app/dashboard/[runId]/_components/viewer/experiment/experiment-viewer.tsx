@@ -13,8 +13,10 @@ import {
   cloneExperimentDesign,
   parseExperimentDesignContent,
 } from "./experiment-utils";
+import { OpenInIdeButton } from "../open-in-ide-button";
 
 export function ExperimentViewer({
+  runId,
   activeFile,
   content,
   sourceFiles,
@@ -26,6 +28,7 @@ export function ExperimentViewer({
   onAcceptUpdate,
   onRejectUpdate,
 }: {
+  runId: string;
   activeFile: FileEntry;
   content: string;
   sourceFiles?: SourceRef[];
@@ -120,6 +123,7 @@ export function ExperimentViewer({
           )}
         </div>
         <div className="flex items-center gap-2">
+          <OpenInIdeButton runId={runId} fileKey={activeFile.key} />
           {/* Save status */}
           {saveStatus === "saving" && (
             <span className="flex items-center gap-1 text-[11px] font-medium text-dim">

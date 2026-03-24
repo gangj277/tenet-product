@@ -4,14 +4,10 @@ import { memoryStore } from "@/lib/storage/memory-store";
 import { initGraph } from "@/lib/engine/graph";
 import type { Perspective } from "@/lib/engine/state";
 import { getSession } from "@/lib/auth/session";
-import {
-  getOwnedResearchRun,
-  updateResearchRunStatus,
-  updateProjectTitle,
-} from "@/lib/db/research-projects";
 import { runWithRequestProvider } from "@/lib/llm/runtime";
 import { ensureOpenAIProviderAccess } from "@/lib/llm/openai-access";
 import { acquireExclusiveLock } from "@/lib/utils/exclusive-lock";
+import { getStorage } from "@/lib/storage";
 
 interface ConfirmBody {
   action: "accept" | "edit";
@@ -32,7 +28,8 @@ export async function POST(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const ownedRun = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
   if (!ownedRun) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
@@ -76,7 +73,7 @@ export async function POST(
       errors: [],
       updatedAt: new Date().toISOString(),
     });
-    await updateResearchRunStatus({
+    await storage.updateResearchRunStatus({
       projectId: ownedRun.projectId,
       runId,
       status: "running",
@@ -87,7 +84,7 @@ export async function POST(
       ? body.perspective?.projectTitle
       : (await initGraph.getState(config)).values?.perspective?.projectTitle;
     if (perspectiveTitle) {
-      void updateProjectTitle(ownedRun.projectId, perspectiveTitle);
+      void storage.updateProjectTitle(ownedRun.projectId, perspectiveTitle);
     }
 
     // Initialize progress tracking
@@ -120,7 +117,7 @@ export async function POST(
           errors: Array.isArray(result.errors) ? result.errors : [],
           updatedAt: new Date().toISOString(),
         });
-        return updateResearchRunStatus({
+        return storage.updateResearchRunStatus({
           projectId: ownedRun.projectId,
           runId,
           status: result.status ?? "completed",
@@ -157,7 +154,7 @@ export async function POST(
           ],
           updatedAt: timestamp,
         });
-        void updateResearchRunStatus({
+        void storage.updateResearchRunStatus({
           projectId: ownedRun.projectId,
           runId,
           status: "failed",

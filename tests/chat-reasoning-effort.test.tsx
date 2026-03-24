@@ -41,6 +41,13 @@ function patchModule(modulePath: string, exports: unknown): () => void {
   };
 }
 
+function patchStorage(storage: Record<string, unknown>): () => void {
+  return patchModule("../lib/storage/index.ts", {
+    getStorage: async () => storage,
+    resetStorageForTests: () => {},
+  });
+}
+
 test("chat composer renders a compact reasoning dropdown trigger with the selected level", async () => {
   const composerModule = await import(
     "../app/dashboard/[runId]/_components/chat/chat-composer.tsx"
@@ -100,12 +107,12 @@ test("agent chat forwards requested reasoning effort and continuation state into
       },
     }),
   });
-  const restoreResearchProjects = patchModule("../lib/db/research-projects.ts", {
+  const restoreStorage = patchStorage({
     getOwnedResearchRun: async () => ({ runId: "run-1", projectId: "project-1" }),
     getPersistedArtifacts: async () => null,
-    getExperimentMetadataForRun: async () => [],
-    getNoteMetadataForRun: async () => [],
-    getSourceMetadataForRun: async () => [],
+    getExperimentMetadataForRun: async () => ({}),
+    getNoteMetadataForRun: async () => ({}),
+    getSourceMetadataForRun: async () => ({}),
   });
   const restoreMemoryStore = patchModule("../lib/storage/memory-store.ts", {
     memoryStore: {
@@ -254,7 +261,7 @@ test("agent chat forwards requested reasoning effort and continuation state into
     restoreAgentGraph();
     restoreWorkspaceTypes();
     restoreMemoryStore();
-    restoreResearchProjects();
+    restoreStorage();
     restoreOpenAIAccess();
     restoreSession();
     clearModule("../app/api/agent/[runId]/chat/route.ts");

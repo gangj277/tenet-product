@@ -7,6 +7,7 @@ import { PaperViewer } from "./paper-viewer";
 import { ExperimentViewer } from "./experiment/experiment-viewer";
 
 export function DocumentViewer({
+  runId,
   activeFile,
   content,
   onUpdate,
@@ -23,6 +24,7 @@ export function DocumentViewer({
   onRejectUpdate,
   onQuoteToChat,
 }: {
+  runId: string;
   activeFile: FileEntry | undefined;
   content: string;
   onUpdate: (md: string) => void;
@@ -42,6 +44,7 @@ export function DocumentViewer({
   if (activeFile?.fileType === "latex") {
     return (
       <PaperViewer
+        runId={runId}
         activeFile={activeFile}
         content={content}
         onUpdate={onUpdate}
@@ -70,6 +73,7 @@ export function DocumentViewer({
   ) {
     return (
       <ExperimentViewer
+        runId={runId}
         activeFile={activeFile}
         content={content}
         sourceFiles={sourceFiles}
@@ -86,6 +90,7 @@ export function DocumentViewer({
 
   return (
     <MarkdownDocumentViewer
+      runId={runId}
       activeFile={activeFile}
       content={content}
       onUpdate={onUpdate}

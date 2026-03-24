@@ -11,7 +11,7 @@ import type {
   StreamChunk,
   AccumulatedToolCall,
 } from "../types";
-import type { CredentialValidation } from "@/lib/db/user-credentials";
+import type { CredentialValidation } from "@/lib/storage/credential-types";
 
 export interface OpenAIAuthCredentials {
   accessToken: string;

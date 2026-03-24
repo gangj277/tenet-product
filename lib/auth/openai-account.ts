@@ -1,7 +1,4 @@
-import { eq } from "drizzle-orm";
-import { db } from "@/lib/db/client";
-import { users } from "@/lib/db/schema";
-import { upsertUserLLMCredentials } from "@/lib/db/user-credentials";
+import { getStorage } from "@/lib/storage";
 import { validateOpenAIConnection } from "@/lib/llm/openai-connection";
 import { decodeJwtPayload } from "./openai-oauth";
 
@@ -77,6 +74,7 @@ function extractName(
 export async function connectOpenAIAccount(
   tokens: OpenAIAccountTokens
 ): Promise<OpenAIAccountResult> {
+  const storage = await getStorage();
   const accessClaims = decodeJwtPayload(tokens.accessToken);
   const idClaims = tokens.idToken ? decodeJwtPayload(tokens.idToken) : {};
 
@@ -88,35 +86,11 @@ export async function connectOpenAIAccount(
   const email = extractEmail(accessClaims, idClaims);
   const normalizedEmail = email.toLowerCase().trim() || `openai-${accountId}@codex.local`;
   const name = extractName(accessClaims, idClaims, normalizedEmail);
-
-  const [existingUser] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(eq(users.email, normalizedEmail))
-    .limit(1);
-
-  let userId: string;
-  if (existingUser) {
-    userId = existingUser.id;
-    await db
-      .update(users)
-      .set({
-        authProvider: "openai_auth",
-        name,
-      })
-      .where(eq(users.id, userId));
-  } else {
-    const [newUser] = await db
-      .insert(users)
-      .values({
-        email: normalizedEmail,
-        passwordHash: null,
-        name,
-        authProvider: "openai_auth",
-      })
-      .returning({ id: users.id });
-    userId = newUser.id;
-  }
+  const user = await storage.upsertUser({
+    email: normalizedEmail,
+    name,
+    authProvider: "openai_auth",
+  });
 
   const validation = await validateOpenAIConnection({
     accessToken: tokens.accessToken,
@@ -125,7 +99,7 @@ export async function connectOpenAIAccount(
     accountId,
   });
 
-  await upsertUserLLMCredentials(userId, {
+  await storage.upsertLLMCredentials(user.id, {
     kind: "openai_auth",
     access: tokens.accessToken,
     refresh: tokens.refreshToken,
@@ -139,7 +113,7 @@ export async function connectOpenAIAccount(
   }
 
   return {
-    userId,
+    userId: user.id,
     email: normalizedEmail,
   };
 }

@@ -1,5 +1,10 @@
 import { SignJWT, jwtVerify } from "jose";
 import { cookies } from "next/headers";
+import {
+  ELECTRON_LOCAL_USER_EMAIL,
+  ELECTRON_LOCAL_USER_ID,
+  isElectronRuntime,
+} from "@/lib/storage/local-user";
 
 const SESSION_COOKIE = "lumen_session";
 const SECRET = new TextEncoder().encode(
@@ -22,6 +27,10 @@ export async function createSession(payload: SessionPayload): Promise<string> {
 }
 
 export async function setSessionCookie(token: string) {
+  if (isElectronRuntime()) {
+    void token;
+    return;
+  }
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, token, {
     httpOnly: true,
@@ -33,6 +42,13 @@ export async function setSessionCookie(token: string) {
 }
 
 export async function getSession(): Promise<SessionPayload | null> {
+  if (isElectronRuntime()) {
+    return {
+      userId: ELECTRON_LOCAL_USER_ID,
+      email: ELECTRON_LOCAL_USER_EMAIL,
+    };
+  }
+
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE)?.value;
   if (!token) return null;
@@ -49,6 +65,9 @@ export async function getSession(): Promise<SessionPayload | null> {
 }
 
 export async function clearSession() {
+  if (isElectronRuntime()) {
+    return;
+  }
   const cookieStore = await cookies();
   cookieStore.delete(SESSION_COOKIE);
 }

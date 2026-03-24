@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { memoryStore } from "@/lib/storage/memory-store";
 import { initGraph } from "@/lib/engine/graph";
 import { getSession } from "@/lib/auth/session";
-import { getOwnedResearchRun } from "@/lib/db/research-projects";
+import { getStorage } from "@/lib/storage";
 import type { InitRunState, Perspective, RunError } from "@/lib/engine/state";
 import type { StepProgress } from "@/lib/storage/memory-store";
 
@@ -91,7 +91,8 @@ export async function GET(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const ownedRun = await getOwnedResearchRun(session.userId, runId);
+  const storage = await getStorage();
+  const ownedRun = await storage.getOwnedResearchRun(session.userId, runId);
   if (!ownedRun) {
     return NextResponse.json({ error: "Run not found" }, { status: 404 });
   }
