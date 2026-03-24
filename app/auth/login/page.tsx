@@ -16,18 +16,67 @@ function LoginPageContent() {
   const error = searchParams.get("error");
   const mode = searchParams.get("mode");
 
-  return <LoginPageBody error={error} showPaste={mode === "paste"} />;
+  return <LoginPageBody error={error} initialMode={mode === "paste" ? "paste" : "auto"} />;
+}
+
+type AuthMode = "auto" | "paste" | "setup";
+
+function CopyCommand({ command }: { command: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(command).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [command]);
+
+  return (
+    <button
+      onClick={handleCopy}
+      className="group w-full flex items-center justify-between px-4 py-3 rounded-lg border border-edge/40 bg-edge/10 hover:border-edge/60 hover:bg-edge/15 transition-all cursor-pointer"
+    >
+      <code className="font-mono text-[12px] text-sub leading-[1.6]">
+        {command}
+      </code>
+      <span className="flex items-center gap-1 text-[11px] text-dim group-hover:text-sub transition-colors shrink-0 ml-3">
+        {copied ? (
+          <>
+            <svg className="w-3.5 h-3.5 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            Copied
+          </>
+        ) : (
+          <>
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+            </svg>
+            Copy
+          </>
+        )}
+      </span>
+    </button>
+  );
+}
+
+function StepNumber({ n }: { n: number }) {
+  return (
+    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-edge/20 border border-edge/30 flex items-center justify-center font-mono text-[10px] text-dim font-semibold">
+      {n}
+    </span>
+  );
 }
 
 function LoginPageBody({
   error,
-  showPaste = false,
+  initialMode = "auto",
 }: {
   error?: string | null;
-  showPaste?: boolean;
+  initialMode?: AuthMode;
 } = {}) {
   const router = useRouter();
-  const [pasteMode, setPasteMode] = useState(showPaste);
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [authJson, setAuthJson] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -37,7 +86,6 @@ function LoginPageBody({
     setSubmitError(null);
 
     try {
-      // Parse the pasted JSON — accept either the full auth.json or just the tokens object
       let parsed: Record<string, unknown>;
       try {
         parsed = JSON.parse(authJson.trim());
@@ -45,7 +93,6 @@ function LoginPageBody({
         throw new Error("Invalid JSON. Copy the entire contents of ~/.codex/auth.json.");
       }
 
-      // Support both full auth.json format and direct tokens object
       const tokens = (parsed.tokens ?? parsed) as Record<string, unknown>;
       const accessToken =
         (tokens.access_token as string) || (tokens.accessToken as string) || "";
@@ -77,19 +124,17 @@ function LoginPageBody({
     }
   }, [authJson, router]);
 
-  const displayError = submitError || (error && !showPaste ? error : null);
+  const displayError = submitError || error;
 
   return (
     <div className="reveal">
       <div className="decorative-diamond mb-8 opacity-50" />
 
       <h1 className="font-serif text-[clamp(1.6rem,3.5vw,2rem)] leading-[1.2] tracking-[-0.02em] text-heading mb-2">
-        Continue with OpenAI
+        Sign in to Lumen
       </h1>
-      <p className="font-sans text-[13.5px] leading-[1.65] text-sub mb-10">
-        {pasteMode
-          ? "Paste your Codex session to sign in. Run the command below on a machine where you\u2019ve logged into Codex, then paste the output here."
-          : "Lumen imports the OpenAI session already connected through Codex on this device, then uses that account for sign-in and runtime access."}
+      <p className="font-sans text-[13.5px] leading-[1.65] text-sub mb-8">
+        Lumen uses your OpenAI account for authentication and LLM access.
       </p>
 
       {displayError && (
@@ -98,8 +143,9 @@ function LoginPageBody({
         </div>
       )}
 
-      {!pasteMode ? (
-        <>
+      {/* ── Auto-detect mode (local/Electron) ── */}
+      {mode === "auto" && (
+        <div className="space-y-4">
           <a
             href="/api/auth/openai"
             className="group flex items-center justify-center gap-2.5 w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300"
@@ -110,26 +156,50 @@ function LoginPageBody({
             Continue with OpenAI
           </a>
 
-          <button
-            onClick={() => setPasteMode(true)}
-            className="mt-4 w-full font-sans text-[13px] text-dim hover:text-sub transition-colors py-2 cursor-pointer"
-          >
-            Or paste session tokens manually
-          </button>
-        </>
-      ) : (
-        <div className="space-y-4">
-          <div className="px-4 py-3 rounded-lg border border-edge/40 bg-edge/10">
-            <p className="font-mono text-[12px] text-sub leading-[1.6] select-all">
-              cat ~/.codex/auth.json
-            </p>
+          <div className="flex items-center gap-3 py-2">
+            <div className="flex-1 h-px bg-edge/30" />
+            <span className="font-sans text-[11px] text-dim uppercase tracking-widest">or</span>
+            <div className="flex-1 h-px bg-edge/30" />
           </div>
+
+          <button
+            onClick={() => setMode("paste")}
+            className="w-full flex items-center justify-center gap-2 font-sans text-[13px] font-medium text-sub hover:text-heading py-3 rounded-lg border border-edge/40 hover:border-edge/60 hover:bg-edge/10 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+            </svg>
+            I have Codex installed — paste session
+          </button>
+
+          <button
+            onClick={() => setMode("setup")}
+            className="w-full flex items-center justify-center gap-2 font-sans text-[13px] text-dim hover:text-sub py-2.5 transition-colors cursor-pointer"
+          >
+            I don&apos;t have Codex — help me set up
+          </button>
+        </div>
+      )}
+
+      {/* ── Paste mode (has Codex, needs to paste auth.json) ── */}
+      {mode === "paste" && (
+        <div className="space-y-4">
+          <p className="font-sans text-[13px] text-sub leading-[1.65]">
+            Run this in your terminal to copy your session to clipboard:
+          </p>
+
+          <CopyCommand command="cat ~/.codex/auth.json | pbcopy" />
+
+          <p className="font-sans text-[11px] text-dim">
+            Linux: use <button onClick={() => navigator.clipboard.writeText("cat ~/.codex/auth.json | xclip -selection clipboard")} className="font-mono text-accent hover:underline cursor-pointer">xclip</button> instead of pbcopy.
+            Or just copy the file contents manually.
+          </p>
 
           <textarea
             value={authJson}
             onChange={(e) => setAuthJson(e.target.value)}
-            placeholder='Paste the contents of ~/.codex/auth.json here...'
-            rows={6}
+            placeholder="Paste your auth.json contents here..."
+            rows={5}
             disabled={submitting}
             className="w-full bg-transparent border border-edge/60 rounded-lg px-4 py-3 font-mono text-[12px] leading-[1.6] text-heading placeholder:text-dim/40 focus:outline-none focus:border-accent/40 transition-all resize-y disabled:opacity-50"
           />
@@ -139,29 +209,84 @@ function LoginPageBody({
             disabled={!authJson.trim() || submitting}
             className="w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 disabled:opacity-50 cursor-pointer"
           >
-            {submitting ? "Signing in..." : "Sign in with pasted tokens"}
+            {submitting ? "Signing in\u2026" : "Sign in"}
           </button>
 
           <button
-            onClick={() => setPasteMode(false)}
-            className="w-full font-sans text-[13px] text-dim hover:text-sub transition-colors py-2 cursor-pointer"
+            onClick={() => setMode("auto")}
+            className="w-full font-sans text-[12px] text-dim hover:text-sub transition-colors py-1.5 cursor-pointer"
           >
-            Back to automatic sign-in
+            Back
           </button>
         </div>
       )}
 
-      <div className="mt-8 px-4 py-4 rounded-xl border border-edge/40 bg-edge/10">
-        <p className="font-sans text-[12px] font-medium text-heading mb-1.5">
-          How it works
-        </p>
-        <p className="font-sans text-[12.5px] leading-[1.65] text-sub">
-          Lumen uses your OpenAI Codex session for authentication and LLM access.
-          On a local machine, click &ldquo;Continue with OpenAI&rdquo; to auto-detect your session.
-          On the web, paste the output of <code className="px-1 py-0.5 rounded bg-edge/20 text-[11px]">cat ~/.codex/auth.json</code> from
-          a machine where you&apos;ve run <code className="px-1 py-0.5 rounded bg-edge/20 text-[11px]">codex login</code>.
-        </p>
-      </div>
+      {/* ── Setup mode (no Codex installed) ── */}
+      {mode === "setup" && (
+        <div className="space-y-5">
+          <div className="px-4 py-4 rounded-xl border border-edge/40 bg-edge/10 space-y-4">
+            <p className="font-sans text-[12px] font-medium text-heading">
+              One-time setup (takes ~2 minutes)
+            </p>
+
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <StepNumber n={1} />
+                <div className="flex-1 space-y-2">
+                  <p className="font-sans text-[12.5px] text-sub leading-[1.6]">
+                    Install and login to Codex:
+                  </p>
+                  <CopyCommand command="npx codex login" />
+                  <p className="font-sans text-[11px] text-dim leading-[1.5]">
+                    This opens OpenAI in your browser. Sign in with the account that has your ChatGPT Pro / Plus subscription.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <StepNumber n={2} />
+                <div className="flex-1 space-y-2">
+                  <p className="font-sans text-[12.5px] text-sub leading-[1.6]">
+                    Copy your session to clipboard:
+                  </p>
+                  <CopyCommand command="cat ~/.codex/auth.json | pbcopy" />
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <StepNumber n={3} />
+                <p className="font-sans text-[12.5px] text-sub leading-[1.6]">
+                  Paste it below and sign in.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <textarea
+            value={authJson}
+            onChange={(e) => setAuthJson(e.target.value)}
+            placeholder="Paste your auth.json contents here..."
+            rows={5}
+            disabled={submitting}
+            className="w-full bg-transparent border border-edge/60 rounded-lg px-4 py-3 font-mono text-[12px] leading-[1.6] text-heading placeholder:text-dim/40 focus:outline-none focus:border-accent/40 transition-all resize-y disabled:opacity-50"
+          />
+
+          <button
+            onClick={handleTokenPaste}
+            disabled={!authJson.trim() || submitting}
+            className="w-full font-sans text-[14px] font-medium py-3.5 bg-zinc-900 text-white rounded-lg hover:bg-zinc-800 transition-all duration-300 disabled:opacity-50 cursor-pointer"
+          >
+            {submitting ? "Signing in\u2026" : "Sign in"}
+          </button>
+
+          <button
+            onClick={() => setMode("auto")}
+            className="w-full font-sans text-[12px] text-dim hover:text-sub transition-colors py-1.5 cursor-pointer"
+          >
+            Back
+          </button>
+        </div>
+      )}
     </div>
   );
 }
